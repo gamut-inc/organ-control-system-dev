@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.03 - inlets=2: inlet 1 receives routed stop events from send/receive; jsbox in context
+// 01.04 - format fix: stop mID lID dID stopID state (consistent for both routing paths)
 // 25.05.2026
 
 autowatch = 1;
@@ -534,19 +534,21 @@ function resetSystem() {
 // ================================================================================================
 // STOP EVENT ROUTING  (inlet 1 — routed from organ_stops send/receive)
 // ================================================================================================
-// Format: "stop <stopID> <manualID|-1> <layerID|-1> <divisionID|-1> <state 0|1>"
-// Called from organ_stops receive → js inlet 1 for every stop button toggle.
-// This replaces per-button MaxobjListeners (each cost ~59 ms at load time).
+// Format: "stop <manualID|-1> <layerID|-1> <divisionID|-1> <stopID> <state 0|1>"
+// Sent from every stop button via:  prepend stopID → prepend "stop" mID lID dID → send organ_stops
+// OR (for file-based layer patchers): bpatcher outlet → prepend "stop" mID lID dID → send organ_stops
+// This replaces per-button MaxobjListeners (each cost ~36 ms of newdefault overhead at load time).
 
 function anything() {
     if (inlet !== 1 || messagename !== "stop") return;
     if (!system.organModule || typeof system.organModule.handleStopEvent !== "function") return;
 
-    var stopID    = arguments[0];
-    var manualID  = (arguments[1] !== -1) ? arguments[1]  : null;
-    var layerID   = (arguments[2] !== -1) ? arguments[2]  : null;
-    var divisionID= (arguments[3] !== -1) ? arguments[3]  : null;
-    var state     = Boolean(arguments[4]);
+    // arguments: [manualID, layerID, divisionID, stopID, state]
+    var manualID   = (arguments[0] !== -1) ? arguments[0] : null;
+    var layerID    = (arguments[1] !== -1) ? arguments[1] : null;
+    var divisionID = (arguments[2] !== -1) ? arguments[2] : null;
+    var stopID     = arguments[3];
+    var state      = Boolean(arguments[4]);
 
     system.organModule.handleStopEvent(stopID, manualID, layerID, divisionID, state);
 }

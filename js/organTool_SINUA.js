@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.08 - Send/receive routing: replace per-button MaxobjListeners with prepend→send→receive→inlet1
+// 01.09 - File-based layer patchers: generate .maxpat once, load from disk per layer (skip newdefault)
 // 25.05.2026
 
 autowatch = 1;
@@ -12,7 +12,8 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     var organState = {
         name: "No Organ Loaded",
         filepath: null,
-        cachedStops: { movable: [], divisions: [] }  // reused by +Layer without DataLayer round-trip
+        cachedStops: { movable: [], divisions: [] },  // reused by +Layer without DataLayer round-trip
+        layerStopFilename: null  // generated layer_stops_{organ}.maxpat, reused across all layers
     };
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
@@ -329,6 +330,15 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             // Set up ONE global receive in main patcher → js inlet 1 (replaces per-button listeners)
             setupStopRouting();
 
+            // Generate layer stop patcher file ONCE — reused for all layers / all manuals
+            if (hasManuals && organData.stops && organData.stops.movable.length > 0) {
+                organState.layerStopFilename = null; // Reset in case of reload
+                var tGenFile = Date.now();
+                organState.layerStopFilename = writeLayerStopFile(organData.stops.movable, organState.name);
+                post("⏱ Layer stop file generated in " + (Date.now()-tGenFile) + "ms  → " +
+                    (organState.layerStopFilename || "FAILED") + "\n");
+            }
+
             if (hasManuals) {
                 guiObjects.manuals = createManualSection(context.patcher, organData.manuals, organData.stops);
                 common.log(common.LOG_LEVEL.INFO, "Created " + organData.manuals.length + " manual bpatchers");
@@ -531,41 +541,79 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var pos = common.GEOMETRY.sinua.layers.bpatcher(layerID, stopData.movable, stopData.divisions);
     var bpatcher = common.createBpatcher(p, pos.x, pos.y, pos.w, pos.h, "layer" + layerID);
     if (!bpatcher) return null;
+    var sp = bpatcher.subpatcher();
     var tL1 = Date.now();
 
-    var context = createActionContext(manualID, layerID, null);
-
+    var actionCtx = createActionContext(manualID, layerID, null);  // renamed to avoid shadowing outer context
     var fs = common.GEOMETRY.button.fontsize;
     var labelPos = common.GEOMETRY.label;
-    var label  = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "LAYER " + layerID);
-    var panic  = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic",  "PANIC",  context, fs.large);
-    var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
+    var label  = common.createLiveComment(sp, labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "LAYER " + layerID);
+    var panic  = createGUIButton(sp, common.GEOMETRY.button.pos(0, 1), "panic",  "PANIC",  actionCtx, fs.large);
+    var cancel = createGUIButton(sp, common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", actionCtx, fs.small);
     var tL2 = Date.now();
 
-    // Use routed approach (prepend+send) — no per-button MaxobjListeners
-    var movableMap = createStopArrayRouted(bpatcher.subpatcher(),
-        common.GEOMETRY.sinua.layers.stopArray.x(), 0,
-        stopData.movable, manualID, layerID, null);
+    // *** MOVABLE STOPS: load from pre-built file (avoids N × newdefault calls) ***
+    var stopButtonMap = {};
+    var sx = common.GEOMETRY.sinua.layers.stopArray.x();
+    var G  = common.GEOMETRY;
+
+    if (organState.layerStopFilename) {
+        var stopsW = G.grid.multiColumnWidth(stopData.movable.length, G.columns.margin());
+        var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
+
+        // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS
+        var stopsBp = sp.newdefault(sx, 0, "bpatcher",
+            "@varname", "stops_" + layerID,
+            "@patching_rect", sx, 0, stopsW, stopsH,
+            "@presentation_rect", sx, 0, stopsW, stopsH,
+            "@presentation", 1,
+            "@name", organState.layerStopFilename,
+            "@embed", 0
+        );
+
+        if (stopsBp) {
+            // Harvest button references via getnamed() for CANCEL visual updates (zero newdefault)
+            stopData.movable.forEach(function(stop) {
+                var liveText = stopsBp.subpatcher().getnamed("stop" + stop.stopID);
+                if (liveText) { stopButtonMap[stop.stopID] = liveText; }
+            });
+
+            // Route: bpatcher outlet 0 → prepend "stop" mID lID -1 → send organ_stops
+            // Format: "stop <manualID> <layerID> <-1> <stopID> <state>"
+            var routePrep = sp.newdefault(-400, -100, "prepend", "stop", manualID, layerID, -1);
+            var routeSend = sp.newdefault(-400,  -78, "send", "organ_stops");
+            try {
+                sp.connect(stopsBp, 0, routePrep, 0);
+                sp.connect(routePrep, 0, routeSend, 0);
+            } catch(e) {
+                common.log(common.LOG_LEVEL.ERROR, "Layer routing connect failed: " + e.message);
+            }
+        } else {
+            common.log(common.LOG_LEVEL.WARN, "Could not load stops from file — falling back to newdefault");
+            var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
+            Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
+        }
+    } else {
+        // No file available (e.g. +Layer called before organ reload) — use in-memory routing
+        var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
+        Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
+    }
     var tL3 = Date.now();
 
-    var divisionPos = common.GEOMETRY.sinua.layers.divisionArray(stopData.movable.length);
-    var divMap = createStopArrayRouted(bpatcher.subpatcher(), divisionPos.x, 0,
-        stopData.divisions, manualID, layerID, null);
+    // *** DIVISION (DIV) BUTTONS: small count — in-memory routing is fine ***
+    var divisionPos = G.sinua.layers.divisionArray(stopData.movable.length);
+    var divMap = createStopArrayRouted(sp, divisionPos.x, 0, stopData.divisions, manualID, layerID, null);
+    Object.keys(divMap).forEach(function(id) { stopButtonMap[id] = divMap[id]; });
     var tL4 = Date.now();
 
-    // Merge movable + division button maps for CANCEL visual updates
-    var stopButtonMap = {};
-    Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
-    Object.keys(divMap).forEach(function(id) { stopButtonMap[id] = divMap[id]; });
-
-    post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stops[" + stopData.movable.length + "]=" + (tL3-tL2) + "ms  divs[" + stopData.divisions.length + "]=" + (tL4-tL3) + "ms\n");
+    post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stopsFile=" + (tL3-tL2) + "ms  divs=" + (tL4-tL3) + "ms\n");
 
     return {
         bpatcher: bpatcher,
         layerID: layerID,
         panic: panic,
         cancel: cancel,
-        context: context,
+        context: actionCtx,
         stopButtonMap: stopButtonMap // {stopID → live.text} for CANCEL
     };
 }
@@ -785,20 +833,24 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
 }
 
 // *** ROUTING VERSION: no per-button MaxobjListeners ***
-// Each button is wired: live.text → prepend "stop" stopID mID lID dID → send "organ_stops"
-// ONE global receive in context.patcher catches all and calls handleStopEvent via js inlet 1.
+// Two-stage routing so ALL stop arrays (in-memory AND file-based) use the same message format:
+//   live.text → prepend stopID → shared prepend "stop" mID lID dID → send "organ_stops"
+// Output message: "stop <mID> <lID> <dID> <stopID> <state>"   (handled by Universal.js anything())
+// Used for: small arrays (layer DIV buttons, division panel) where file approach is overkill.
 function createStopArrayRouted(p, startX, startY, stopData, manualID, layerID, divisionID) {
     if (!p || !stopData || stopData.length === 0) return {};
 
     var buttonMap = {};
     var currentColumn = 0;
     var currentRow = 0;
-    var mID = (manualID  !== null && manualID  !== undefined) ? manualID  : -1;
-    var lID = (layerID   !== null && layerID   !== undefined) ? layerID   : -1;
+    var mID = (manualID   !== null && manualID   !== undefined) ? manualID   : -1;
+    var lID = (layerID    !== null && layerID    !== undefined) ? layerID    : -1;
     var dID = (divisionID !== null && divisionID !== undefined) ? divisionID : -1;
 
-    // ONE send object for ALL stops in this array — placed offscreen
-    var sendObj = p.newdefault(-500, -20, "send", "organ_stops");
+    // Shared context objects — created ONCE for the whole array
+    var sendObj  = p.newdefault(-500, -20, "send", "organ_stops");
+    var ctxPrep  = p.newdefault(-500, -40, "prepend", "stop", mID, lID, dID);
+    try { p.connect(ctxPrep, 0, sendObj, 0); } catch(e) {}
 
     stopData.forEach(function(stop, index) {
         var marginX = typeof common.GEOMETRY.columns.margin === 'function' ?
@@ -814,29 +866,159 @@ function createStopArrayRouted(p, startX, startY, stopData, manualID, layerID, d
 
         if (stopObj && stopObj.liveText) {
             buttonMap[stop.stopID] = stopObj.liveText;
-
-            // Prepend encodes routing metadata so the single receive can dispatch correctly.
-            // Output format: "stop <stopID> <mID> <lID> <dID> <0|1>"
-            var prepObj = p.newdefault(-500, -40 - (index * 20),
-                "prepend", "stop", stop.stopID, mID, lID, dID);
-
+            var stopPrep = p.newdefault(-500, -60 - (index * 20), "prepend", stop.stopID);
             try {
-                p.connect(stopObj.liveText, 0, prepObj, 0);
-                p.connect(prepObj, 0, sendObj, 0);
-            } catch(e) {
-                common.log(common.LOG_LEVEL.ERROR,
-                    "createStopArrayRouted: connect failed for stop " + stop.stopID + ": " + e.message);
-            }
+                p.connect(stopObj.liveText, 0, stopPrep, 0);
+                p.connect(stopPrep, 0, ctxPrep, 0);
+            } catch(e) {}
         }
 
         currentRow++;
-        if (currentRow >= common.MAX_STOPS_PER_COLUMN) {
-            currentColumn++;
-            currentRow = 0;
-        }
+        if (currentRow >= common.MAX_STOPS_PER_COLUMN) { currentColumn++; currentRow = 0; }
     });
 
-    return buttonMap; // {stopID → live.text} — same format as createStopArray, for CANCEL visual update
+    return buttonMap;
+}
+
+// ================================================================================================
+// FILE-BASED LAYER PATCHER GENERATION
+// ================================================================================================
+// Generates a Max .maxpat file containing all movable stop buttons for an organ.
+// Loading this file from disk (bpatcher @name) is instantaneous vs. ~36ms per newdefault() call.
+// The file is generated ONCE per organ load and reused for all 12 layers × 3 manuals.
+//
+// Message format from bpatcher outlet 0:  "stopID  state"
+// Parent routing adds context:  prepend "stop" mID lID -1  →  "stop mID lID -1 stopID state"
+
+function generateLayerStopJSON(stopData, startX, startY) {
+    var G      = common.GEOMETRY;
+    var stopW  = G.stops.w;
+    var stopH  = G.stops.h;
+    var MAX_PC = common.MAX_STOPS_PER_COLUMN;
+    var marginX = typeof G.columns.margin === 'function' ? G.columns.margin() : G.columns.margin;
+    var colW    = G.columns.w();
+
+    var boxes = [];
+    var lines = [];
+
+    // Outlet box — offscreen, collects all prepend outputs
+    var outletID = "obj-out";
+    boxes.push({ "box": {
+        "id": outletID, "maxclass": "outlet",
+        "comment": "stopID state",
+        "patching_rect": [-500.0, -20.0, 30.0, 30.0],
+        "numinlets": 1, "numoutlets": 0
+    }});
+
+    var currentRow = 0;
+    var currentColumn = 0;
+
+    stopData.forEach(function(stop, index) {
+        var x = startX + currentColumn * (colW + marginX);
+        var y = startY + currentRow   * (stopH + marginX);
+
+        var stopBoxID = "obj-s" + index;
+        var prepBoxID = "obj-p" + index;
+
+        // live.text toggle button
+        boxes.push({ "box": {
+            "id": stopBoxID,
+            "maxclass": "live.text",
+            "numinlets": 1, "numoutlets": 2,
+            "outlettype": ["", ""],
+            "parameter_enable": 1,
+            "patching_rect":     [x, y, stopW, stopH],
+            "presentation_rect": [x, y, stopW, stopH],
+            "presentation": 1,
+            "saved_attribute_attributes": { "valueof": {
+                "parameter_enum":      ["val1", "val2"],
+                "parameter_longname":  "stop" + stop.stopID,
+                "parameter_mmax":      1,
+                "parameter_modmode":   0,
+                "parameter_osc_name":  "<default>",
+                "parameter_shortname": "stop" + stop.stopID,
+                "parameter_type":      2
+            }},
+            "text":    stop.name,
+            "texton":  stop.name,
+            "varname": "stop" + stop.stopID,
+            "fontsize": 10.0
+        }});
+
+        // prepend stopID — wires this button to the shared outlet
+        boxes.push({ "box": {
+            "id": prepBoxID,
+            "maxclass": "newobj",
+            "text": "prepend " + stop.stopID,
+            "patching_rect": [-500.0, -60.0 - index * 20, 80.0, 22.0],
+            "numinlets": 2, "numoutlets": 1
+        }});
+
+        lines.push({"patchline": {"source": [stopBoxID, 0], "destination": [prepBoxID, 0]}});
+        lines.push({"patchline": {"source": [prepBoxID, 0], "destination": [outletID, 0]}});
+
+        currentRow++;
+        if (currentRow >= MAX_PC) { currentColumn++; currentRow = 0; }
+    });
+
+    var patcherJSON = {
+        "patcher": {
+            "fileversion": 1,
+            "appversion": { "major": 8, "minor": 6, "revision": 2, "architecture": "x64", "modernui": 1 },
+            "classnamespace": "box",
+            "rect": [0.0, 0.0, 800.0, 200.0],
+            "bglocked": 0,
+            "openinpresentation": 0,
+            "default_fontsize": 12.0,
+            "default_fontface": 0,
+            "default_fontname": "Arial",
+            "gridonopen": 1,
+            "gridsize": [15.0, 15.0],
+            "gridsnaponopen": 1,
+            "boxes": boxes,
+            "lines": lines,
+            "dependency_cache": []
+        }
+    };
+
+    return JSON.stringify(patcherJSON, null, 2);
+}
+
+// Write the layer stop patcher to disk next to the main Max patch.
+// Returns the filename (no path) for use in bpatcher @name, or null on failure.
+function writeLayerStopFile(stopData, organName) {
+    if (!context.patcher || !context.patcher.filepath) {
+        common.log(common.LOG_LEVEL.WARN, "writeLayerStopFile: no patcher filepath");
+        return null;
+    }
+
+    try {
+        var startX = 0; // Stops start at left edge of the bpatcher; placement offset added by parent
+        var startY = 0;
+        var jsonStr = generateLayerStopJSON(stopData, startX, startY);
+
+        var safeOrganName = (organName || "organ").replace(/[^a-zA-Z0-9_-]/g, "_");
+        var filename = "layer_stops_" + safeOrganName + ".maxpat";
+
+        // Write to the same directory as the main Max patch
+        var patcherDir = context.patcher.filepath.replace(/\/[^\/]*$/, "/");
+        var fullPath = patcherDir + filename;
+
+        var f = new File(fullPath, "write", "TEXT");
+        if (!f || !f.isopen) {
+            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: could not open file for writing: " + fullPath);
+            return null;
+        }
+        f.writestring(jsonStr);
+        f.close();
+
+        common.log(common.LOG_LEVEL.INFO, "Layer stop patcher written: " + filename +
+            " (" + stopData.length + " stops)");
+        return filename;
+    } catch(e) {
+        common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile failed: " + e.message);
+        return null;
+    }
 }
 
 // *** GLOBAL STOP ROUTING SETUP ***
@@ -1198,4 +1380,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.08 - send/receive routing replaces per-button MaxobjListeners\n");
+post("organTool_SINUA_ContextAware.js v01.09 - file-based layer patchers eliminate newdefault bottleneck\n");
