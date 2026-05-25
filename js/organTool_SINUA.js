@@ -634,7 +634,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         panic: panic,
         cancel: cancel,
         context: actionCtx,
-        stopButtonMap: stopButtonMap // {stopID → live.text} for CANCEL
+        stopsBpatcher: stopsBp || null, // bpatcher ref for bulk reset via inlet 0 (message 0)
+        stopButtonMap: stopButtonMap    // JS-created buttons (DIV/division buttons) for CANCEL
     };
 }
 
@@ -1110,10 +1111,26 @@ function getDivisionStopsFromState() {
 
 // Set all live.text buttons in a map to 0 (visual only, no DataLayer call)
 function clearButtonMap(buttonMap) {
+    // Clears JS-created live.text buttons (DIV buttons in layer, division panel stops).
+    // For bpatcher-loaded stops, use clearLayer() which sends message(0) to the bpatcher inlet.
     if (!buttonMap) return;
     Object.keys(buttonMap).forEach(function(stopID) {
         try { buttonMap[stopID].message("set", 0); } catch(e) {}
     });
+}
+
+// Clear all stop buttons in a layer: bpatcher stops via inlet 0, JS stops via direct message.
+// Background: message() to objects nested inside a bpatcher-inside-bpatcher does not propagate
+// to the inlet of the nested object (Max JS limitation). Instead we send one message to the
+// BPATCHER itself (inlet 0 → internal prepend-set → all live.text buttons silently set to 0).
+function clearLayer(layer) {
+    if (!layer) return;
+    // 1. Bulk-reset all bpatcher-loaded stops via the reset inlet wired in the generated .maxpat
+    if (layer.stopsBpatcher) {
+        try { layer.stopsBpatcher.message(0); } catch(e) {}
+    }
+    // 2. Clear JS-created buttons (DIV/division buttons created by createStopArray)
+    clearButtonMap(layer.stopButtonMap);
 }
 
 // Turn off all stop buttons in the UI for the given context — no commands sent
@@ -1135,7 +1152,7 @@ function updateUIStopsOff(actionContext) {
         // All layers across all manuals + all division stop buttons
         if (guiObjects.manuals && guiObjects.manuals.manuals) {
             guiObjects.manuals.manuals.forEach(function(manual) {
-                manual.layers.forEach(function(layer) { clearButtonMap(layer.stopButtonMap); });
+                manual.layers.forEach(function(layer) { clearLayer(layer); });
             });
         }
         if (guiObjects.divisions && guiObjects.divisions.divisions) {
@@ -1163,7 +1180,7 @@ function updateUIStopsOff(actionContext) {
                 if (manual.manualData.manualID === actionContext.manual) {
                     manual.layers.forEach(function(layer) {
                         if (layer.layerID === actionContext.layer) {
-                            clearButtonMap(layer.stopButtonMap);
+                            clearLayer(layer);
                         }
                     });
                 }
@@ -1175,7 +1192,7 @@ function updateUIStopsOff(actionContext) {
         if (guiObjects.manuals && guiObjects.manuals.manuals) {
             guiObjects.manuals.manuals.forEach(function(manual) {
                 if (manual.manualData.manualID === actionContext.manual) {
-                    manual.layers.forEach(function(layer) { clearButtonMap(layer.stopButtonMap); });
+                    manual.layers.forEach(function(layer) { clearLayer(layer); });
                 }
             });
         }

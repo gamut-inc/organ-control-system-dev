@@ -54,10 +54,18 @@ def extract_organ_name(filepath: str) -> str:
 def generate_maxpat(stops: list[tuple[int, str]]) -> str:
     """
     Returns a compact (non-indented) Max patcher JSON string containing:
-      - One outlet object (outlet 0 of the bpatcher)
+      - One inlet object  (inlet 0  of the bpatcher) — sends 0 to reset all buttons silently
+      - One outlet object (outlet 0 of the bpatcher) — outputs stop-button clicks
+      - One "prepend set" object — converts reset 0 → "set 0" (silent value set, no output)
       - One live.text toggle per stop (varname = 'stop<ID>')
       - One prepend <stopID> per stop (routes clicks to the outlet)
-      - Patch lines wiring each live.text → prepend → outlet
+      - Patch lines wiring:
+          inlet → prepend-set → each live.text inlet  (visual reset path)
+          each live.text outlet → prepend stopID → outlet  (click output path)
+
+    Reset usage from JS:  stopsBpatcher.message(0)
+      → bpatcher forwards to inlet → prepend set → "set 0" to every live.text
+      → all buttons go dark silently (no MaxobjListener fires, no outlet output)
 
     live.text has no parameter_enable / saved_attribute_attributes to:
       • keep the file small
@@ -66,14 +74,32 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
     boxes: list[dict] = []
     lines: list[dict] = []
 
-    # Outlet — becomes bpatcher outlet 0.
-    # Placed at negative Y so it stays well outside the presentation area
-    # (live.text buttons occupy y = 0 .. MAX_PER_COL*STOP_H).
+    # ── Hidden objects (negative Y, outside presentation area) ────────────────
+
+    # Inlet 0 — reset: JS sends stopsBpatcher.message(0) to clear all buttons.
+    # Must be the LEFT-MOST inlet object (x < outlet.x) so it becomes inlet 0.
+    boxes.append({"box": {
+        "id": "obj-in", "maxclass": "inlet", "comment": "reset (0=clear all)",
+        "patching_rect": [10.0, -30.0, 30.0, 30.0],
+        "numinlets": 0, "numoutlets": 1,
+    }})
+
+    # Outlet 0 — stop clicks: prepend stopID output routes here.
     boxes.append({"box": {
         "id": "obj-out", "maxclass": "outlet", "comment": "stop",
-        "patching_rect": [10.0, -60.0, 30.0, 30.0],
+        "patching_rect": [50.0, -30.0, 30.0, 30.0],
         "numinlets": 1, "numoutlets": 0,
     }})
+
+    # "prepend set" — converts 0 → "set 0" so live.text gets a silent set (no outlet fire).
+    boxes.append({"box": {
+        "id": "obj-prepset", "maxclass": "newobj", "text": "prepend set",
+        "patching_rect": [10.0, -60.0, 80.0, 22.0],
+        "numinlets": 2, "numoutlets": 1,
+    }})
+
+    # Wire: inlet → prepend-set
+    lines.append({"patchline": {"source": ["obj-in", 0], "destination": ["obj-prepset", 0]}})
 
     seen_ids: set[int] = set()
     row, col = 0, 0
@@ -114,6 +140,8 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
 
         lines.append({"patchline": {"source": [s_id, 0], "destination": [p_id, 0]}})
         lines.append({"patchline": {"source": [p_id, 0], "destination": ["obj-out", 0]}})
+        # Reset path: prepend-set → this live.text inlet (set 0 = silent visual clear)
+        lines.append({"patchline": {"source": ["obj-prepset", 0], "destination": [s_id, 0]}})
 
         row += 1
         if row >= MAX_PER_COL:
