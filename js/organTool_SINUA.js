@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.03 - Per-controller name labels; RST/PANIC font sizes; CANCEL spelled out
+// 01.04 - +Layer fix (cached stops); window auto-resize
 // 25.05.2026
 
 autowatch = 1;
@@ -9,7 +9,11 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         throw new Error("SINUA module requires Common, DataLayer, and Context dependencies");
     }
     
-    var organState = { name: "No Organ Loaded", filepath: null };
+    var organState = {
+        name: "No Organ Loaded",
+        filepath: null,
+        cachedStops: { movable: [], divisions: [] }  // reused by +Layer without DataLayer round-trip
+    };
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
     
@@ -44,9 +48,15 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             var parsedData = parseOrganData(organData);
             parsedData.type = "SINUA";
             parsedData.name = organState.name;
-            
+
+            // Cache stop lists so +Layer can recreate layers without DataLayer round-trip
+            organState.cachedStops = {
+                movable:   parsedData.stops.movable   || [],
+                divisions: parsedData.stops.divisions || []
+            };
+
             dataLayer.populateStateFromOrganData(parsedData);
-            
+
             clearGUI();
             return generateGUI(parsedData);
             
@@ -297,6 +307,8 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 
             common.log(common.LOG_LEVEL.INFO, "GUI built — divisions:" + hasDivisions +
                 " manualSelectorY:" + G.rows.manualSelector + " manualsY:" + G.rows.manuals);
+
+            resizeWindowToContent(organData, G, hasDivisions, hasManuals, hasControllers);
             return true;
         } catch (error) {
             common.log(common.LOG_LEVEL.ERROR, "GUI creation error: " + error.message);
@@ -304,8 +316,47 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         }
     }
 
+// *** WINDOW RESIZE ***
+
+    function resizeWindowToContent(organData, G, hasDivisions, hasManuals, hasControllers) {
+        if (!context.patcher || !context.patcher.wind) return;
+
+        var contentW = G.margin.x; // minimum: left-hand button column
+        var contentH = 200;        // minimum height
+
+        try {
+            // Controllers width
+            if (hasControllers && organData.controllers.length > 0) {
+                var ctrlPos = G.sinua.controllers.bpatcher(organData.controllers.length);
+                contentW = Math.max(contentW, ctrlPos.x + ctrlPos.w);
+            }
+
+            // Divisions width (cache hit — already computed during GUI build)
+            if (hasDivisions) {
+                var divPos = G.sinua.divisions.bpatcher(organData.divisions);
+                contentW = Math.max(contentW, divPos.w);
+                contentH = Math.max(contentH, divPos.y + divPos.h + 10);
+            }
+
+            // Manuals width + height (cache hit)
+            if (hasManuals) {
+                var manPos = G.sinua.manuals.bpatcher(
+                    organData.stops.movable, organData.stops.divisions);
+                contentW = Math.max(contentW, manPos.w);
+                contentH = Math.max(contentH, manPos.y + manPos.h + 20);
+            }
+
+            context.patcher.wind.size = [contentW + 10, contentH];
+            common.log(common.LOG_LEVEL.INFO,
+                "Window resized: " + (contentW + 10) + " x " + contentH);
+
+        } catch (e) {
+            common.log(common.LOG_LEVEL.WARN, "Window resize failed: " + e.message);
+        }
+    }
+
 // *** MAIN HEADER ***
-    
+
     function createMainHeader(p, organName) {
         var label = common.createLiveComment(p, common.GEOMETRY.margin.x, common.GEOMETRY.rows.mainControls, 
             200, 20, "organNameLabel", organName);
@@ -698,11 +749,11 @@ function executeCreateLayer(manual) {
 
 function addLayerToManual(manual) {
     var newLayerID = manual.layers.length + 1;
-    var layerStopData = getMovableStopsFromState();
-    var divisionStops = getDivisionStopsFromState();
-    
-    // FIXED: Correct parameter structure
-    var stopData = { movable: layerStopData, divisions: divisionStops };
+
+    // Use the stop lists cached during loadOrgan — avoids DataLayer state format issues.
+    // (getMovableStopsFromState reads stop.movable from state, but parsed stop objects
+    //  don't carry a movable property; the classification lives in the two separate arrays.)
+    var stopData = organState.cachedStops || { movable: [], divisions: [] };
     
     var newLayer = createLayerBpatcher(
         manual.bpatcher.subpatcher(), 
@@ -929,4 +980,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.03 - loaded\n");
+post("organTool_SINUA_ContextAware.js v01.04 - loaded\n");
