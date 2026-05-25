@@ -1,0 +1,31 @@
+{
+  "_comment": "Beispiel-Orgel im MIDI-Format",
+  "OrganName": "Gamut MIDI Test Organ",
+  "midiChannels": {
+    "manual1": 1,
+    "manual2": 2,
+    "pedal":   3,
+    "couplers": 16
+  },
+  "manuals": [
+    { "id": "manual1", "name": "Hauptwerk",  "midiChannel": 1 },
+    { "id": "manual2", "name": "Schwellwerk", "midiChannel": 2 },
+    { "id": "pedal",   "name": "Pedal",       "midiChannel": 3 }
+  ],
+  "stops": [
+    { "id": "HW01", "name": "Principal 8'",  "manualID": "manual1", "midi": { "type": "NoteOn",  "note": 0,  "channel": 1 } },
+    { "id": "HW02", "name": "Octave 4'",     "manualID": "manual1", "midi": { "type": "NoteOn",  "note": 1,  "channel": 1 } },
+    { "id": "SW01", "name": "Gedeckt 8'",    "manualID": "manual2", "midi": { "type": "NoteOn",  "note": 0,  "channel": 2 } },
+    { "id": "SW02", "name": "Flöte 4'",      "manualID": "manual2", "midi": { "type": "NoteOn",  "note": 1,  "channel": 2 } },
+    { "id": "PD01", "name": "Subbass 16'",   "manualID": "pedal",   "midi": { "type": "NoteOn",  "note": 0,  "channel": 3 } },
+    { "id": "PD02", "name": "Oktavbass 8'",  "manualID": "pedal",   "midi": { "type": "NoteOn",  "note": 1,  "channel": 3 } }
+  ],
+  "couplers": [
+    { "id": "COP01", "name": "HW/PD",  "from": "manual1", "to": "pedal",   "midi": { "type": "CC", "cc": 0, "channel": 16 } },
+    { "id": "COP02", "name": "SW/HW",  "from": "manual2", "to": "manual1", "midi": { "type": "CC", "cc": 1, "channel": 16 } }
+  ],
+  "pistons": [
+    { "id": "PIS01", "name": "General 1", "midi": { "type": "ProgChange", "program": 0, "channel": 16 } },
+    { "id": "PIS02", "name": "General 2", "midi": { "type": "ProgChange", "program": 1, "channel": 16 } }
+  ]
+}

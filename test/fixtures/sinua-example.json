@@ -1,0 +1,37 @@
+{
+  "_comment": "Beispiel-Orgel im SINUA-Format (OSC-Protokoll)",
+  "OrganName": "Gamut SINUA Test Organ",
+  "Divisions": [
+    {
+      "id": 1,
+      "name": "Hauptwerk",
+      "stops": ["S01", "S02", "S03", "S04"],
+      "tremulants": ["T01"],
+      "controllers": []
+    },
+    {
+      "id": 2,
+      "name": "Schwellwerk",
+      "stops": ["S05", "S06", "S07"],
+      "tremulants": ["T02"],
+      "controllers": ["C01"]
+    }
+  ],
+  "Stops": [
+    { "id": "S01", "name": "Principal 8'",   "divisionID": 1 },
+    { "id": "S02", "name": "Octave 4'",      "divisionID": 1 },
+    { "id": "S03", "name": "Quinte 2 2/3'",  "divisionID": 1 },
+    { "id": "S04", "name": "Mixtur IV",      "divisionID": 1 },
+    { "id": "S05", "name": "Gedeckt 8'",     "divisionID": 2 },
+    { "id": "S06", "name": "Flöte 4'",       "divisionID": 2 },
+    { "id": "S07", "name": "Nasat 2 2/3'",   "divisionID": 2 }
+  ],
+  "Tremulants": [
+    { "id": "T01", "name": "Tremulant HW", "divisionID": 1, "defaultSpeed": 64 },
+    { "id": "T02", "name": "Tremulant SW", "divisionID": 2, "defaultSpeed": 48 }
+  ],
+  "Controllers": [
+    { "id": "C01", "name": "Schweller",    "divisionID": 2, "type": "swell", "defaultValue": 0 }
+  ],
+  "Transmissions": []
+}
