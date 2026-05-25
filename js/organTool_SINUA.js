@@ -891,7 +891,7 @@ function getDivisionStopsFromState() {
 function clearButtonMap(buttonMap) {
     if (!buttonMap) return;
     Object.keys(buttonMap).forEach(function(stopID) {
-        try { buttonMap[stopID].setattr("value", 0); } catch(e) {}
+        try { buttonMap[stopID].message("set", 0); } catch(e) {}
     });
 }
 
