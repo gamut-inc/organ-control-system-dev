@@ -573,12 +573,19 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
 
         var innerPatcher = stopsBp ? stopsBp.subpatcher() : null;
 
-        if (innerPatcher) {
+        // Probe: verify the first stop is actually present (guards against empty-patcher load)
+        var probeStop = stopData.movable.length > 0 ? stopData.movable[0] : null;
+        var fileLoadedOK = innerPatcher && probeStop &&
+                           (innerPatcher.getnamed("stop" + probeStop.stopID) !== null);
+
+        if (fileLoadedOK) {
             // File loaded OK — harvest button references via getnamed() (zero newdefault calls)
             stopData.movable.forEach(function(stop) {
                 var liveText = innerPatcher.getnamed("stop" + stop.stopID);
                 if (liveText) { stopButtonMap[stop.stopID] = liveText; }
             });
+            post("      L" + layerID + ": file OK — " + Object.keys(stopButtonMap).length + "/" +
+                stopData.movable.length + " stops mapped\n");
 
             // Route: bpatcher outlet 0 → prepend "stop" mID lID -1 → send organ_stops
             // Format: "stop <manualID> <layerID> <-1> <stopID> <state>"
@@ -592,7 +599,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
             }
         } else {
             common.log(common.LOG_LEVEL.WARN,
-                "L" + layerID + ": file bpatcher failed (subpatcher null) — falling back to createStopArrayRouted");
+                "L" + layerID + ": file bpatcher failed (innerPatcher=" + innerPatcher +
+                " probe=" + (probeStop ? "stop"+probeStop.stopID : "null") + ") — falling back");
             var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
             Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
         }
