@@ -11,13 +11,71 @@ Single unified GUI for both organ types, loaded dynamically from JSON config fil
 ## Architecture
 
 ```
-organTool_Universal.js   ← Entry point / orchestrator (Max patcher loads this)
-organTool_Common.js      ← Logging, utilities, geometry constants, object management
-organTool_DataLayer.js   ← State model (g_organState), command queue, preset management
-organTool_ProtocolLayer.js ← Protocol abstraction (SINUA/MIDI dispatching)
-organTool_SINUA.js       ← SINUA-specific parser, GUI builder, OSC command sender
-organTool_GEOMETRY.js    ← Layout constants (column widths, stop heights, positions)
+OrganPatch_2026.amxd           ← Main Ableton Live device (entry point)
+├── MuteAndSoloSafe.maxpat     ← Ableton track mute/solo safety gate (at root)
+├── js/organTool_Universal.js  ← JS orchestrator (amxd uses patcherrelativepath: ./js)
+│   ├── js/organTool_Common.js
+│   ├── js/organTool_DataLayer.js
+│   ├── js/organTool_ProtocolLayer.js
+│   ├── js/organTool_SINUA.js
+│   └── js/organTool_GEOMETRY.js
+│
+Max subpatchers (root, found by name):
+  Colors.maxpat          ← GUI color palette data
+  cancel.maxpat          ← OSC cancel commands (/M1/L%d/D,S)
+  collectStops.maxpat    ← Stop state collector (pattr-based)
+  gamut_storage.maxpat   ← Preset/dict storage (needs gamut_storage.js!)
+  layer.maxpat           ← Division/stop layout (refs collectStops.maxpat)
 ```
+
+## Folder Structure
+
+```
+organ-control-system-claudecode/
+├── OrganPatch_2026.amxd          ← Ableton Live device
+├── MuteAndSoloSafe.maxpat        ← at root (hardcoded in amxd)
+├── Colors.maxpat
+├── cancel.maxpat
+├── collectStops.maxpat
+├── gamut_storage.maxpat          ← needs gamut_storage.js (TODO)
+├── layer.maxpat
+├── js/                           ← JS modules (amxd expects ./js/)
+│   ├── organTool_Universal.js
+│   ├── organTool_Common.js
+│   ├── organTool_DataLayer.js
+│   ├── organTool_ProtocolLayer.js
+│   ├── organTool_SINUA.js
+│   └── organTool_GEOMETRY.js
+├── mapping/
+│   ├── config/                   ← Organ JSON configs
+│   │   ├── organ Kunststation.json
+│   │   ├── organ Malmö.json
+│   │   ├── organ Oberkassel.json
+│   │   ├── organ amsterdam.json
+│   │   ├── organ ratingen.json
+│   │   └── console.json
+│   ├── mapping_KunstStation_2025.csv
+│   └── mapping_KunstStation_2025.xls
+├── test/
+│   ├── fixtures/
+│   └── manual-tests.md
+└── docs/
+```
+
+## Max/MSP Path Rules — IMPORTANT
+
+The amxd has **hardcoded relative paths** (patcherrelativepath). Do NOT move:
+- `MuteAndSoloSafe.maxpat` — must stay at root (amxd path: `.`)
+- `js/` folder — must stay as `./js/` next to the amxd
+- All other `.maxpat` files stay at root so Max finds them by name search
+
+`layer.maxpat` references `collectStops.maxpat` by name → must be in same folder.
+`gamut_storage.maxpat` references `gamut_storage.js` and `relative_paths.maxpat` → **both missing, need to be added to root or js/**.
+
+## Missing Files (TODO)
+
+- `gamut_storage.js` — referenced by `gamut_storage.maxpat` (v8 object)
+- `relative_paths.maxpat` — referenced by `gamut_storage.maxpat`
 
 **No external build system. No npm. No transpilation.**
 All files are plain ES5-compatible JavaScript for the Max/MSP `js` object (JavaScriptCore).
