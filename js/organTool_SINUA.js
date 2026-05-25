@@ -559,15 +559,22 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         var stopsW = G.grid.multiColumnWidth(stopData.movable.length, G.columns.margin());
         var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
 
-        // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS
-        var stopsBp = sp.newdefault(sx, 0, "bpatcher",
+        // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS.
+        // Use just the filename (no absolute path): Max searches the main patcher's directory,
+        // which is the project root where layer_stops_*.maxpat files live.
+        // Absolute POSIX paths fail on APFS because Max converts them to HFS using the
+        // wrong volume ("Macintosh HD:" instead of "Macintosh HD - Data:").
+        var stopFilename = organState.layerStopFilename
+            ? organState.layerStopFilename.replace(/.*[\/\\]/, '')  // extract filename only
+            : null;
+        var stopsBp = stopFilename ? sp.newdefault(sx, 0, "bpatcher",
             "@varname", "stops_" + layerID,
             "@patching_rect", sx, 0, stopsW, stopsH,
             "@presentation_rect", sx, 0, stopsW, stopsH,
             "@presentation", 1,
-            "@name", organState.layerStopFilename,
+            "@name", stopFilename,
             "@embed", 0
-        );
+        ) : null;
 
         var innerPatcher = stopsBp ? stopsBp.subpatcher() : null;
 

@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.06 - Simplify SINUA.js: Python generates .maxpat files, no runtime file generation
+// 01.07 - Fix bpatcher path (filename only, not POSIX); guard loadOrgan against non-JSON
 // 25.05.2026
 
 autowatch = 1;
@@ -255,7 +255,14 @@ function loadOrgan(filepath) {
         post("System not initialized\n");
         return false;
     }
-    
+
+    // Guard: only accept organ JSON files — reject .maxpat and other formats.
+    // Prevents pattr/stored-state from accidentally loading bpatcher files as organs.
+    if (!filepath || !/\.json$/i.test(filepath)) {
+        post("loadOrgan: ignored non-JSON path: " + filepath + "\n");
+        return false;
+    }
+
     try {
         var organData = loadOrganJSON(filepath);
         if (!organData) return false;
