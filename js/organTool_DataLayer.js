@@ -74,7 +74,7 @@ function createDataLayerModule(common) {
         var path = getSinuaPath(context); 
 
         switch(action) {
-            case "panic": {commandType =  "V 0.0"};
+            case "panic": {commandType = "V " + (ID !== undefined && ID !== null ? ID : 0)};
             break;
             case "cancel": {commandType =  "S 0"};
             break;
@@ -123,12 +123,24 @@ function createDataLayerModule(common) {
             case 'controller':
                 return setControllerState(id, value, context);
                 
-            case 'panic':
             case 'cancel':
-                return queueOrganCommand(action, 'context', 0, action === 'panic' ? 0 : 1, {
+                // Update DataLayer state silently (no individual stop commands)
+                clearStopsInContext(context, true);
+                // Queue ONE consolidated cancel command: M1/L1/S 0, M1/S 0, D2/S 0, or /S 0
+                return queueOrganCommand('cancel', 'context', 0, 1, {
                     context: context,
-                    sinuaCommand: createSinuaCommand(context, action)
+                    sinuaCommand: createSinuaCommand(context, 'cancel')
                 });
+
+            case 'panic':
+                // Velocity sweep 0→127 for the given context (M1/L1/V 0 … V 127)
+                for (var vel = 0; vel <= 127; vel++) {
+                    queueOrganCommand('panic', vel, vel, 0, {
+                        context: context,
+                        sinuaCommand: getSinuaPath(context) + '/V ' + vel
+                    });
+                }
+                return true;
                 
             case 'reset':
                 initializeState();
@@ -164,30 +176,30 @@ function createDataLayerModule(common) {
         return organState.stops[stopID] || null;
     }
     
-    // FIX get rid of skipQueue
     function setStopState(stopID, state, skipQueue, context) {
         if (!stopID) {
             common.log(common.LOG_LEVEL.WARN, "setStopState(): Invalid stopID");
             return false;
         }
-        
+
         try {
             var prevState = organState.stops[stopID];
-            
+
             if (!organState.stops[stopID]) {
                 organState.stops[stopID] = { state: false, divisionID: null, movable: false };
             }
-            
+
             organState.stops[stopID].state = Boolean(state);
-            
+
             recordStateChange('stop', stopID, prevState, organState.stops[stopID]);
 
-            queueOrganCommand('stop', stopID, state, 1, {
-                context: context,
-                sinuaCommand: createSinuaCommand(context, 'stop', stopID, state)
-            });
+            if (!skipQueue) { // Only queue individual command when not part of a batch/cancel
+                queueOrganCommand('stop', stopID, state, 1, {
+                    context: context,
+                    sinuaCommand: createSinuaCommand(context, 'stop', stopID, state)
+                });
+            }
 
-            
             notifyStateChange('stop', stopID, state, context);
             
             var contextInfo = formatContext(context);
@@ -1209,4 +1221,4 @@ if (typeof global !== 'undefined') {
     global.createDataLayerModule = createDataLayerModule;
 }
 
-post("organTool_DataLayer_ContextAware.js v01.00 - Complete context-aware state management loaded\n");
+post("organTool_DataLayer_ContextAware.js v01.01 - CANCEL consolidated, PANIC sweep, skipQueue fixed\n");

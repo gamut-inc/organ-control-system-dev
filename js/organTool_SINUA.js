@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.06 - Timing measurements for performance profiling
+// 01.07 - CANCEL: visual clear + consolidated command; PANIC: velocity sweep; fix divisionID in context
 // 25.05.2026
 
 autowatch = 1;
@@ -29,7 +29,13 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     }
     
     function createActionContext(manualID, layerID, divisionID) {
-        return context.createContextCommand(manualID, layerID, 'action');
+        var ctx = context.createContextCommand(manualID, layerID, 'action');
+        // createContextCommand does not handle divisionID — add it manually
+        if (divisionID !== null && divisionID !== undefined) {
+            ctx.divisionID = divisionID;
+            ctx.commandPath = '/D' + divisionID + '/';
+        }
+        return ctx;
     }
     
     // ================================================================================================
@@ -431,11 +437,10 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         common.GEOMETRY.sinua.divisions.stopArray.x() : 
         common.GEOMETRY.sinua.divisions.stopArray.x;
         
-        createStopArray(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h, 
+        var stopButtonMap = createStopArray(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
             divisionData.stops, divisionData.divisionID, null, null);
-        
-        // TO DO cancel: cancel
-        return { bpatcher: bpatcher, label: label, context: context };
+
+        return { bpatcher: bpatcher, label: label, context: context, stopButtonMap: stopButtonMap };
     }
 
 // *** MANUAL SECTION ***
@@ -523,15 +528,20 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
     var tL2 = Date.now();
 
-    var stops = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0,
+    var movableMap = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0,
         stopData.movable, null, manualID, layerID);
     var tL3 = Date.now();
 
     // Fixed: Calculate division stop position properly
     var divisionPos = common.GEOMETRY.sinua.layers.divisionArray(stopData.movable.length);
-    createStopArray(bpatcher.subpatcher(), divisionPos.x, 0,
+    var divMap = createStopArray(bpatcher.subpatcher(), divisionPos.x, 0,
         stopData.divisions, null, manualID, layerID);
     var tL4 = Date.now();
+
+    // Merge movable + division button maps for CANCEL visual updates
+    var stopButtonMap = {};
+    Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
+    Object.keys(divMap).forEach(function(id) { stopButtonMap[id] = divMap[id]; });
 
     post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stops[" + stopData.movable.length + "]=" + (tL3-tL2) + "ms  divs[" + stopData.divisions.length + "]=" + (tL4-tL3) + "ms\n");
 
@@ -541,7 +551,7 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         panic: panic,
         cancel: cancel,
         context: context,
-        stops: stops
+        stopButtonMap: stopButtonMap // {stopID → live.text} for CANCEL
     };
 }
 
@@ -721,26 +731,28 @@ function createGUIButton(p, pos, type, display, context, fontsize){
 }
 
 function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID) {
-    if (!p || !stopData) return [];
+    if (!p || !stopData) return {};
 
     var currentColumn = 0;
-    var currentRow = 0; // FIX: Always start at row 0 for each new array
+    var currentRow = 0;
+    var buttonMap = {}; // stopID → live.text object, used by CANCEL to clear visually
 
     stopData.forEach(function(stop, index) {
         var stopContext = createStopContext(stop.stopID, divisionID || stop.divisionID, manualID, layerID);
 
-        var marginX = typeof common.GEOMETRY.columns.margin === 'function' ? 
+        var marginX = typeof common.GEOMETRY.columns.margin === 'function' ?
         common.GEOMETRY.columns.margin() : common.GEOMETRY.columns.margin;
 
         var pos = common.GEOMETRY.grid.pos(currentRow, currentColumn, marginX, marginX);
         var x = startX + pos.x;
         var y = startY + pos.y;
 
-        var stopObj = common.createLiveText(p, x, y, 
-            common.GEOMETRY.stops.w, common.GEOMETRY.stops.h, 
+        var stopObj = common.createLiveText(p, x, y,
+            common.GEOMETRY.stops.w, common.GEOMETRY.stops.h,
             "stop" + stop.stopID, stop.name, stop.name, stop.name, 10);
 
         if (stopObj && stopObj.liveText) {
+            buttonMap[stop.stopID] = stopObj.liveText; // store for CANCEL visual update
             addListener(new MaxobjListener(stopObj.liveText, function(data) {
                 executeStopAction(stop.stopID, Boolean(data.value), stopContext);
             }));
@@ -749,11 +761,11 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
         currentRow++;
         if (currentRow >= common.MAX_STOPS_PER_COLUMN) {
             currentColumn++;
-            currentRow = 0; // FIX: Reset to 0, not continue from previous array
+            currentRow = 0;
         }
     });
-    
-    return []; // FIX: Return empty array instead of stops array
+
+    return buttonMap; // {stopID → live.text object}
 }
 
     // ================================================================================================
@@ -871,6 +883,73 @@ function getDivisionStopsFromState() {
     // CONTEXT-AWARE EXECUTION FUNCTIONS
     // ================================================================================================
 
+// ================================================================================================
+// CANCEL / PANIC HELPERS
+// ================================================================================================
+
+// Set all live.text buttons in a map to 0 (visual only, no DataLayer call)
+function clearButtonMap(buttonMap) {
+    if (!buttonMap) return;
+    Object.keys(buttonMap).forEach(function(stopID) {
+        try { buttonMap[stopID].setattr("value", 0); } catch(e) {}
+    });
+}
+
+// Turn off all stop buttons in the UI for the given context — no commands sent
+function updateUIStopsOff(actionContext) {
+    if (!guiObjects) return;
+
+    var isGlobal   = !actionContext.manual && !actionContext.layer && !actionContext.divisionID;
+    var isDivision = !!actionContext.divisionID;
+    var isLayer    = (actionContext.manual !== null && actionContext.manual !== undefined) &&
+                     (actionContext.layer  !== null && actionContext.layer  !== undefined);
+    var isManual   = (actionContext.manual !== null && actionContext.manual !== undefined) && !isLayer;
+
+    if (isGlobal) {
+        // All layers across all manuals + all division stop buttons
+        if (guiObjects.manuals && guiObjects.manuals.manuals) {
+            guiObjects.manuals.manuals.forEach(function(manual) {
+                manual.layers.forEach(function(layer) { clearButtonMap(layer.stopButtonMap); });
+            });
+        }
+        if (guiObjects.divisions && guiObjects.divisions.divisions) {
+            guiObjects.divisions.divisions.forEach(function(div) { clearButtonMap(div.stopButtonMap); });
+        }
+
+    } else if (isDivision) {
+        if (guiObjects.divisions && guiObjects.divisions.divisions) {
+            guiObjects.divisions.divisions.forEach(function(div) {
+                if (div.context && div.context.divisionID === actionContext.divisionID) {
+                    clearButtonMap(div.stopButtonMap);
+                }
+            });
+        }
+
+    } else if (isLayer) {
+        if (guiObjects.manuals && guiObjects.manuals.manuals) {
+            guiObjects.manuals.manuals.forEach(function(manual) {
+                if (manual.manualData.manualID === actionContext.manual) {
+                    manual.layers.forEach(function(layer) {
+                        if (layer.layerID === actionContext.layer) {
+                            clearButtonMap(layer.stopButtonMap);
+                        }
+                    });
+                }
+            });
+        }
+
+    } else if (isManual) {
+        // All layers within that manual
+        if (guiObjects.manuals && guiObjects.manuals.manuals) {
+            guiObjects.manuals.manuals.forEach(function(manual) {
+                if (manual.manualData.manualID === actionContext.manual) {
+                    manual.layers.forEach(function(layer) { clearButtonMap(layer.stopButtonMap); });
+                }
+            });
+        }
+    }
+}
+
 function executeGUIButton(type, actionContext) {
     switch(type) {
     case "reset": 
@@ -909,8 +988,9 @@ function executePanic(actionContext) {
 
 function executeCancel(actionContext) {
     common.log(common.LOG_LEVEL.INFO, "CANCEL executed for " + formatContextInfo(actionContext));
-
-    clearStopsInContext(actionContext);
+    // 1. Turn off buttons visually (no individual stop commands sent)
+    updateUIStopsOff(actionContext);
+    // 2. Update DataLayer state silently + send ONE consolidated command (M1/L1/S 0 etc.)
     dataLayer.executeCommand('cancel', null, null, actionContext);
 }
 
@@ -1009,4 +1089,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.06 - timing measurements\n");
+post("organTool_SINUA_ContextAware.js v01.07 - CANCEL visual clear + PANIC sweep\n");
