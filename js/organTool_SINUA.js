@@ -461,8 +461,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         common.GEOMETRY.sinua.divisions.stopArray.x() : 
         common.GEOMETRY.sinua.divisions.stopArray.x;
         
-        var stopButtonMap = createStopArrayRouted(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
-            divisionData.stops, null, null, divisionData.divisionID);
+        // MaxobjListener-based: no cables in division subpatcher
+        var stopButtonMap = createStopArray(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
+            divisionData.stops, divisionData.divisionID, null, null);
 
         return { bpatcher: bpatcher, label: label, context: context, stopButtonMap: stopButtonMap };
     }
@@ -588,41 +589,39 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                            (innerPatcher.getnamed("stop" + probeStop.stopID) !== null);
 
         if (fileLoadedOK) {
-            // File loaded OK — harvest button references via getnamed() (zero newdefault calls)
+            // File loaded OK — harvest references + attach direct MaxobjListeners.
+            // NO cable routing in the layer's sp (routePrep/routeSend/connect removed):
+            // Patcher.openinpresentation is read-only from Max JS, so cables in patching
+            // view can't be hidden that way. Listeners on inner-patcher objects work fine
+            // (same mechanism as cancel buttons inside bpatchers) and create zero cables.
             stopData.movable.forEach(function(stop) {
                 var liveText = innerPatcher.getnamed("stop" + stop.stopID);
-                if (liveText) { stopButtonMap[stop.stopID] = liveText; }
+                if (liveText) {
+                    stopButtonMap[stop.stopID] = liveText;
+                    var stopCtx = createStopContext(stop.stopID, stop.divisionID, manualID, layerID);
+                    addListener(new MaxobjListener(liveText, function(data) {
+                        executeStopAction(stop.stopID, Boolean(data.value), stopCtx);
+                    }));
+                }
             });
             post("      L" + layerID + ": file OK — " + Object.keys(stopButtonMap).length + "/" +
                 stopData.movable.length + " stops mapped\n");
-
-            // Route: bpatcher outlet 0 → prepend "stop" mID lID -1 → send organ_stops
-            // Format: "stop <manualID> <layerID> <-1> <stopID> <state>"
-            var routePrep = sp.newdefault(-400, -100, "prepend", "stop", manualID, layerID, -1);
-            var routeSend = sp.newdefault(-400,  -78, "send", "organ_stops");
-            try {
-                sp.connect(stopsBp, 0, routePrep, 0);
-                sp.connect(routePrep, 0, routeSend, 0);
-            } catch(e) {
-                common.log(common.LOG_LEVEL.ERROR, "Layer routing connect failed: " + e.message);
-            }
         } else {
             common.log(common.LOG_LEVEL.WARN,
-                "L" + layerID + ": file bpatcher failed (innerPatcher=" + innerPatcher +
-                " probe=" + (probeStop ? "stop"+probeStop.stopID : "null") + ") — falling back");
-            var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
+                "L" + layerID + ": file bpatcher failed — falling back to createStopArray");
+            var movableMap = createStopArray(sp, sx, 0, stopData.movable, null, manualID, layerID);
             Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
         }
     } else {
-        // No file available (e.g. +Layer called before organ reload) — use in-memory routing
-        var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
+        // No file available (e.g. +Layer called before organ reload)
+        var movableMap = createStopArray(sp, sx, 0, stopData.movable, null, manualID, layerID);
         Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
     }
     var tL3 = Date.now();
 
-    // *** DIVISION (DIV) BUTTONS: small count — in-memory routing is fine ***
+    // *** DIVISION (DIV) BUTTONS: MaxobjListener-based — no cables in layer subpatcher ***
     var divisionPos = G.sinua.layers.divisionArray(stopData.movable.length);
-    var divMap = createStopArrayRouted(sp, divisionPos.x, 0, stopData.divisions, manualID, layerID, null);
+    var divMap = createStopArray(sp, divisionPos.x, 0, stopData.divisions, null, manualID, layerID);
     Object.keys(divMap).forEach(function(id) { stopButtonMap[id] = divMap[id]; });
     var tL4 = Date.now();
 

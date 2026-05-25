@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.08 - Hide routing cables; fix cancel after manual switch
+// 01.09 - Eliminate cables via MaxobjListener; fix PEDAL cancel (manualID=0 coercion bug)
 // 25.05.2026
 
 autowatch = 1;
@@ -218,8 +218,9 @@ function createOrganContext(organType) {
         // Context-aware command generator
         createContextCommand: function(manualID, layerID, type) {
             var baseContext = {
-                manual: manualID || null,
-                layer: layerID || null,
+                // Use explicit null check — || null coerces 0 to null, breaking manualID=0 (PEDAL)
+                manual: (manualID !== null && manualID !== undefined) ? manualID : null,
+                layer:  (layerID  !== null && layerID  !== undefined) ? layerID  : null,
                 type: type || 'stop'
             };
             
