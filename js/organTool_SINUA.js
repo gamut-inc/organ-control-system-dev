@@ -151,7 +151,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         if(!divisionData) return []; 
 
         divisionStops = []; 
-        divisionData.forEach((division, index) =>{
+        divisionData.forEach(function(division, index) {
             divisionStops.push({
                 name: "DIV"+division.divisionID,
                 stopID: "division"+division.divisionID,
@@ -555,7 +555,9 @@ function switchToManual(selectedIndex, manuals) {
         }
     });
 
-    var manualName = manuals[selectedIndex]?.manualData?.name || "Manual " + selectedIndex;
+    var manualName = (manuals[selectedIndex] && manuals[selectedIndex].manualData && manuals[selectedIndex].manualData.name)
+        ? manuals[selectedIndex].manualData.name
+        : "Manual " + selectedIndex;
     common.log(common.LOG_LEVEL.INFO, "Switched to: " + manualName);
 }
 

@@ -158,21 +158,18 @@ function loadOrganModule(organType) {
         post("Loading organ module: " + modulePath + "\n");
         include(modulePath);
         
-        var factoryName = "create" + organType + "ModuleWithDI";
-        
-        // Check if factory function exists in global scope
-        if (typeof global !== 'undefined' && global[factoryName]) {
-            var factory = global[factoryName];
-        } else if (typeof window !== 'undefined' && window[factoryName]) {
-            var factory = window[factoryName];
-        } else {
-            // Try direct access
-            var factory = eval('typeof ' + factoryName + ' !== "undefined" ? ' + factoryName + ' : null');
+        // Explicit factory lookup — no eval(), no global/window (not available in Max js object)
+        // Add a new case here when a new organ type module is added
+        var factory = null;
+        if (organType === "SINUA") {
+            factory = (typeof createSINUAModuleWithDI === 'function') ? createSINUAModuleWithDI : null;
+        } else if (organType === "MIDI") {
+            factory = (typeof createMIDIModuleWithDI === 'function') ? createMIDIModuleWithDI : null;
         }
-        
+
         if (typeof factory !== 'function') {
-            throw new Error("Factory function not found: " + factoryName + 
-                          " (checked global, window, and direct scope)");
+            throw new Error("Factory function not found for organ type: " + organType +
+                          " — check that organTool_" + organType + ".js loaded correctly");
         }
         
         // Context object with command context capability
@@ -199,8 +196,8 @@ function loadOrganModule(organType) {
         
         // Debug info
         post("Debug: Available functions after include:\n");
-        post("  create" + organType + "ModuleWithDI: " + 
-             (typeof eval('create' + organType + 'ModuleWithDI') !== 'undefined') + "\n");
+        post("  createSINUAModuleWithDI available: " + (typeof createSINUAModuleWithDI !== 'undefined') + "\n");
+        post("  createMIDIModuleWithDI available:  " + (typeof createMIDIModuleWithDI !== 'undefined') + "\n");
         
         return false;
     }

@@ -191,11 +191,11 @@ function createDataLayerModule(common) {
             notifyStateChange('stop', stopID, state, context);
             
             var contextInfo = formatContext(context);
-            common.log(common.LOG_LEVEL.VERBOSE, `Stop ${stopID} set to ${state}${contextInfo}`);
+            common.log(common.LOG_LEVEL.VERBOSE, "Stop " + stopID + " set to " + state + contextInfo);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `setStopState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "setStopState(): " + error.message);
             return false;
         }
     }
@@ -233,11 +233,11 @@ function createDataLayerModule(common) {
             notifyStateChange('tremulant', tremulantID, organState.tremulants[tremulantID], context);
             
             var contextInfo = formatContext(context);
-            common.log(common.LOG_LEVEL.VERBOSE, `Tremulant ${tremulantID} set to active:${active}, speed:${speed}${contextInfo}`);
+            common.log(common.LOG_LEVEL.VERBOSE, "Tremulant " + tremulantID + " set to active:" + active + ", speed:" + speed + contextInfo);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `setTremulantState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "setTremulantState(): " + error.message);
             return false;
         }
     }
@@ -269,11 +269,11 @@ function createDataLayerModule(common) {
             notifyStateChange('controller', controllerID, value, context);
             
             var contextInfo = formatContext(context);
-            common.log(common.LOG_LEVEL.VERBOSE, `Controller ${controllerID} set to ${value}${contextInfo}`);
+            common.log(common.LOG_LEVEL.VERBOSE, "Controller " + controllerID + " set to " + value + contextInfo);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `setControllerState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "setControllerState(): " + error.message);
             return false;
         }
     }
@@ -312,11 +312,11 @@ function createDataLayerModule(common) {
             }
             
             var contextInfo = formatContext(divisionContext);
-            common.log(common.LOG_LEVEL.INFO, `Division ${divisionID} batch update: ${batchCommands.length} stops${contextInfo}`);
+            common.log(common.LOG_LEVEL.INFO, "Division " + divisionID + " batch update: " + batchCommands.length + " stops" + contextInfo);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `setDivisionState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "setDivisionState(): " + error.message);
             return false;
         }
     }
@@ -363,11 +363,11 @@ function createDataLayerModule(common) {
             organState.presets.loading = false;
             
             var contextInfo = formatContext(presetContext);
-            common.log(common.LOG_LEVEL.INFO, `Preset "${presetName}" applied${contextInfo}`);
+            common.log(common.LOG_LEVEL.INFO, "Preset \"" + presetName + "\" applied" + contextInfo);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `setPresetState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "setPresetState(): " + error.message);
             organState.presets.loading = false;
             return false;
         }
@@ -392,7 +392,7 @@ function createDataLayerModule(common) {
         });
         
         var contextInfo = formatContext(layerContext);
-        common.log(common.LOG_LEVEL.INFO, `Layer ${action} queued${contextInfo} [${sinuaCommand}]`);
+        common.log(common.LOG_LEVEL.INFO, "Layer " + action + " queued" + contextInfo + " [" + sinuaCommand + "]");
         return true;
     }
     
@@ -410,7 +410,7 @@ function createDataLayerModule(common) {
         });
         
         var contextInfo = formatContext(manualContext);
-        common.log(common.LOG_LEVEL.INFO, `Manual ${action} queued${contextInfo} [${sinuaCommand}]`);
+        common.log(common.LOG_LEVEL.INFO, "Manual " + action + " queued" + contextInfo + " [" + sinuaCommand + "]");
         return true;
     }
     
@@ -428,7 +428,7 @@ function createDataLayerModule(common) {
         });
         
         var contextInfo = formatContext(divisionContext);
-        common.log(common.LOG_LEVEL.INFO, `Division ${action} queued${contextInfo} [${sinuaCommand}]`);
+        common.log(common.LOG_LEVEL.INFO, "Division " + action + " queued" + contextInfo + " [" + sinuaCommand + "]");
         return true;
     }
     
@@ -444,7 +444,7 @@ function createDataLayerModule(common) {
             sinuaCommand: sinuaCommand
         });
         
-        common.log(common.LOG_LEVEL.INFO, `Organ reset queued [${sinuaCommand}]`);
+        common.log(common.LOG_LEVEL.INFO, "Organ reset queued [" + sinuaCommand + "]");
         return true;
     }
     
@@ -469,7 +469,7 @@ function createDataLayerModule(common) {
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `saveCurrentState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "saveCurrentState(): " + error.message);
             return false;
         }
     }
@@ -499,7 +499,7 @@ function createDataLayerModule(common) {
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `restoreState(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "restoreState(): " + error.message);
             return false;
         }
     }
@@ -514,11 +514,11 @@ function createDataLayerModule(common) {
             var previousState = stateHistory.pop();
             restoreState(previousState.state);
             
-            common.log(common.LOG_LEVEL.INFO, `Undone to: ${previousState.description}`);
+            common.log(common.LOG_LEVEL.INFO, "Undone to: " + previousState.description);
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `undoLastChange(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "undoLastChange(): " + error.message);
             return false;
         }
     }
@@ -543,7 +543,7 @@ function createDataLayerModule(common) {
         
         organState._meta.listeners.push(listener);
         
-        common.log(common.LOG_LEVEL.VERBOSE, `State listener added for types: ${listener.types.join(', ')}`);
+        common.log(common.LOG_LEVEL.VERBOSE, "State listener added for types: " + listener.types.join(', '));
         return listener.id;
     }
     
@@ -551,7 +551,7 @@ function createDataLayerModule(common) {
         for (var i = 0; i < organState._meta.listeners.length; i++) {
             if (organState._meta.listeners[i].id === listenerID) {
                 organState._meta.listeners.splice(i, 1);
-                common.log(common.LOG_LEVEL.VERBOSE, `State listener ${listenerID} removed`);
+                common.log(common.LOG_LEVEL.VERBOSE, "State listener " + listenerID + " removed");
                 return true;
             }
         }
@@ -565,7 +565,7 @@ function createDataLayerModule(common) {
                     // Pass context as fifth parameter
                     listener.callback(type, id, value, organState, context);
                 } catch (error) {
-                    common.log(common.LOG_LEVEL.ERROR, `State listener error: ${error.message}`);
+                    common.log(common.LOG_LEVEL.ERROR, "State listener error: " + error.message);
                 }
             }
         });
@@ -605,10 +605,10 @@ function createDataLayerModule(common) {
         commandQueue.splice(insertIndex, 0, command);
         
         var contextInfo = command.context ? formatContext(command.context) : '';
-        var sinuaInfo = command.sinuaCommand ? ` [${command.sinuaCommand}]` : '';
+        var sinuaInfo = command.sinuaCommand ? " [" + command.sinuaCommand + "]" : '';
         
         common.log(common.LOG_LEVEL.VERBOSE, 
-            `Command queued: ${type}(${id}) = ${JSON.stringify(value)}${contextInfo}${sinuaInfo}`);
+            "Command queued: " + type + "(" + id + ") = " + JSON.stringify(value) + contextInfo + sinuaInfo);
     }
     
     function getCommandQueue() {
@@ -624,10 +624,10 @@ function createDataLayerModule(common) {
         command.attempts++;
         
         var contextInfo = command.context ? formatContext(command.context) : '';
-        var sinuaInfo = command.sinuaCommand ? ` [${command.sinuaCommand}]` : '';
+        var sinuaInfo = command.sinuaCommand ? " [" + command.sinuaCommand + "]" : '';
         
         common.log(common.LOG_LEVEL.VERBOSE, 
-            `Processing command: ${command.type}(${command.id})${contextInfo}${sinuaInfo}`);
+            "Processing command: " + command.type + "(" + command.id + ")" + contextInfo + sinuaInfo);
         
         return command;
     }
@@ -641,17 +641,17 @@ function createDataLayerModule(common) {
             }, delay);
             
             var contextInfo = command.context ? formatContext(command.context) : '';
-            common.log(common.LOG_LEVEL.WARN, `Command requeued (attempt ${command.attempts + 1}): ${command.type}(${command.id})${contextInfo}`);
+            common.log(common.LOG_LEVEL.WARN, "Command requeued (attempt " + command.attempts + 1 + "): " + command.type + "(" + command.id + ")" + contextInfo);
         } else {
             var contextInfo = command.context ? formatContext(command.context) : '';
-            common.log(common.LOG_LEVEL.ERROR, `Command failed after 3 attempts: ${command.type}(${command.id})${contextInfo}`);
+            common.log(common.LOG_LEVEL.ERROR, "Command failed after 3 attempts: " + command.type + "(" + command.id + ")" + contextInfo);
         }
     }
     
     function clearCommandQueue() {
         var count = commandQueue.length;
         commandQueue = [];
-        common.log(common.LOG_LEVEL.INFO, `Command queue cleared (${count} commands removed)`);
+        common.log(common.LOG_LEVEL.INFO, "Command queue cleared (" + count + " commands removed)");
     }
     
     // ================================================================================================
@@ -663,7 +663,7 @@ function createDataLayerModule(common) {
         organState._meta.changeCount++;
         
         if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
-            common.log(common.LOG_LEVEL.DEBUG, `State change recorded: ${type}(${id})`);
+            common.log(common.LOG_LEVEL.DEBUG, "State change recorded: " + type + "(" + id + ")");
         }
     }
     
@@ -757,7 +757,7 @@ function createDataLayerModule(common) {
                         active: false,
                         speed: 64,
                         divisionID: tremulant.divisionID || null,
-                        name: tremulant.divisionName || `Tremulant ${index + 1}`
+                        name: tremulant.divisionName || "Tremulant " + (index + 1)
                     };
                 });
             }
@@ -767,7 +767,7 @@ function createDataLayerModule(common) {
                     organState.controllers[index + 1] = {
                         value: 0,
                         type: 'volume',
-                        name: controller.name || `Controller ${index + 1}`
+                        name: controller.name || "Controller " + (index + 1)
                     };
                 });
             }
@@ -782,11 +782,11 @@ function createDataLayerModule(common) {
                 });
             }
             
-            common.log(common.LOG_LEVEL.INFO, `State populated from organ data: ${Object.keys(organState.stops).length} stops, ${Object.keys(organState.divisions).length} divisions`);
+            common.log(common.LOG_LEVEL.INFO, "State populated from organ data: " + Object.keys(organState.stops).length + " stops, " + Object.keys(organState.divisions).length + " divisions");
             return true;
             
         } catch (error) {
-            common.log(common.LOG_LEVEL.ERROR, `populateStateFromOrganData(): ${error.message}`);
+            common.log(common.LOG_LEVEL.ERROR, "populateStateFromOrganData(): " + error.message);
             return false;
         }
     }
@@ -804,11 +804,11 @@ function createDataLayerModule(common) {
             var oldValue = organState.settings[key];
             organState.settings[key] = value;
             
-            common.log(common.LOG_LEVEL.INFO, `Setting ${key} changed from ${oldValue} to ${value}`);
+            common.log(common.LOG_LEVEL.INFO, "Setting " + key + " changed from " + oldValue + " to " + value);
             notifyStateChange('setting', key, value);
             return true;
         } else {
-            common.log(common.LOG_LEVEL.WARN, `setSetting(): Unknown setting key: ${key}`);
+            common.log(common.LOG_LEVEL.WARN, "setSetting(): Unknown setting key: " + key);
             return false;
         }
     }
@@ -857,41 +857,41 @@ function createDataLayerModule(common) {
         var state = organState;
         
         common.log(common.LOG_LEVEL.INFO, "=== CURRENT ORGAN STATE ===");
-        common.log(common.LOG_LEVEL.INFO, `Organ: ${state.info.name} (${state.info.type})`);
-        common.log(common.LOG_LEVEL.INFO, `Loaded: ${state.info.loaded}`);
+        common.log(common.LOG_LEVEL.INFO, "Organ: " + state.info.name + " (" + state.info.type + ")");
+        common.log(common.LOG_LEVEL.INFO, "Loaded: " + state.info.loaded);
         
         var activeStops = Object.keys(state.stops).filter(function(id) {
             return state.stops[id].state;
         });
-        common.log(common.LOG_LEVEL.INFO, `Active stops: ${activeStops.length}/${Object.keys(state.stops).length}`);
+        common.log(common.LOG_LEVEL.INFO, "Active stops: " + activeStops.length + "/" + Object.keys(state.stops).length);
         
         var activeTremulants = Object.keys(state.tremulants).filter(function(id) {
             return state.tremulants[id].active;
         });
-        common.log(common.LOG_LEVEL.INFO, `Active tremulants: ${activeTremulants.length}/${Object.keys(state.tremulants).length}`);
+        common.log(common.LOG_LEVEL.INFO, "Active tremulants: " + activeTremulants.length + "/" + Object.keys(state.tremulants).length);
         
-        common.log(common.LOG_LEVEL.INFO, `Controllers: ${Object.keys(state.controllers).length}`);
-        common.log(common.LOG_LEVEL.INFO, `Divisions: ${Object.keys(state.divisions).length}`);
-        common.log(common.LOG_LEVEL.INFO, `Current preset: ${state.presets.current || 'None'}`);
-        common.log(common.LOG_LEVEL.INFO, `Include transmissions: ${state.settings.includeTransmissions}`);
+        common.log(common.LOG_LEVEL.INFO, "Controllers: " + Object.keys(state.controllers).length);
+        common.log(common.LOG_LEVEL.INFO, "Divisions: " + Object.keys(state.divisions).length);
+        common.log(common.LOG_LEVEL.INFO, "Current preset: " + state.presets.current || 'None');
+        common.log(common.LOG_LEVEL.INFO, "Include transmissions: " + state.settings.includeTransmissions);
         
         // Enhanced command queue display with context
         if (commandQueue.length > 0) {
-            common.log(common.LOG_LEVEL.INFO, `Command queue (${commandQueue.length}):`);
+            common.log(common.LOG_LEVEL.INFO, "Command queue (" + commandQueue.length + "):");
             commandQueue.slice(0, 5).forEach(function(cmd, index) {
                 var contextInfo = cmd.context ? formatContext(cmd.context) : '';
-                var sinuaInfo = cmd.sinuaCommand ? ` [${cmd.sinuaCommand}]` : '';
+                var sinuaInfo = cmd.sinuaCommand ? " [" + cmd.sinuaCommand + "]" : '';
                 common.log(common.LOG_LEVEL.INFO, 
-                    `  ${index + 1}. ${cmd.type}(${cmd.id})${contextInfo}${sinuaInfo}`);
+                    "  " + (index + 1) + ". " + cmd.type + "(" + cmd.id + ")" + contextInfo + sinuaInfo);
             });
             if (commandQueue.length > 5) {
-                common.log(common.LOG_LEVEL.INFO, `  ... and ${commandQueue.length - 5} more`);
+                common.log(common.LOG_LEVEL.INFO, "  ... and " + commandQueue.length - 5 + " more");
             }
         } else {
             common.log(common.LOG_LEVEL.INFO, "Command queue: empty");
         }
         
-        common.log(common.LOG_LEVEL.INFO, `State listeners: ${state._meta.listeners.length}`);
+        common.log(common.LOG_LEVEL.INFO, "State listeners: " + state._meta.listeners.length);
         common.log(common.LOG_LEVEL.INFO, "============================");
     }
     
@@ -943,14 +943,14 @@ function createDataLayerModule(common) {
         Object.keys(organState.stops).forEach(function(stopID) {
             var stop = organState.stops[stopID];
             if (stop.divisionID && !organState.divisions[stop.divisionID]) {
-                issues.push(`Stop ${stopID} references non-existent division ${stop.divisionID}`);
+                issues.push("Stop " + stopID + " references non-existent division " + stop.divisionID);
             }
         });
         
         Object.keys(organState.tremulants).forEach(function(tremID) {
             var trem = organState.tremulants[tremID];
             if (trem.divisionID && !organState.divisions[trem.divisionID]) {
-                issues.push(`Tremulant ${tremID} references non-existent division ${trem.divisionID}`);
+                issues.push("Tremulant " + tremID + " references non-existent division " + trem.divisionID);
             }
         });
         
@@ -959,15 +959,15 @@ function createDataLayerModule(common) {
             if (cmd.context) {
                 if (cmd.context.manual !== null && cmd.context.manual !== undefined && 
                     typeof cmd.context.manual !== 'number') {
-                    issues.push(`Command ${index}: Invalid manual ID type`);
+                    issues.push("Command " + index + ": Invalid manual ID type");
                 }
                 if (cmd.context.layer !== null && cmd.context.layer !== undefined && 
                     typeof cmd.context.layer !== 'number') {
-                    issues.push(`Command ${index}: Invalid layer ID type`);
+                    issues.push("Command " + index + ": Invalid layer ID type");
                 }
                 if (cmd.context.divisionID !== null && cmd.context.divisionID !== undefined && 
                     !organState.divisions[cmd.context.divisionID]) {
-                    issues.push(`Command ${index}: References non-existent division ${cmd.context.divisionID}`);
+                    issues.push("Command " + index + ": References non-existent division " + cmd.context.divisionID);
                 }
             }
         });
@@ -976,7 +976,7 @@ function createDataLayerModule(common) {
             common.log(common.LOG_LEVEL.INFO, "State integrity check passed");
             return true;
         } else {
-            common.log(common.LOG_LEVEL.WARN, `State integrity issues found: ${issues.join(', ')}`);
+            common.log(common.LOG_LEVEL.WARN, "State integrity issues found: " + issues.join(', '));
             return false;
         }
     }
@@ -989,12 +989,12 @@ function createDataLayerModule(common) {
         } else {
             commandQueue.forEach(function(cmd, index) {
                 var contextInfo = cmd.context ? formatContext(cmd.context) : '';
-                var sinuaInfo = cmd.sinuaCommand ? ` [${cmd.sinuaCommand}]` : '';
+                var sinuaInfo = cmd.sinuaCommand ? " [" + cmd.sinuaCommand + "]" : '';
                 var ageMs = Date.now() - cmd.timestamp;
-                var age = ageMs < 1000 ? `${ageMs}ms` : `${(ageMs/1000).toFixed(1)}s`;
+                var age = ageMs < 1000 ? ageMs + "ms" : (ageMs/1000).toFixed(1) + "s";
                 
                 common.log(common.LOG_LEVEL.INFO, 
-                    `${index + 1}. ${cmd.type}(${cmd.id}) = ${JSON.stringify(cmd.value)}${contextInfo}${sinuaInfo} (${age} ago, attempt ${cmd.attempts})`);
+                    index + 1 + ". " + cmd.type + "(" + cmd.id + ") = " + JSON.stringify(cmd.value) + contextInfo + sinuaInfo + " (" + age + " ago, attempt " + cmd.attempts + ")");
             });
         }
         
@@ -1056,7 +1056,7 @@ function createDataLayerModule(common) {
         
         var contextInfo = formatContext(context);
         common.log(common.LOG_LEVEL.INFO, 
-            `Cleared ${clearedStops.length} stops in context${contextInfo}: [${clearedStops.join(', ')}]`);
+            "Cleared " + clearedStops.length + " stops in context" + contextInfo + ": [" + clearedStops.join(', ') + "]");
         
         return clearedStops;
     }
@@ -1078,7 +1078,7 @@ function createDataLayerModule(common) {
         
         var contextInfo = formatContext(context);
         common.log(common.LOG_LEVEL.INFO, 
-            `Activated ${activatedStops.length} stops in context${contextInfo}: [${activatedStops.join(', ')}]`);
+            "Activated " + activatedStops.length + " stops in context" + contextInfo + ": [" + activatedStops.join(', ') + "]");
         
         return activatedStops;
     }
@@ -1110,7 +1110,7 @@ function createDataLayerModule(common) {
                     context: context,
                     sinuaCommand: createSinuaCommand(context, action)
                 });
-                common.log(common.LOG_LEVEL.INFO, `${action.toUpperCase()} executed for context${contextInfo}`);
+                common.log(common.LOG_LEVEL.INFO, action.toUpperCase() + " executed for context" + contextInfo);
                 break;
                 
             case 'solo':
@@ -1120,11 +1120,11 @@ function createDataLayerModule(common) {
                 currentActive.forEach(function(stop) {
                     setStopState(stop.stopID, true, false, context);
                 });
-                common.log(common.LOG_LEVEL.INFO, `SOLO executed for context${contextInfo}`);
+                common.log(common.LOG_LEVEL.INFO, "SOLO executed for context" + contextInfo);
                 break;
                 
             default:
-                common.log(common.LOG_LEVEL.WARN, `Unknown context action: ${action}`);
+                common.log(common.LOG_LEVEL.WARN, "Unknown context action: " + action);
                 return false;
         }
         
