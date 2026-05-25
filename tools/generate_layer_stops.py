@@ -76,30 +76,32 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
 
     # ── Hidden objects (negative Y, outside presentation area) ────────────────
 
-    # Inlet 0 — reset: JS sends stopsBpatcher.message(0) to clear all buttons.
-    # Must be the LEFT-MOST inlet object (x < outlet.x) so it becomes inlet 0.
-    boxes.append({"box": {
-        "id": "obj-in", "maxclass": "inlet", "comment": "reset (0=clear all)",
-        "patching_rect": [10.0, -30.0, 30.0, 30.0],
-        "numinlets": 0, "numoutlets": 1,
-    }})
-
     # Outlet 0 — stop clicks: prepend stopID output routes here.
+    # No inlet needed: reset is driven by send/receive (hierarchy-independent global namespace).
     boxes.append({"box": {
         "id": "obj-out", "maxclass": "outlet", "comment": "stop",
-        "patching_rect": [50.0, -30.0, 30.0, 30.0],
+        "patching_rect": [10.0, -30.0, 30.0, 30.0],
         "numinlets": 1, "numoutlets": 0,
     }})
 
-    # "prepend set" — converts 0 → "set 0" so live.text gets a silent set (no outlet fire).
+    # "receive #1" — receives the reset signal from JS via a matching 'send <resetName>' object.
+    # JS sets bpatcher arg #1 = resetName via stopsBp.message("args", resetName).
+    # Hierarchy-independent: s/r pairs work across any nesting depth without routing issues.
+    boxes.append({"box": {
+        "id": "obj-recv", "maxclass": "newobj", "text": "receive #1",
+        "patching_rect": [10.0, -60.0, 100.0, 22.0],
+        "numinlets": 0, "numoutlets": 1,
+    }})
+
+    # "prepend set" — converts received 0 → "set 0" so live.text clears silently (no outlet fire).
     boxes.append({"box": {
         "id": "obj-prepset", "maxclass": "newobj", "text": "prepend set",
-        "patching_rect": [10.0, -60.0, 80.0, 22.0],
+        "patching_rect": [10.0, -90.0, 80.0, 22.0],
         "numinlets": 2, "numoutlets": 1,
     }})
 
-    # Wire: inlet → prepend-set
-    lines.append({"patchline": {"source": ["obj-in", 0], "destination": ["obj-prepset", 0]}})
+    # Wire: receive #1 → prepend-set
+    lines.append({"patchline": {"source": ["obj-recv", 0], "destination": ["obj-prepset", 0]}})
 
     seen_ids: set[int] = set()
     row, col = 0, 0

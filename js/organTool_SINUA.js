@@ -18,6 +18,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
     var stopRouteReceive = null; // The single "receive organ_stops" box in context.patcher
+    var _stopResetSeq = 0; // Monotonically-increasing counter — unique send/receive names per layer
     
     // ================================================================================================
     // CONTEXT HELPER FUNCTIONS
@@ -573,6 +574,12 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         var stopFilename = organState.layerStopFilename
             ? organState.layerStopFilename.replace(/.*[\/\\]/, '')  // extract filename only
             : null;
+
+        // Unique send/receive name for this layer's reset signal.
+        // send/receive are hierarchy-independent (global namespace), so resetSend in sp
+        // can reach receive #1 inside any nested bpatcher depth without path issues.
+        var resetName = "sr_" + (++_stopResetSeq);
+
         var stopsBp = stopFilename ? sp.newdefault(sx, 0, "bpatcher",
             "@varname", "stops_" + layerID,
             "@patching_rect", sx, 0, stopsW, stopsH,
@@ -581,6 +588,17 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
             "@name", stopFilename,
             "@embed", 0
         ) : null;
+
+        // Pass resetName as bpatcher arg #1 so 'receive #1' inside becomes 'receive <resetName>'.
+        // Do this AFTER newdefault so the file has a chance to load before args are applied.
+        if (stopsBp) {
+            try { stopsBp.message("args", resetName); } catch(e) {}
+        }
+
+        // Send object in sp (same nesting level as DIV buttons — message() confirmed working).
+        // resetSend.message("int", 0) → s <resetName> broadcasts globally →
+        // receive #1 inside stops bpatcher → prepend set → "set 0" to each live.text
+        var resetSend = stopFilename ? sp.newdefault(0, -200, "send", resetName) : null;
 
         var innerPatcher = stopsBp ? stopsBp.subpatcher() : null;
 
@@ -634,7 +652,7 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         panic: panic,
         cancel: cancel,
         context: actionCtx,
-        stopsBpatcher: stopsBp || null, // bpatcher ref for bulk reset via inlet 0 (message 0)
+        resetSend: resetSend || null,   // send object in sp — broadcasts to receive #1 in stops bpatcher
         stopButtonMap: stopButtonMap    // JS-created buttons (DIV/division buttons) for CANCEL
     };
 }
@@ -1125,9 +1143,13 @@ function clearButtonMap(buttonMap) {
 // BPATCHER itself (inlet 0 → internal prepend-set → all live.text buttons silently set to 0).
 function clearLayer(layer) {
     if (!layer) return;
-    // 1. Bulk-reset all bpatcher-loaded stops via the reset inlet wired in the generated .maxpat
-    if (layer.stopsBpatcher) {
-        try { layer.stopsBpatcher.message(0); } catch(e) {}
+    // 1. Send/receive reset: hierarchy-independent global broadcast
+    //    resetSend (in layer sp, same level as DIV buttons — message() confirmed working)
+    //    sends int 0 → 's <resetName>' broadcasts globally
+    //    → 'receive #1' inside stops bpatcher receives 0
+    //    → prepend set → "set 0" → each live.text silent visual clear
+    if (layer.resetSend) {
+        try { layer.resetSend.message("int", 0); } catch(e) {}
     }
     // 2. Clear JS-created buttons (DIV/division buttons created by createStopArray)
     clearButtonMap(layer.stopButtonMap);
