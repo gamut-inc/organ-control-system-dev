@@ -1,5 +1,5 @@
     // organTool_Geometry.js - GEOMETRY with Intelligent Caching
-    // 00.18 - Fix: subpatcherLabel.w 130 → 95 to prevent overflow into adjacent division bpatchers
+    // 00.19 - dialW 44→70, controlLabel added, control.h=2*stops.h
     // 25.05.2026
 
 autowatch = 1;
@@ -132,7 +132,7 @@ function createGeometryModule() {
             sinua: {
                 // *** CONTROLLERS MODULE ***
                 controllers: {
-                    dialW: 44, // wider dials so labels aren't clipped
+                    dialW: 70, // wide enough to show name label (70px ≈ 10 chars at fs 9)
                     bpatcher: function(count) {
                         var cacheKey = "ctl_"+ count;
                         var self = GEOMETRY;
@@ -149,11 +149,18 @@ function createGeometryModule() {
                         });
                     },
 
+                    // name label above the knob
+                    controlLabel: function(index) {
+                        var dw = GEOMETRY.sinua.controllers.dialW;
+                        return { x: index * dw, y: 0, w: dw, h: GEOMETRY.stops.h };
+                    },
+
+                    // knob fills the remaining 2 rows (y=stops.h … 3*stops.h = 60)
                     control: function(index) {
                         var dw = GEOMETRY.sinua.controllers.dialW;
                         return {
                             w: dw,
-                            h: 56,
+                            h: GEOMETRY.stops.h * 2,
                             x: index * dw,
                             y: GEOMETRY.stops.h
                         };

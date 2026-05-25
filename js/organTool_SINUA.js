@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.02 - Fix: no DIV buttons for all-movable organs; flush cache in generateGUI
+// 01.03 - Per-controller name labels; RST/PANIC font sizes; CANCEL spelled out
 // 25.05.2026
 
 autowatch = 1;
@@ -313,9 +313,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var context = createActionContext(null, null, null); // Organ-level context
 
         var fs = common.GEOMETRY.button.fontsize;
-        var reset  = createGUIButton(p, common.GEOMETRY.button.pos(0, 1), "reset",  "RST",   context, fs.small);
-        var panic  = createGUIButton(p, common.GEOMETRY.button.pos(0, 3), "panic",  "PANIC", context, fs.small);
-        var cancel = createGUIButton(p, common.GEOMETRY.button.pos(0, 5), "cancel", "CANC",  context, fs.small);
+        var reset  = createGUIButton(p, common.GEOMETRY.button.pos(0, 1), "reset",  "RST",    context, fs.larger); // 20 — 3 chars, prominent
+        var panic  = createGUIButton(p, common.GEOMETRY.button.pos(0, 3), "panic",  "PANIC",  context, fs.large);  // 11 — 5 chars, readable
+        var cancel = createGUIButton(p, common.GEOMETRY.button.pos(0, 5), "cancel", "CANCEL", context, fs.small);  //  8 — 6 chars
         
         return { label: label, reset: reset, panic: panic, cancel: cancel };
     }
@@ -331,10 +331,10 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 
         common.log(common.LOG_LEVEL.DEBUG, "createDivisionSection(): context: "+Object.keys(context))
 
-        var labelPos = common.GEOMETRY.label; 
-        var label = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "DIVISIONS");
-
-        var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "cancel", "CANCEL", context);
+        var fs = common.GEOMETRY.button.fontsize;
+        var labelPos = common.GEOMETRY.label;
+        var label  = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "DIVISIONS");
+        var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "cancel", "CANCEL", context, fs.small);
         
         var divisions = [];
         divisionData.forEach(function(division, index) {
@@ -398,10 +398,11 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         
         var context = createActionContext(manualData.manualID, null, null);
 
-        var labelPos = common.GEOMETRY.label; 
-        var label = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", manualData.name);
-        var panic = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic", "PANIC", context);
-        var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context);
+        var fs = common.GEOMETRY.button.fontsize;
+        var labelPos = common.GEOMETRY.label;
+        var label  = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", manualData.name);
+        var panic  = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic",  "PANIC",  context, fs.large);
+        var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
 
         var layers = [];
         for (var i = 1; i <= common.GEOMETRY.sinua.manuals.defaultLayersPerManual; i++) {
@@ -440,10 +441,11 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     
     var context = createActionContext(manualID, layerID, null);
 
-    var labelPos = common.GEOMETRY.label; 
-    var label = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "LAYER "+layerID);
-    var panic = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic", "PANIC", context);
-    var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context);
+    var fs = common.GEOMETRY.button.fontsize;
+    var labelPos = common.GEOMETRY.label;
+    var label  = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "LAYER " + layerID);
+    var panic  = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic",  "PANIC",  context, fs.large);
+    var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
     
     var stops = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0, 
         stopData.movable, null, manualID, layerID);
@@ -471,14 +473,22 @@ function createControllerSection(p, controllerData) {
     var bpatcher = common.createBpatcher(p, pos.x, pos.y, pos.w, pos.h, "controllers");
     if (!bpatcher) return null;
 
-    var label = common.createLiveComment(bpatcher.subpatcher(), 0, 0, 120, 20, "controllers_label", "CONTROLLERS");
-
+    // Per-controller name label (replaces single "CONTROLLERS" header):
+    // each column gets its own comment at y=0 so long names stay readable.
     controllerData.forEach(function(controller, index) {
-        var posCtl = common.GEOMETRY.sinua.controllers.control(index);
+        var labelPos = common.GEOMETRY.sinua.controllers.controlLabel(index);
+        var posCtl   = common.GEOMETRY.sinua.controllers.control(index);
         var controllerID = index + 1;
 
-        var dial = common.createLiveDial(bpatcher.subpatcher(), posCtl.x, posCtl.y, posCtl.w, posCtl.h, 
-            "control" + controllerID, "control" + controllerID, controller.name);
+        // Name label — maxLength high (100) so shortenString never adds "…";
+        // Max's comment widget clips overflow naturally.
+        common.createLiveComment(bpatcher.subpatcher(),
+            labelPos.x, labelPos.y, labelPos.w, labelPos.h,
+            "ctrl_label_" + controllerID, controller.name, 100, 9);
+
+        // Dial shortname set to " " (space) so live.dial shows no competing label.
+        var dial = common.createLiveDial(bpatcher.subpatcher(), posCtl.x, posCtl.y, posCtl.w, posCtl.h,
+            "control" + controllerID, controller.name, " ");
 
         if (dial) {
             addListener(new MaxobjListener(dial, function(data) {
