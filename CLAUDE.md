@@ -74,8 +74,19 @@ The amxd has **hardcoded relative paths** (patcherrelativepath). Do NOT move:
 
 ## Missing Files (TODO)
 
-- `gamut_storage.js` — referenced by `gamut_storage.maxpat` (v8 object)
-- `relative_paths.maxpat` — referenced by `gamut_storage.maxpat`
+- `js/gamut_storage_menu.js` — required by `gamut_storage.js` via `require()`
+- `js/gamut_storage_chains.js` — required by `gamut_storage.js` via `require()`
+
+## Two JS Runtimes in Use
+
+This project uses **two different Max JS runtimes** — they have different rules:
+
+| File | Object | Runtime | Style |
+|---|---|---|---|
+| `js/organTool_*.js` | `js` | JavaScriptCore (old) | ES5, `var`, `post()`, no `require()` |
+| `js/gamut_storage.js` | `v8` | V8 (Max 8+) | ES6+, `require()`, `let/const` ok |
+
+**Do not mix patterns** — `require()` in a `js` object crashes, `include()` doesn't exist in `v8`.
 
 **No external build system. No npm. No transpilation.**
 All files are plain ES5-compatible JavaScript for the Max/MSP `js` object (JavaScriptCore).
