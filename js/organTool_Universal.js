@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.09 - Eliminate cables via MaxobjListener; fix PEDAL cancel (manualID=0 coercion bug)
+// 01.10 - Fix isGlobal (PEDAL cancel affects all): !0===true, use explicit null checks
 // 25.05.2026
 
 autowatch = 1;
