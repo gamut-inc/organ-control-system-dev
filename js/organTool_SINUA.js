@@ -444,7 +444,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     function createDivisionBpatcher(p, x, y, w, h, divisionData) {
         var bpatcher = common.createBpatcher(p, x, y, w, h, "division" + divisionData.divisionID);
         if (!bpatcher) return null;
-        
+        // Presentation mode: hides routing cables (prepend/send from createStopArrayRouted)
+        try { bpatcher.subpatcher().openinpresentation = 1; } catch(e) {}
+
         var labelPos = common.GEOMETRY.sinua.divisions.subpatcherLabel;
         var label = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h,
             "division_label_" + divisionData.divisionID, 
@@ -540,6 +542,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var bpatcher = common.createBpatcher(p, pos.x, pos.y, pos.w, pos.h, "layer" + layerID);
     if (!bpatcher) return null;
     var sp = bpatcher.subpatcher();
+    // Presentation mode: only @presentation=1 objects are visible — hides routing cables
+    try { sp.openinpresentation = 1; } catch(e) {}
     var tL1 = Date.now();
 
     var actionCtx = createActionContext(manualID, layerID, null);  // renamed to avoid shadowing outer context
@@ -767,18 +771,20 @@ function switchToManual(selectedIndex, manuals) {
     }
 
     manuals.forEach(function(manual, index) {
-        if (manual && manual.bpatcher && manual.bpatcher.varname) {
+        if (manual && manual.bpatcher) {
             try {
+                var visible = (index === selectedIndex) ? 1 : 0;
+                // Use presentation visibility only — NOT script hide/show.
+                // script hide fully deactivates the bpatcher in Max, which breaks
+                // MaxobjListeners on buttons inside the hidden bpatcher even after
+                // script show. Keeping all bpatchers Max-active (just invisible in
+                // presentation) ensures listeners remain live for all manuals.
+                manual.bpatcher.setboxattr("presentation", visible);
                 if (index === selectedIndex) {
-                    context.patcher.message("script", "show", manual.bpatcher.varname);
-                    manual.bpatcher.setboxattr("presentation", 1);
-                    common.log(common.LOG_LEVEL.DEBUG, "Showing manual: " + manual.bpatcher.varname);
-                } else {
-                    context.patcher.message("script", "hide", manual.bpatcher.varname);
-                    manual.bpatcher.setboxattr("presentation", 0);
+                    common.log(common.LOG_LEVEL.DEBUG, "Showing manual: " + (manual.bpatcher.varname || index));
                 }
             } catch (error) {
-                common.log(common.LOG_LEVEL.ERROR, 
+                common.log(common.LOG_LEVEL.ERROR,
                     "Error switching manual " + index + ": " + error.message);
             }
         }

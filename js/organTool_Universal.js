@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.07 - Fix bpatcher path (filename only, not POSIX); guard loadOrgan against non-JSON
+// 01.08 - Hide routing cables; fix cancel after manual switch
 // 25.05.2026
 
 autowatch = 1;
