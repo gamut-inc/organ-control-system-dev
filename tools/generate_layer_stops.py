@@ -66,10 +66,12 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
     boxes: list[dict] = []
     lines: list[dict] = []
 
-    # Outlet — becomes bpatcher outlet 0
+    # Outlet — becomes bpatcher outlet 0.
+    # Placed at negative Y so it stays well outside the presentation area
+    # (live.text buttons occupy y = 0 .. MAX_PER_COL*STOP_H).
     boxes.append({"box": {
         "id": "obj-out", "maxclass": "outlet", "comment": "stop",
-        "patching_rect": [10.0, 10.0, 30.0, 30.0],
+        "patching_rect": [10.0, -60.0, 30.0, 30.0],
         "numinlets": 1, "numoutlets": 0,
     }})
 
@@ -101,11 +103,12 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
             "varname": varname, "fontsize": 10.0,
         }})
 
-        # prepend <stopID> — tags each button click with its stopID
+        # prepend <stopID> — tags each button click with its stopID.
+        # Placed at negative Y (hidden area) — only live.text buttons appear in presentation.
         boxes.append({"box": {
             "id": p_id, "maxclass": "newobj",
             "text": f"prepend {stop_id}",
-            "patching_rect": [50.0, 60.0 + i * 25.0, 100.0, 22.0],
+            "patching_rect": [x, -90.0 - i * 25.0, 100.0, 22.0],
             "numinlets": 2, "numoutlets": 1,
         }})
 
@@ -130,7 +133,11 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
             },
             "classnamespace": "box",
             "rect": [100.0, 100.0, p_width, p_height],
-            "bglocked": 0, "openinpresentation": 0,
+            # openinpresentation: 1 → bpatcher shows PRESENTATION mode, not patching view.
+            # Only objects with "presentation": 1 are visible — the live.text toggle buttons.
+            # Outlet, prepend objects, and patch cables are hidden automatically.
+            # bglocked: 1 → prevents accidental editing when opened.
+            "bglocked": 1, "openinpresentation": 1,
             "default_fontsize": 12.0, "default_fontface": 0,
             "default_fontname": "Arial",
             "gridonopen": 1, "gridsize": [15.0, 15.0], "gridsnaponopen": 1,
