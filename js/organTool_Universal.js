@@ -152,18 +152,22 @@ function detectOrganType(organData) {
 
 function loadOrganModule(organType) {
     try {
-        var moduleFile = "organTool_" + organType + ".js";
-        var modulePath = scriptDir + moduleFile;
-        
-        post("Loading organ module: " + modulePath + "\n");
-        include(modulePath);
-        
-        // Explicit factory lookup — no eval(), no global/window (not available in Max js object)
-        // Add a new case here when a new organ type module is added
+        // Explicit factory lookup — no eval(), no global/window (not available in Max js object).
+        // Only include() the file when the factory is not yet defined — include() re-parses
+        // the entire file every call, which is the main loading-time bottleneck.
+        // To force a reload during development: touch/save Universal.js → autowatch clears scope.
         var factory = null;
         if (organType === "SINUA") {
+            if (typeof createSINUAModuleWithDI !== 'function') {
+                post("Loading (first time): " + scriptDir + "organTool_SINUA.js\n");
+                include(scriptDir + "organTool_SINUA.js");
+            }
             factory = (typeof createSINUAModuleWithDI === 'function') ? createSINUAModuleWithDI : null;
         } else if (organType === "MIDI") {
+            if (typeof createMIDIModuleWithDI !== 'function') {
+                post("Loading (first time): " + scriptDir + "organTool_MIDI.js\n");
+                include(scriptDir + "organTool_MIDI.js");
+            }
             factory = (typeof createMIDIModuleWithDI === 'function') ? createMIDIModuleWithDI : null;
         }
 
@@ -531,7 +535,7 @@ function resetSystem() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.01 - Ready\n");
+    post("Organ Control System v01.02 - Ready\n");
     post("Commands: loadOrgan(path), selectOrganFile(), displaySystemStatus()\n");
 }
 

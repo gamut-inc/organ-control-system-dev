@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.04 - +Layer fix (cached stops); window auto-resize
+// 01.05 - Remove double cache flush (redundant with clearGUIObjects)
 // 25.05.2026
 
 autowatch = 1;
@@ -249,11 +249,6 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var hasDivisions   = organData.divisions   && organData.divisions.length   > 0;
         var hasManuals     = organData.manuals && organData.stops && organData.stops.movable &&
                              organData.stops.movable.length > 0;
-
-        // Defensive cache flush — clearGUIObjects already clears it, but guard against
-        // any code path that touches the cache before we set the new row values.
-        G._cache = {};
-        G._calculatedWidths = {};
 
         // --- Dynamic Y layout: compute section start positions ---------------
         // Controls zone: header label (mainControls=60) + buttons reach to ~y=140
@@ -980,4 +975,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.04 - loaded\n");
+post("organTool_SINUA_ContextAware.js v01.05 - loaded\n");
