@@ -1,0 +1,15 @@
+# Claude Code local config
+CLAUDE.local.md
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Max/MSP generated files
+*.maxpat.bak
+*.maxpat~
+
+# Editor
+.vscode/
+*.swp
+*~
