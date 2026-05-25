@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.04 - format fix: stop mID lID dID stopID state (consistent for both routing paths)
+// 01.05 - Force SINUA.js reload: trigger autowatch by bumping Universal version
 // 25.05.2026
 
 autowatch = 1;
