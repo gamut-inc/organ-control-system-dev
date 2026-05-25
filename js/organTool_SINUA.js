@@ -475,15 +475,18 @@ function createControllerSection(p, controllerData) {
 
     // Per-controller name label (replaces single "CONTROLLERS" header):
     // each column gets its own comment at y=0 so long names stay readable.
+    // Position computed inline — no GEOMETRY method needed (avoids stale-module issues).
+    var dw = common.GEOMETRY.sinua.controllers.dialW;
+    var sh = common.GEOMETRY.stops.h;
+
     controllerData.forEach(function(controller, index) {
-        var labelPos = common.GEOMETRY.sinua.controllers.controlLabel(index);
-        var posCtl   = common.GEOMETRY.sinua.controllers.control(index);
+        var posCtl       = common.GEOMETRY.sinua.controllers.control(index);
         var controllerID = index + 1;
 
-        // Name label — maxLength high (100) so shortenString never adds "…";
+        // Name label — maxLength=100 so shortenString never adds "…";
         // Max's comment widget clips overflow naturally.
         common.createLiveComment(bpatcher.subpatcher(),
-            labelPos.x, labelPos.y, labelPos.w, labelPos.h,
+            index * dw, 0, dw, sh,
             "ctrl_label_" + controllerID, controller.name, 100, 9);
 
         // Dial shortname set to " " (space) so live.dial shows no competing label.
@@ -926,4 +929,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.00 - Context-aware SINUA module loaded\n");
+post("organTool_SINUA_ContextAware.js v01.03 - loaded\n");

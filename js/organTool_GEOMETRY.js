@@ -149,13 +149,9 @@ function createGeometryModule() {
                         });
                     },
 
-                    // name label above the knob
-                    controlLabel: function(index) {
-                        var dw = GEOMETRY.sinua.controllers.dialW;
-                        return { x: index * dw, y: 0, w: dw, h: GEOMETRY.stops.h };
-                    },
-
                     // knob fills the remaining 2 rows (y=stops.h … 3*stops.h = 60)
+                    // Name label position: { x: index*dialW, y:0, w:dialW, h:stops.h }
+                    // (computed inline in createControllerSection to avoid stale-module issues)
                     control: function(index) {
                         var dw = GEOMETRY.sinua.controllers.dialW;
                         return {
@@ -484,4 +480,4 @@ function createGeometryModule() {
         global.createGeometryModule = createGeometryModule;
     }
 
-    post("organTool_Geometry.js v00.17 - Fixed circular references, cached geometry system loaded\n");
+    post("organTool_Geometry.js v00.19 - dialW:70, control.h=2*stops.h loaded\n");

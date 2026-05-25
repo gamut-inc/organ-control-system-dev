@@ -531,7 +531,7 @@ function resetSystem() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.00 - Ready\n");
+    post("Organ Control System v01.01 - Ready\n");
     post("Commands: loadOrgan(path), selectOrganFile(), displaySystemStatus()\n");
 }
 
