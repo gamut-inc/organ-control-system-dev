@@ -1119,11 +1119,14 @@ function clearButtonMap(buttonMap) {
 function updateUIStopsOff(actionContext) {
     if (!guiObjects) return;
 
-    var isGlobal   = !actionContext.manual && !actionContext.layer && !actionContext.divisionID;
+    // Use explicit null/undefined checks — !0 is truthy, so manualID=0 (PEDAL) must not
+    // be treated as absent.  Same pattern as isLayer/isManual below.
+    var hasManual = (actionContext.manual !== null && actionContext.manual !== undefined);
+    var hasLayer  = (actionContext.layer  !== null && actionContext.layer  !== undefined);
+    var isGlobal  = !hasManual && !hasLayer && !actionContext.divisionID;
     var isDivision = !!actionContext.divisionID;
-    var isLayer    = (actionContext.manual !== null && actionContext.manual !== undefined) &&
-                     (actionContext.layer  !== null && actionContext.layer  !== undefined);
-    var isManual   = (actionContext.manual !== null && actionContext.manual !== undefined) && !isLayer;
+    var isLayer    = hasManual && hasLayer;
+    var isManual   = hasManual && !isLayer;
 
     if (isGlobal) {
         // All layers across all manuals + all division stop buttons
