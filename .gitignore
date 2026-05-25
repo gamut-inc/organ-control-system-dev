@@ -4,6 +4,8 @@ CLAUDE.local.md
 # macOS
 .DS_Store
 **/.DS_Store
+Icon?
+**/Icon?
 
 # Max/MSP generated files
 *.maxpat.bak

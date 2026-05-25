@@ -1,0 +1,3088 @@
+{
+   "Controllers" : [
+      {
+         "IP" : "192.168.0.129",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "5x HO 12V plus",
+         "Edges32" : [ 1, 10, 2, 9, 3, 8, 4, 7, 5, 6 ]
+      },
+      {
+         "IP" : "192.168.0.130",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "5x HO 24V",
+         "Edges32" : [ 11, 20, 12, 19, 13, 18, 14, 17, 15, 16 ]
+      },
+      {
+         "IP" : "192.168.0.131",
+         "Pins" : 128,
+         "Legacy" : true,
+         "Description" : "2x CH SB",
+         "Edges32" : [ 21, 24, 22, 23 ]
+      },
+      {
+         "IP" : "192.168.0.132",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "4x CO 1.1",
+         "Edges32" : [ 25, 32, 26, 31, 27, 30, 28, 29 ]
+      },
+      {
+         "IP" : "192.168.0.133",
+         "Pins" : 192,
+         "Legacy" : true,
+         "Description" : "3x CO 1.2",
+         "Edges32" : [ 33, 38, 34, 37, 35, 36 ]
+      },
+      {
+         "IP" : "192.168.0.134",
+         "Pins" : 64,
+         "xLegacy" : true,
+         "Description" : "1x CO 1.3 dyn"
+      },
+      {
+         "IP" : "192.168.0.135",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "4x CO 2.1",
+         "Edges32" : [ 41, 48, 42, 47, 43, 46, 44, 45 ]
+      },
+      {
+         "IP" : "192.168.0.136",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "4x CO 2.2",
+         "Edges32" : [ 49, 56, 50, 55, 51, 54, 52, 53 ]
+      },
+      {
+         "IP" : "192.168.0.137",
+         "Pins" : 128,
+         "Legacy" : true,
+         "Description" : "2x CO 2.3",
+         "Edges32" : [ 57, 60, 58, 59 ]
+      },
+      {
+         "IP" : "192.168.0.138",
+         "Pins" : 64,
+         "xLegacy" : true,
+         "Description" : "1x CO 2.4 dyn"
+      },
+      {
+         "IP" : "192.168.0.139",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "4x CO 3.1",
+         "Edges32" : [ 63, 70, 64, 69, 65, 68, 66, 67 ]
+      },
+      {
+         "IP" : "192.168.0.140",
+         "Pins" : 192,
+         "Legacy" : true,
+         "Description" : "3x CO 3.2",
+         "Edges32" : [ 71, 76, 72, 75, 73, 74 ]
+      },
+      {
+         "IP" : "192.168.0.141",
+         "Pins" : 64,
+         "xLegacy" : true,
+         "Description" : "1x CO 3.3 dyn"
+      },
+      {
+         "IP" : "192.168.0.142",
+         "Pins" : 64,
+         "Legacy" : true,
+         "Description" : "1x Chimes"
+      }
+   ],
+   "RemoteSwitches" : [
+      {
+         "IP" : "192.168.0.15",
+         "Name" : "Marcussen"
+      },
+      {
+         "IP" : "192.168.0.14",
+         "Name" : "Chamaden"
+      },
+      {
+         "IP" : "192.168.0.13",
+         "Name" : "Chororgel"
+      },
+      {
+         "IP" : "192.168.0.12",
+         "Name" : "Glockenspiel"
+      }
+   ],
+   "EmergencyOffPins" : [
+      {"Name" : "mrcsnOff", "Pin": 638},
+      {"Name" : "echoOff", "Pin": 639},
+      {"Name" : "altarOff", "Pin": 640},
+      {"Name" : "chamadesOff", "Pin": 727},
+      {"Name" : "32'Off", "Pin": 728}
+   ],
+   "Tremulants" : [
+      {
+         "Name" : "Trem I",
+         "pinPulse" : 1215
+      },
+      {
+         "Name" : "Trem II",
+         "pinPulse" : 1791
+      },
+      {
+         "Name" : "Trem III",
+         "pinPulse" : 2431
+      }
+   ],
+   "DefaultRamp" : {
+      "SlowAttack" : 0,
+      "SlowPeak" : 80,
+      "SlowDecay" : 10,
+      "SlowSustain" : 30,
+      "SlowRelease" : 20,
+      "SlowRemain" : 10,
+      "SlowFade" : 20,
+      "FastAttack" : 0,
+      "FastPeak" : 100,
+      "FastDecay" : 0,
+      "FastSustain" : 100,
+      "FastRelease" : 0,
+      "FastRemain" : 20,
+      "FastFade" : 10
+   },
+   "SwellTargets" : [
+      {
+         "Name" : "mrcsn",
+         "Mode" : "Grey",
+         "Pin" : 505
+      },
+      {
+         "Name" : "echo",
+         "Mode" : "Shift",
+         "PinCount" : 3,
+         "Pin" : 89,
+         "BusReady" : 0
+      },
+      {
+         "Name" : "altar",
+         "Mode" : "Shift",
+         "PinCount" : 3,
+         "Pin" : 217,
+         "BusReady" : 0
+      },
+      {
+         "Name" : "wind I",
+         "Mode" : "Grey",
+         "Pin" : 1825
+      },
+      {
+         "Name" : "wind II",
+         "Mode" : "Grey",
+         "Pin" : 1833
+      },
+      {
+         "Name" : "wind III",
+         "Mode" : "Grey",
+         "Pin" : 1841
+      },
+      {
+         "Name" : "swell II",
+         "Mode" : "Grey",
+         "Pin" : 1849
+      },
+      {
+         "Name" : "swell III",
+         "Mode" : "Grey",
+         "Pin" : 1857
+      }
+   ],
+   "Divisions" : [
+      {
+         "DivisionID" : 1,
+         "Name" : "RP",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a3",
+               "pin" : 321
+            }
+         ],
+         "ColourX" : "0xff808080",
+         "Stops" : [
+            {
+               "Name" : "Principal 8’",
+               "StopPins" : [ 129 ]
+            },
+            {
+               "Name" : "Gedackt 8’",
+               "StopPins" : [ 130 ]
+            },
+            {
+               "Name" : "Quintadena 8’",
+               "StopPins" : [ 131 ]
+            },
+            {
+               "Name" : "Oktava 4’",
+               "StopPins" : [ 132 ]
+            },
+            {
+               "Name" : "Gedacktflöjt 4’",
+               "StopPins" : [ 133 ]
+            },
+            {
+               "Name" : "Oktava 2’",
+               "StopPins" : [ 134 ]
+            },
+            {
+               "Name" : "Gemshorn 2’",
+               "StopPins" : [ 135 ]
+            },
+            {
+               "Name" : "Sivflöjt 1 1/3’",
+               "StopPins" : [ 136 ]
+            },
+            {
+               "Name" : "Oktava 1’",
+               "StopPins" : [ 137 ]
+            },
+            {
+               "Name" : "Sesquialtera 2 ch",
+               "StopPins" : [ 138 ]
+            },
+            {
+               "Name" : "Scharf 4-6 ch",
+               "StopPins" : [ 139 ]
+            },
+            {
+               "Name" : "Dulcian 16’",
+               "StopPins" : [ 140 ]
+            },
+            {
+               "Name" : "Krumhorn 8’",
+               "StopPins" : [ 141 ]
+            },
+            {
+               "Name" : "Regal 4’",
+               "StopPins" : [ 142 ]
+            },
+            {
+               "Name" : "Tremulant",
+               "StopPins" : [ 143 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 2,
+         "Name" : "HV",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a3",
+               "pin" : 385
+            }
+         ],
+         "ColourX" : "0xff6eae5b",
+         "Stops" : [
+            {
+               "Name" : "Principal 16’",
+               "StopPins" : [ 144 ]
+            },
+            {
+               "Name" : "Quintadena 16’",
+               "StopPins" : [ 145 ]
+            },
+            {
+               "Name" : "Oktava 8’",
+               "StopPins" : [ 146 ]
+            },
+            {
+               "Name" : "Spetsflöjt 8’",
+               "StopPins" : [ 147 ]
+            },
+            {
+               "Name" : "Oktava 4’",
+               "StopPins" : [ 148 ]
+            },
+            {
+               "Name" : "Rörflöjt 4’",
+               "StopPins" : [ 149 ]
+            },
+            {
+               "Name" : "Spetsquint 2 2/3’",
+               "StopPins" : [ 150 ]
+            },
+            {
+               "Name" : "Oktava 2’",
+               "StopPins" : [ 151 ]
+            },
+            {
+               "Name" : "Flachflöjt 2’",
+               "StopPins" : [ 152 ]
+            },
+            {
+               "Name" : "Rauschquint 3 ch",
+               "StopPins" : [ 153 ]
+            },
+            {
+               "Name" : "Mixtur 6-8 ch",
+               "StopPins" : [ 154 ]
+            },
+            {
+               "Name" : "Cymbel 3 ch",
+               "StopPins" : [ 155 ]
+            },
+            {
+               "Name" : "Trumpet 16’",
+               "StopPins" : [ 156 ]
+            },
+            {
+               "Name" : "Trumpet 8’",
+               "StopPins" : [ 157 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 3,
+         "Name" : "ÖV",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a3",
+               "pin" : 448
+            }
+         ],
+         "ColourX" : "0xffffffff",
+         "Stops" : [
+            {
+               "Name" : "Italiensk Principal 8’",
+               "StopPins" : [ 158 ]
+            },
+            {
+               "Name" : "Rörflöjt 8’",
+               "StopPins" : [ 159 ]
+            },
+            {
+               "Name" : "Gedackt 8’",
+               "StopPins" : [ 160 ]
+            },
+            {
+               "Name" : "Oktava 4’",
+               "StopPins" : [ 161 ]
+            },
+            {
+               "Name" : "Blockflöjt 4’",
+               "StopPins" : [ 162 ]
+            },
+            {
+               "Name" : "Quintadena 4’",
+               "StopPins" : [ 163 ]
+            },
+            {
+               "Name" : "Oktava 2’",
+               "StopPins" : [ 164 ]
+            },
+            {
+               "Name" : "Gedacktflöjt 2’",
+               "StopPins" : [ 165 ]
+            },
+            {
+               "Name" : "Nasat 1 1/3’",
+               "StopPins" : [ 166 ]
+            },
+            {
+               "Name" : "Waldflöjt 1’",
+               "StopPins" : [ 167 ]
+            },
+            {
+               "Name" : "Mixtur 4 ch",
+               "StopPins" : [ 168 ]
+            },
+            {
+               "Name" : "Cymbel 2 ch",
+               "StopPins" : [ 169 ]
+            },
+            {
+               "Name" : "Skalmeja 8’",
+               "StopPins" : [ 170 ]
+            },
+            {
+               "Name" : "Vox humana 8’",
+               "StopPins" : [ 171 ]
+            },
+            {
+               "Name" : "Tremulant",
+               "StopPins" : [ 172 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 4,
+         "Name" : "SV",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c4",
+               "pin" : 225
+            }
+         ],
+         "ColourX" : "0xff05aadb",
+         "Stops" : [
+            {
+               "Name" : "Gedackt 16’",
+               "StopPins" : [ 10 ]
+            },
+            {
+               "Name" : "Flute harmonique 8’",
+               "StopPins" : [ 11 ]
+            },
+            {
+               "Name" : "Gedackt 8’",
+               "StopPins" : [ 12 ]
+            },
+            {
+               "Name" : "Salicional 8’",
+               "StopPins" : [ 13 ]
+            },
+            {
+               "Name" : "Voix celeste 8’",
+               "StopPins" : [ 14 ]
+            },
+            {
+               "Name" : "Gamba 8’",
+               "StopPins" : [ 15 ]
+            },
+            {
+               "Name" : "Traversflöjt 4’",
+               "StopPins" : [ 16 ]
+            },
+            {
+               "Name" : "Quint 2 2/3’",
+               "StopPins" : [ 17 ]
+            },
+            {
+               "Name" : "Waldflöjt 2’",
+               "StopPins" : [ 18 ]
+            },
+            {
+               "Name" : "Ters 1 3/5’",
+               "StopPins" : [ 19 ]
+            },
+            {
+               "Name" : "Mixtur 5-7 ch",
+               "StopPins" : [ 20 ]
+            },
+            {
+               "Name" : "Cymbel 3 ch",
+               "StopPins" : [ 21 ]
+            },
+            {
+               "Name" : "Fagott 16’",
+               "StopPins" : [ 22 ]
+            },
+            {
+               "Name" : "Trumpet 8’",
+               "StopPins" : [ 23 ]
+            },
+            {
+               "Name" : "Oboe 8’",
+               "StopPins" : [ 24 ]
+            },
+            {
+               "Name" : "Clarion 4’",
+               "StopPins" : [ 25 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 5,
+         "Name" : "PED",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f1",
+               "pin" : 513
+            },
+            {
+               "left" : "C",
+               "right" : "f1",
+               "pin" : 545
+            },
+            {
+               "left" : "C",
+               "right" : "f1",
+               "pin" : 577
+            }
+         ],
+         "ColourX" : "0xffffff00",
+         "Stops" : [
+            {
+               "Name" : "Basse acoustique 64'",
+               "DivisionID" : 11,
+               "Movable" : true,
+               "Sources" : [
+                  {
+                     "Stop" : 215,
+                     "Route" : {
+                        "Left" : "C",
+                        "Right" : "H",
+                        "TargetNote" : "C"
+                     }
+                  },
+                  {
+                     "Stop" : 215,
+                     "Route" : {
+                        "Left" : "C",
+                        "Right" : "H",
+                        "TargetNote" : "G"
+                     }
+                  },
+                  {
+                     "Stop" : 215,
+                     "Route" : {
+                        "Left" : "c0",
+                        "Right" : "g1",
+                        "TargetNote" : "C"
+                     }
+                  }
+               ]
+            },
+            {
+               "Name" : "Soubasse 32'",
+               "DivisionID" : 11,
+               "Movable" : true,
+               "Sources" : [
+                  {
+                     "left" : "C",
+                     "right" : "g1",
+                     "pin" : 737
+                  },
+                  {
+                     "left" : "e0",
+                     "right" : "h0",
+                     "pin" : 729
+                  }
+               ]
+            },
+            {
+               "Name" : "Principal 16’",
+               "StopPins" : [ 173 ]
+            },
+            {
+               "Name" : "Subbas 16’",
+               "StopPins" : [ 174 ]
+            },
+            {
+               "Name" : "Gedackt 16’",
+               "StopPins" : [ 175 ]
+            },
+            {
+               "Name" : "Quinta 10 2/3’",
+               "StopPins" : [ 176 ]
+            },
+            {
+               "Name" : "Oktava 8’",
+               "StopPins" : [ 177 ]
+            },
+            {
+               "Name" : "Gedackt 8’",
+               "StopPins" : [ 178 ]
+            },
+            {
+               "Name" : "Oktava 4’",
+               "StopPins" : [ 179 ]
+            },
+            {
+               "Name" : "Koppelflöjt 4’",
+               "StopPins" : [ 180 ]
+            },
+            {
+               "Name" : "Nachthorn 2’",
+               "StopPins" : [ 181 ]
+            },
+            {
+               "Name" : "Rörflöjt 2 ch",
+               "StopPins" : [ 182 ]
+            },
+            {
+               "Name" : "Rauschquint 4 ch",
+               "StopPins" : [ 183 ]
+            },
+            {
+               "Name" : "Mixtur 6 ch",
+               "StopPins" : [ 184 ]
+            },
+            {
+               "Name" : "Basun 32’",
+               "StopPins" : [ 185 ],
+               "Sources" : [
+                  {
+                     "left" : "C",
+                     "right" : "f1",
+                     "pin" : 289
+                  }
+               ]
+            },
+            {
+               "Name" : "Basun 16’",
+               "StopPins" : [ 186 ]
+            },
+            {
+               "Name" : "Dulcian 16’",
+               "StopPins" : [ 187 ]
+            },
+            {
+               "Name" : "Chamade 16' ",
+               "DivisionID" : 11,
+               "Movable" : true,
+               "Sources" : [
+                  {
+                     "left" : "C",
+                     "right" : "c6",
+                     "pin" : 641
+                  }
+               ]
+            },
+            {
+               "Name" : "Trumpet 8’",
+               "StopPins" : [ 188 ]
+            },
+            {
+               "Name" : "Chamade 8'",
+               "DivisionID" : 11,
+               "Movable" : true,
+               "Sources" : [
+                  {
+                     "Stop" : 211,
+                     "Route" : {
+                        "Transpose" : 12
+                     }
+                  }
+               ]
+            },
+            {
+               "Name" : "Trumpet 4’",
+               "StopPins" : [ 189 ]
+            },
+            {
+               "Name" : "Chamade 4'",
+               "DivisionID" : 11,
+               "Movable" : true,
+               "Sources" : [
+                  {
+                     "Stop" : 211,
+                     "Route" : {
+                        "Transpose" : 24
+                     }
+                  }
+               ]
+            },
+            {
+               "Name" : "Cornet 2’ ",
+               "StopPins" : [ 190 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 6,
+         "Name" : "FV",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f2",
+               "pin" : 33
+            }
+         ],
+         "ColourX" : "0xffe8abd8",
+         "Stops" : [
+            {
+               "Name" : "Gedackt 8’",
+               "StopPins" : [ 1 ]
+            },
+            {
+               "Name" : "Ekogamba 8’",
+               "StopPins" : [ 2 ]
+            },
+            {
+               "Name" : "Gemshorn 4’",
+               "StopPins" : [ 3 ]
+            },
+            {
+               "Name" : "Oktava 2’",
+               "StopPins" : [ 4 ]
+            },
+            {
+               "Name" : "Sivflöjt 1’",
+               "StopPins" : [ 5 ]
+            },
+            {
+               "Name" : "Tremulant",
+               "StopPins" : [ 6 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 7,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f2",
+               "pin" : 97
+            }
+         ],
+         "Name" : "AO",
+         "ColourX" : "0xff000000",
+         "Stops" : [
+            {
+               "Name" : "Rörgedackt 8’",
+               "StopPins" : [ 7 ]
+            },
+            {
+               "Name" : "Salicional 8’",
+               "StopPins" : [ 8 ]
+            },
+            {
+               "Name" : "Spetsflöjt 4’",
+               "StopPins" : [ 9 ]
+            }
+         ]
+      },
+      {
+         "DivisionID" : 8,
+         "Name" : "CHOIR I",
+         "BoxName" : "ch I",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 9,
+         "Name" : "CHOIR PED",
+         "BoxName" : "ch PED",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 10,
+         "Name" : "CHOIR SW II",
+         "BoxName" : "ch sw II",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 11,
+         "Name" : "CHOIR SW III",
+         "BoxName" : "choir sw III",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 12,
+         "Name" : "HARMONICS II",
+         "BoxName" : "harm II",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 13,
+         "Name" : "HARMONICS III",
+         "BoxName" : "harm III",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 14,
+         "Name" : "HARMONICS PED",
+         "BoxName" : "harm ped",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 15,
+         "Name" : "CHAMADES",
+         "BoxName" : "chamades",
+         "ColourX" : "0xff000000"
+      },
+      {
+         "DivisionID" : 16,
+         "Name" : "EFFECTS",
+         "BoxName" : "effects",
+         "ColourX" : "0xff000000"
+      }
+   ],
+   "Stops" : [
+      {
+         "StopID" : 101,
+         "Name" : "Montre 16’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "h",
+               "pin" : 857
+            },
+            {
+               "left" : "c1",
+               "right" : "c6",
+               "pin" : 1217
+            },
+            {
+               "left" : "cs6",
+               "right" : "g6",
+               "pin" : 881
+            }
+         ]
+      },
+      {
+         "StopID" : 102,
+         "Name" : "Montre 8’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c6",
+               "pin" : 769
+            }
+         ]
+      },
+      {
+         "StopID" : 103,
+         "Name" : "Principal 8’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 104,
+         "Name" : "Bourdon 8’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 888
+            }
+         ]
+      },
+      {
+         "StopID" : 105,
+         "Name" : "Prestant 4’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 102,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 106,
+         "Name" : "Octave 4’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "RampEdit" : true,
+         "Sources" : [
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 107,
+         "Name" : "Flute douce 4’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 104,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 108,
+         "Name" : "Quinte 2 2/3’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c4",
+               "pin" : 961
+            }
+         ]
+      },
+      {
+         "StopID" : 109,
+         "Name" : "Doublette 2’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 102,
+               "Route" : {
+                  "Left" : "C-2",
+                  "Right" : "c4",
+                  "TargetNote" : "C"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 110,
+         "Name" : "Plein jeu V 1 1/3’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "H",
+                  "TargetNote" : "c4"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "h0",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "h1",
+                  "TargetNote" : "c3"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "f2",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "e3",
+                  "TargetNote" : "c2"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "c0",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Left" : "c1",
+                  "Right" : "c4",
+                  "TargetNote" : "c3"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "c2",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Left" : "fs2",
+                  "Right" : "c4",
+                  "TargetNote" : "fs4"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "f3",
+                  "Right" : "c4",
+                  "TargetNote" : "f1"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 111,
+         "Name" : "Trompette 16’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 1025
+            }
+         ]
+      },
+      {
+         "StopID" : 112,
+         "Name" : "Trompette 8’",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 111,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 113,
+         "Name" : "Bourdon 16’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "h",
+               "pin" : 2241
+            },
+            {
+               "left" : "c1",
+               "right" : "c6",
+               "pin" : 2433
+            }
+         ]
+      },
+      {
+         "StopID" : 114,
+         "Name" : "Contre Gambe 16’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "h0",
+               "pin" : 1793
+            },
+            {
+               "left" : "c1",
+               "right" : "c6",
+               "pin" : 1921
+            }
+         ]
+      },
+      {
+         "StopID" : 115,
+         "Name" : "Grosse Quinte 10 2/3’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 116,
+         "Name" : "Diapason 8’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 1985
+            }
+         ]
+      },
+      {
+         "StopID" : 117,
+         "Name" : "Flute d'Ochestre 8’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 118,
+         "Name" : "Cor de nuit 8’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 119,
+         "Name" : "Viole 8’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 114,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 120,
+         "Name" : "Voix Angelique 8’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "c0",
+               "right" : "c4",
+               "pin" : 1481
+            }
+         ]
+      },
+      {
+         "StopID" : 121,
+         "Name" : "Neuvieme min 7 9/17’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -6
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 122,
+         "Name" : "Neuvieme maj 7 1/9’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -5
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 123,
+         "Name" : "Tierce min 6 14/19’",
+         "DivisionID" : 13,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : -9
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 124,
+         "Name" : "Tierce maj 6 2/5’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 125,
+         "Name" : "Quinte dim 5 9/11’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "fs6",
+               "pin" : 1625
+            }
+         ]
+      },
+      {
+         "StopID" : 126,
+         "Name" : "Quinte 5 1/3’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C-1",
+               "right" : "g6",
+               "pin" : 1281
+            }
+         ]
+      },
+      {
+         "StopID" : 127,
+         "Name" : "Sixte min 4 12/13’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 2
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 128,
+         "Name" : "Septieme min 4 4/7’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d6",
+               "pin" : 1537
+            }
+         ]
+      },
+      {
+         "StopID" : 129,
+         "Name" : "Septieme maj 4 4/15’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : -5
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 130,
+         "Name" : "Octave 4’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 116,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 131,
+         "Name" : "Flute de concert 4’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C-1",
+               "right" : "c6",
+               "pin" : 2058
+            }
+         ]
+      },
+      {
+         "StopID" : 132,
+         "Name" : "Flute amabile 4’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "RampEdit" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 133,
+         "Name" : "Dulciane 4’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "RampEdit" : true,
+         "Sources" : [
+            {
+               "Stop" : 114,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 134,
+         "Name" : "Neuvieme min 3 13/17’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 6
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 135,
+         "Name" : "Neuvieme maj 3 5/9’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 7
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 136,
+         "Name" : "Tierce min 3 7/19’",
+         "DivisionID" : 13,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : 3
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 137,
+         "Name" : "Tierce maj 3 1/5’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C-1",
+               "right" : "gs5",
+               "pin" : 1385
+            }
+         ]
+      },
+      {
+         "StopID" : 138,
+         "Name" : "Quinte dim 2 10/11’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 139,
+         "Name" : "Quinte 2 2/3’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 140,
+         "Name" : "Sixte min 2 6/13’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 14
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 141,
+         "Name" : "Septieme min 2 2/7’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 128,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 142,
+         "Name" : "Septieme maj 2 2/15’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : 7
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 143,
+         "Name" : "Flageolet 2’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 144,
+         "Name" : "Neuvieme min 1 15/17’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 18
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 145,
+         "Name" : "Neuvieme maj 1 7/9’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 19
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 146,
+         "Name" : "Tierce min 1 13/19’",
+         "DivisionID" : 13,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : 15
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 147,
+         "Name" : "Tierce maj 1 3/5’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 148,
+         "Name" : "Quinte dim 1 5/11’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 149,
+         "Name" : "Quinte 1 1/3’",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 150,
+         "Name" : "Sixte min 1 1/13’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 26
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 151,
+         "Name" : "Septime min 1 1/7’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 128,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 152,
+         "Name" : "Septime maj 1 1/15’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : 19
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 153,
+         "Name" : "Piccolo 1’",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 154,
+         "Name" : "Neuvieme min 16/17’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 30
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 155,
+         "Name" : "Neuvieme maj 8/9’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 31
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 156,
+         "Name" : "Tierce min 16/19’",
+         "DivisionID" : 13,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : 27
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 157,
+         "Name" : "Tierce maj 4/5’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 158,
+         "Name" : "Quinte dim 8/11’",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 36
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 159,
+         "Name" : "Quinte 2/3'",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : 36
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 160,
+         "Name" : "Sixte min 8/13' ",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 38
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 161,
+         "Name" : "Septieme min 4/7' ",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 128,
+               "Route" : {
+                  "Transpose" : 36
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 162,
+         "Name" : "Septieme maj 8/15' ",
+         "DivisionID" : 12,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : 31
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 163,
+         "Name" : "Grand Cornet V 16' ",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C-1"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 164,
+         "Name" : "Cornet V 8' ",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 165,
+         "Name" : "Theorbe III 6 2/5'",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C-1"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 128,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c5",
+                  "TargetNote" : "C"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 166,
+         "Name" : "Carillon III 1 3/5'",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 167,
+         "Name" : "Progressio II-V 2 2/3'",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 116,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "h2",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 116,
+               "Route" : {
+                  "Left" : "c0",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "c1",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 116,
+               "Route" : {
+                  "Left" : "c2",
+                  "Right" : "c4",
+                  "TargetNote" : "c2"
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "c3",
+                  "Right" : "c4",
+                  "TargetNote" : "c2"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 168,
+         "Name" : "Basson 16'",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 2265
+            }
+         ]
+      },
+      {
+         "StopID" : 169,
+         "Name" : "Trompette 8' ",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 2161
+            }
+         ]
+      },
+      {
+         "StopID" : 170,
+         "Name" : "Hautbois 8' ",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 168,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 171,
+         "Name" : "Voix humaine 8'",
+         "DivisionID" : 10,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c4",
+               "pin" : 1729
+            }
+         ]
+      },
+      {
+         "StopID" : 172,
+         "Name" : "Clairon 4'",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 169,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 173,
+         "Name" : "Baryton 16'",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c5",
+               "pin" : 2341
+            }
+         ]
+      },
+      {
+         "StopID" : 174,
+         "Name" : "Clarinette 8'",
+         "DivisionID" : 11,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 173,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 175,
+         "Name" : "Basse acoustique 32'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113
+            },
+            {
+               "Stop" : 115,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            },
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 176,
+         "Name" : "Flute 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 1105
+            }
+         ]
+      },
+      {
+         "StopID" : 177,
+         "Name" : "Contrebasse 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 101
+            }
+         ]
+      },
+      {
+         "StopID" : 178,
+         "Name" : "Bourdon 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113
+            }
+         ]
+      },
+      {
+         "StopID" : 179,
+         "Name" : "Violonbasse 16' ",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 114
+            }
+         ]
+      },
+      {
+         "StopID" : 180,
+         "Name" : "Grosse Quinte 10 2/3'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 181,
+         "Name" : "Flute 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 176,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 182,
+         "Name" : "Montre 8' ",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 102
+            }
+         ]
+      },
+      {
+         "StopID" : 183,
+         "Name" : "Principal 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 101,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 184,
+         "Name" : "Bourdon 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 104
+            }
+         ]
+      },
+      {
+         "StopID" : 185,
+         "Name" : "Diapason 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 116
+            }
+         ]
+      },
+      {
+         "StopID" : 186,
+         "Name" : "Flute d'orchestre 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 187,
+         "Name" : "Cor de nuit 8' ",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 188,
+         "Name" : "Viole 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 114,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 189,
+         "Name" : "Neuvieme min 7 9/17'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -6
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 190,
+         "Name" : "Neuvieme maj 7 1/9'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Transpose" : -5
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 191,
+         "Name" : "Tierce min 6 14/19'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131,
+               "Route" : {
+                  "Transpose" : -9
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 192,
+         "Name" : "Tierce maj 6 2/5'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : -12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 193,
+         "Name" : "Quinte dim 5 9/11' ",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125
+            }
+         ]
+      },
+      {
+         "StopID" : 194,
+         "Name" : "Quinte 5 1/3' ",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126
+            }
+         ]
+      },
+      {
+         "StopID" : 195,
+         "Name" : "Sixte min 4 12/13'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 125,
+               "Route" : {
+                  "Transpose" : 2
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 196,
+         "Name" : "Septieme min 4 4/7' ",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 128
+            }
+         ]
+      },
+      {
+         "StopID" : 197,
+         "Name" : "Septieme maj 4 4/15'",
+         "DivisionID" : 14,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Transpose" : -5
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 198,
+         "Name" : "Flute 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 176,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 199,
+         "Name" : "Octave 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 116,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 200,
+         "Name" : "Flute de concert 4' ",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 131
+            }
+         ]
+      },
+      {
+         "StopID" : 201,
+         "Name" : "Flute amabile 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 113,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 202,
+         "Name" : "Dulciane 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 114,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 203,
+         "Name" : "Aliquot III 10 2/3'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 126,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "g6",
+                  "TargetNote" : "C-1"
+               }
+            },
+            {
+               "Stop" : 137,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "g6",
+                  "TargetNote" : "C-1"
+               }
+            },
+            {
+               "Stop" : 128,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "d6",
+                  "TargetNote" : "C"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 204,
+         "Name" : "Mixture IV 2 2/3'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 108,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c3",
+                  "TargetNote" : "c0"
+               }
+            },
+            {
+               "Stop" : 102,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c4",
+                  "TargetNote" : "c1"
+               }
+            },
+            {
+               "Stop" : 102,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "c3",
+                  "TargetNote" : "c2"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 205,
+         "Name" : "Posaune 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g2",
+               "pin" : 1161
+            }
+         ]
+      },
+      {
+         "StopID" : 206,
+         "Name" : "Trompette 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 111
+            }
+         ]
+      },
+      {
+         "StopID" : 207,
+         "Name" : "Basson 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 168
+            }
+         ]
+      },
+      {
+         "StopID" : 208,
+         "Name" : "Trompette 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 205,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 209,
+         "Name" : "Petite Trompette 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 169
+            }
+         ]
+      },
+      {
+         "StopID" : 210,
+         "Name" : "Clairon 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 111,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 211,
+         "Name" : "Chamade 16' ",
+         "DivisionID" : 15,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "c6",
+               "pin" : 641
+            }
+         ]
+      },
+      {
+         "StopID" : 212,
+         "Name" : "Chamade 8'",
+         "DivisionID" : 15,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 211,
+               "Route" : {
+                  "Transpose" : 12
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 213,
+         "Name" : "Chamade 4'",
+         "DivisionID" : 15,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 211,
+               "Route" : {
+                  "Transpose" : 24
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 214,
+         "Name" : "Basse acoustique 64'",
+         "DivisionID" : 15,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "Stop" : 215,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "H",
+                  "TargetNote" : "C"
+               }
+            },
+            {
+               "Stop" : 215,
+               "Route" : {
+                  "Left" : "C",
+                  "Right" : "H",
+                  "TargetNote" : "G"
+               }
+            },
+            {
+               "Stop" : 215,
+               "Route" : {
+                  "Left" : "c0",
+                  "Right" : "g1",
+                  "TargetNote" : "C"
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 215,
+         "Name" : "Soubasse 32'",
+         "DivisionID" : 15,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g1",
+               "pin" : 737
+            },
+            {
+               "left" : "e0",
+               "right" : "h0",
+               "pin" : 729
+            }
+         ]
+      },
+      {
+         "StopID" : 216,
+         "Name" : "Chimes",
+         "DivisionID" : 16,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "g",
+               "right" : "g2",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs2",
+               "right" : "g3",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs3",
+               "right" : "g4",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs4",
+               "right" : "c5",
+               "pin" : 2529
+            },
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2497
+            },
+            {
+               "left" : "G",
+               "right" : "fs",
+               "pin" : 2497
+            },
+            {
+               "left" : "g",
+               "right" : "g2",
+               "pin" : 2497
+            },
+            {
+               "left" : "gs2",
+               "right" : "g3",
+               "pin" : 2497
+            },
+            {
+               "left" : "gs3",
+               "right" : "g4",
+               "pin" : 2497
+            },
+            {
+               "left" : "gs4",
+               "right" : "c5",
+               "pin" : 2497
+            }
+         ]
+      },
+      {
+         "StopID" : 217,
+         "Name" : "Chimes damped",
+         "DivisionID" : 16,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "g",
+               "right" : "g2",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs2",
+               "right" : "g3",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs3",
+               "right" : "g4",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs4",
+               "right" : "c5",
+               "pin" : 2529
+            }
+         ]
+      },
+      {
+         "StopID" : 218,
+         "Name" : "Chimes free",
+         "DivisionID" : 16,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "g",
+               "right" : "g2",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs2",
+               "right" : "g3",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs3",
+               "right" : "g4",
+               "pin" : 2529
+            },
+            {
+               "left" : "gs4",
+               "right" : "c5",
+               "pin" : 2529
+            },
+            {
+               "Cluster" : {
+                  "Key" : 0,
+                  "FirstPin" : 2497,
+                  "Count" : 25
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 219,
+         "Name" : "Rain",
+         "DivisionID" : 16,
+         "StopPins" : [ 1888 ],
+         "Movable" : true
+      },
+      {
+         "StopID" : 220,
+         "Name" : "Thunder",
+         "DivisionID" : 16,
+         "StopPins" : [ 1887 ],
+         "Movable" : true,
+         "Sources" : [
+            {
+               "Cluster" : {
+                  "Key" : 0,
+                  "FirstPin" : 857,
+                  "Count" : 5
+               }
+            },
+            {
+               "Cluster" : {
+                  "Key" : 0,
+                  "FirstPin" : 737,
+                  "Count" : 5
+               }
+            }
+         ]
+      },
+      {
+         "StopID" : 221,
+         "Name" : "Drum",
+         "DivisionID" : 16,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C-1",
+               "right" : "c5",
+               "pin" : 1214,
+               "semitones" : 1,
+               "stepWidth" : 0
+            }
+         ]
+      },
+      {
+         "StopID" : 222,
+         "Name" : "Drum roll",
+         "DivisionID" : 16,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C-1",
+               "right" : "c5",
+               "pin" : 1215,
+               "semitones" : 1,
+               "stepWidth" : 0
+            }
+         ]
+      },
+      {
+         "StopID" : 223,
+         "Name" : "Rossignol",
+         "DivisionID" : 16,
+         "StopPins" : [ 1213 ],
+         "Movable" : true
+      },
+      {
+         "StopID" : 224,
+         "Name" : "Chimes P",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : false,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "g1",
+               "pin" : 2529
+            },
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2497
+            },
+            {
+               "left" : "G",
+               "right" : "g1",
+               "pin" : 2497
+            }
+         ]
+      },
+      {
+         "StopID" : 225,
+         "Name" : "Chimes damped P",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : false,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "g1",
+               "pin" : 2529
+            }
+         ]
+      },
+      {
+         "StopID" : 226,
+         "Name" : "Chimes free P",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : false,
+         "Sources" : [
+            {
+               "left" : "G-1",
+               "right" : "Fs",
+               "pin" : 2529
+            },
+            {
+               "left" : "G",
+               "right" : "g1",
+               "pin" : 2529
+            },
+            {
+               "Cluster" : {
+                  "Key" : 0,
+                  "FirstPin" : 2497,
+                  "Count" : 25
+               }
+            }
+         ]
+      }
+   ]
+}

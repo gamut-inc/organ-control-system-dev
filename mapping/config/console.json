@@ -1,0 +1,140 @@
+{
+   "LedBoost" : true,
+	"Manuals": [
+		{"Name": "P", "Keys": 30, "MidiChannel": 1},
+		{"Name": "I", "Keys": 68, "MidiChannel": 2},
+		{"Name": "II", "Keys": 68, "MidiChannel": 3},
+		{"Name": "III", "Keys": 68, "MidiChannel": 4},
+		{"Name": "IV", "Keys": 68, "MidiChannel": 5}
+		],
+	"SwellPedals": [
+		{"Name": "1", "Pin": 225, "MidiChannel": 1},
+		{"Name": "2", "Pin": 233, "MidiChannel": 2},
+		{"Name": "3", "Pin": 241, "MidiChannel": 3},
+		{"Name": "4", "Pin": 249, "MidiChannel": 4}
+		],
+	"MinimumVelocityPercent": 0.1,
+	"RfidHost": "192.168.0.9",
+	"SqlHost": "192.168.0.21:3306",
+	"MidiRecordPath": "192.168.0.21:3306",
+	"xIpMidi": [
+		{"Port" : 21928, "TreatAsConsole" : true},
+		{"Port" : 21930, "TreatAsConsole" : true}
+		],
+	"IpMidi": {"Port" : 21928, "TreatAsConsole" : true},
+	"Setzer": {
+		"Format": "8x8",
+		"URL" : "192.168.0.21:3306",
+		"Scheme" : "sinua",
+		"Buttons": [
+			{"Type": "Save", "Number": 89},
+ 			{"Type": "Cancel", "Number": 90},
+			{"Type": "1Dn", "Number": 91},
+			{"Type": "1Up", "Number": 92},
+			{"Type": "100Dn", "Number": 93},
+			{"Type": "100Up", "Number": 94},
+
+			{"Type": "Group", "Value": 1, "Number": 95, "LedPin": 95},
+			{"Type": "Group", "Value": 2, "Number": 96, "LedPin": 96},
+			{"Type": "Group", "Value": 3, "Number": 97, "LedPin": 97},
+			{"Type": "Group", "Value": 4, "Number": 98, "LedPin": 98},
+			{"Type": "Group", "Value": 5, "Number": 99, "LedPin": 99},
+			{"Type": "Group", "Value": 6, "Number": 100, "LedPin": 100},
+			{"Type": "Group", "Value": 7, "Number": 101, "LedPin": 101},
+			{"Type": "Group", "Value": 8, "Number": 102, "LedPin": 102},
+
+			{"Type": "Combination", "Value": 1, "Number": 103, "LedPin": 103},
+			{"Type": "Combination", "Value": 2, "Number": 104, "LedPin": 104},
+			{"Type": "Combination", "Value": 3, "Number": 105, "LedPin": 105},
+			{"Type": "Combination", "Value": 4, "Number": 106, "LedPin": 106},
+			{"Type": "Combination", "Value": 5, "Number": 107, "LedPin": 107},
+			{"Type": "Combination", "Value": 6, "Number": 108, "LedPin": 108},
+			{"Type": "Combination", "Value": 7, "Number": 109, "LedPin": 109},
+			{"Type": "Combination", "Value": 8, "Number": 110, "LedPin": 110},
+
+			{"xType": "Delete", "Number": 181, "LedPin": 313},
+			{"xType": "Insert", "Number": 182, "LedPin": 314},
+			{"xType": "Copy", "Number": 183, "LedPin": 315},
+			{"xType": "Paste", "Number": 184, "LedPin": 316}
+
+		]
+		},	
+	"ControllerIP": "192.168.0.65",
+	"debounce": 5,
+	"LedOffset": 1,
+	"LedFlashSpeed10ms": 30,
+	"Encoders": {
+		"count": 25,
+		"firstPhasePin": 143,
+		"firstSwitchPin": 118,
+		"LayerPattern": {
+			"Left": 1,
+			"Right": 2,
+			"Transpose": 3,
+			"Delay": 6,
+			"Staccato": 7,
+			"Prolong": 8,
+
+			"PulseFreq": 9,
+			"PulseWidth": 10,
+			"Sustain": 4,
+			"VelMin": 5
+
+		}
+	},
+   "VirtualSwitches" : [
+  {"Coupler": "I", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+  {"Coupler": "II", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+  {"Coupler": "III", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+  {"Coupler": "IV", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+  {"Coupler": "III super", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+  {"Coupler": "I super", "Target" : {"Layer": "P.1"}, "GenerateButton" : true},
+
+  {"Coupler": "II", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "III", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "IV", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "Solo", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "Tromp", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "PEDho", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+  {"Coupler": "PEDco", "Target" : {"Layer": "I.1"}, "GenerateButton" : true},
+
+  {"Coupler": "I", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+  {"Coupler": "III", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+  {"Coupler": "IV", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+  {"Coupler": "P", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+  {"Coupler": "III sub", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+  {"Coupler": "Solo", "Target" : {"Layer": "II.1"}, "GenerateButton" : true},
+
+  {"Coupler": "IV", "Target" : {"Layer": "III.1"}, "GenerateButton" : true},
+  {"Coupler": "II", "Target" : {"Layer": "III.1"}, "GenerateButton" : true},
+  {"Coupler": "I", "Target" : {"Layer": "III.1"}, "GenerateButton" : true},
+  {"Coupler": "III sub", "Target" : {"Layer": "III.1"}, "GenerateButton" : true},
+  {"Coupler": "Solo", "Target" : {"Layer": "III.1"}, "GenerateButton" : true},
+  {"Coupler": "Tromp", "Target" : {"Layer": "III.1"}, "GenerateButton" : true}
+   ],
+	"PropertyButtons":
+		[
+			{"Number": 65, "Pitch": -12, "LedPin": 65},
+			{"Number": 66, "Pitch": 0, "LedPin": 66},
+			{"Number": 67, "Pitch": 12, "LedPin": 67},
+			{"Number": 68, "Type": "Melody", "LedPin": 68},
+			{"Number": 69, "Type": "Bass", "LedPin": 69},
+			{"Number": 70, "Type": "Chord", "LedPin": 70}
+		],
+	"Switches": [
+  {"Number": 71, "GPIO" : 1, "momentary": true, "LedPin": 71},
+  {"Number": 72, "GPIO" : 2, "momentary": true, "LedPin": 72},
+  {"Number": 73, "GPIO" : 3, "momentary": true, "LedPin": 73},
+  {"Number": 74, "GPIO" : 4, "momentary": true, "LedPin": 74},
+  {"Number": 75, "GPIO" : 5, "momentary": true, "LedPin": 75},
+  {"Number": 76, "GPIO" : 6, "momentary": true, "LedPin": 76},
+  {"Number": 77, "GPIO" : 7, "momentary": true, "LedPin": 77},
+  {"Number": 78, "GPIO" : 8, "momentary": true, "LedPin": 78}
+],
+	"CheekButtons":
+		[
+			{"Number": 1, "LedPin": 1, "Typ": "Open", "LayerCount": 4},
+			{"Typ": "Mute"},
+			{"Typ": "Sostenuto"}
+		]
+}

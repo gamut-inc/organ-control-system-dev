@@ -1,0 +1,395 @@
+{
+   "Controllers" : [
+      {
+         "IP" : "192.168.0.129",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "CO 1"
+      },
+      {
+         "IP" : "192.168.0.130",
+         "Pins" : 256,
+         "Legacy" : true,
+         "Description" : "CO 2"
+      },
+	  {
+         "IP" : "192.168.0.131",
+         "Pins" : 192,
+         "Legacy" : true,
+         "Description" : "CO 3"
+      },
+	  {
+         "IP" : "192.168.0.132",
+         "Pins" : 128,
+         "Legacy" : true,
+         "Description" : "PHYS"
+      },
+	  {
+         "IP" : "192.168.0.133",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "HO1"
+      },
+	  {
+         "IP" : "192.168.0.134",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "HO2"
+      },
+	  {
+         "IP" : "192.168.0.135",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "HO3"
+      },
+	  {
+         "IP" : "192.168.0.136",
+         "Pins" : 320,
+         "Legacy" : true,
+         "Description" : "HO4"
+      }
+   ],
+   "RemoteSwitches" : [
+      {
+         "IP" : "192.168.0.11",
+         "Name" : "Chororgel"
+      },
+      {
+         "IP" : "192.168.0.12",
+         "Name" : "Hauptorgel"
+      }
+   ],
+   "Tremulants" : [
+      {
+         "DivisionName" : "HWco",
+         "pinPulse" : 31
+      },
+      {
+         "DivisionName" : "POSco",
+         "pinPulse" : 32
+      },
+      {
+         "Name" : "Trem HWho",
+         "pinPulse" : 2086
+      },
+      {
+         "Name" : "Trem SWho",
+         "pinPulse" : 2101,
+		 "comment": "2101 ist auch Quinte 10 2/3 ???"
+      },
+      {
+         "Name" : "Trem Solo",
+         "pinPulse" : 2087
+      },
+      {
+         "Name" : "Jauler",
+         "pinPulse" : 1216
+      }
+   ],
+   "GPIO" :
+   [
+		{"ID" : 1, "Name": "Glocke f1", "PinsOn" : [1720]},
+		{"ID" : 2, "Name": "Glocke g1", "PinsOn" : [1721]},
+		{"ID" : 3, "Name": "Glocke as1", "PinsOn" : [1722]},
+		{"ID" : 4, "Name": "Glocke a1", "PinsOn" : [1723]},
+		{"ID" : 5, "Name": "Glocke b1", "PinsOn" : [1724]},
+		{"ID" : 6, "Name": "Glocke c2", "PinsOn" : [1725]},
+		{"ID" : 7, "Name": "Glocke f3", "PinsOn" : [1726]},
+		{"ID" : 8, "Name": "Carillon", "PinsOn" : [1727]}
+   ],
+   "SwellTargets" : [
+      {
+         "Name" : "SWco V",
+         "Mode" : "Grey",
+         "Pin" : 249,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "SWco H",
+         "Mode" : "Grey",
+         "Pin" : 185,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "WDco",
+         "Mode" : "Grey",
+         "Pin" : 121,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "WDho",
+         "Mode" : "Grey",
+         "Pin" : 1289,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "SW1ho",
+         "Mode" : "Grey",
+         "Pin" : 1537,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "SW2ho",
+         "Mode" : "Grey",
+         "Pin" : 1545,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "SW3ho",
+         "Mode" : "Grey",
+         "Pin" : 1553,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "PHYS",
+         "Mode" : "Grey",
+         "Pin" : 817,
+		 "DirectOut" : false,
+         "BusReady" : 128
+      },
+      {
+         "Name" : "Trem Phys",
+         "Mode" : "Grey",
+         "Pin" : 809,
+         "DefaultValue" : 0,
+		 "DirectOut" : false,
+         "BusReady" : 128,
+		 "HideFromPedalChoice" : false,
+		 "StatePattern" : 64
+      }
+   ],
+   "Divisions" : [
+      {
+         "DivisionID" : 1,
+         "Name" : "PEDho",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f1",
+               "pin" : 1313
+            }
+         ]
+      },
+      {
+         "DivisionID" : 2,
+         "Name" : "HWho",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 1409
+            }
+         ]
+      },
+      {
+         "DivisionID" : 3,
+         "Name" : "SWho",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 1345
+            }
+         ]
+      },
+      {
+         "DivisionID" : 4,
+         "Name" : "Solo"
+      },
+      {
+         "DivisionID" : 5,
+         "Name" : "Tromp"
+      },
+      {
+         "DivisionID" : 6,
+         "Name" : "PERho"
+      },
+      {
+         "DivisionID" : 7,
+         "Name" : "PEDco",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f1",
+               "pin" : 33
+            }
+         ]
+      },
+      {
+         "DivisionID" : 8,
+         "Name" : "HWco",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 65
+            }
+         ]
+      },
+      {
+         "DivisionID" : 9,
+         "Name" : "POSco",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 129
+            }
+         ]
+      },
+      {
+         "DivisionID" : 10,
+         "Name" : "SWco"
+      },
+      {
+         "DivisionID" : 11,
+         "Name" : "PERco"
+      }
+],
+	"Stops" : [
+{"StopID": 1, "Name": "32 nur C und D", "DivisionID" : 1, "Sources": [{"left": "C", "right": "C", "pin": 1535}, {"left": "D", "right": "D", "pin": 1536}]},
+{"StopID": 2, "Name": "Principal 16", "DivisionID" : 1, "Sources": [{"left": "C", "right": "c2", "pin": 1793}], "Movable": true, "EditorSource" : true},
+{"StopID": 3, "Name": "Subbaß 16", "DivisionID" : 1, "StopPins": [2104]},
+{"StopID": 4, "Name": "Quinte 10 2/3", "DivisionID" : 1, "StopPins": [2101]},
+{"StopID": 5, "Name": "Principal 8", "DivisionID" : 1, "StopPins": [2103]},
+{"StopID": 6, "Name": "Flöte 8", "DivisionID" : 1, "StopPins": [2102]},
+{"StopID": 7, "Name": "Quinte 5 2/3", "DivisionID" : 1, "StopPins": [2105]},
+{"StopID": 8, "Name": "Octave 4", "DivisionID" : 1, "StopPins": [2106]},
+{"StopID": 9, "Name": "Traversflöte 4", "DivisionID" : 1, "StopPins": [2107]},
+{"StopID": 10, "Name": "Hintersatz 4f", "DivisionID" : 1, "StopPins": [2108]},
+{"StopID": 11, "Name": "Nachthorn 2", "DivisionID" : 1, "StopPins": [2109]},
+{"StopID": 12, "Name": "Posaune 16", "DivisionID" : 1, "StopPins": [2110]},
+{"StopID": 13, "Name": "Trompete 8", "DivisionID" : 1, "StopPins": [2111]},
+{"StopID": 14, "Name": "Pommer 16", "DivisionID" : 2, "StopPins": [2088]},
+{"StopID": 15, "Name": "Principal 8", "DivisionID" : 2, "StopPins": [2089]},
+{"StopID": 16, "Name": "Rohrflöte 8", "DivisionID" : 2, "StopPins": [2090]},
+{"StopID": 17, "Name": "Oktave 4", "DivisionID" : 2, "StopPins": [2091]},
+{"StopID": 18, "Name": "Gedeckt 4", "DivisionID" : 2, "StopPins": [2092]},
+{"StopID": 19, "Name": "Nasard 2 2/3", "DivisionID" : 2, "StopPins": [2093]},
+{"StopID": 20, "Name": "Flöte 2", "DivisionID" : 2, "StopPins": [2094]},
+{"StopID": 21, "Name": "Mixtur 4-5f", "DivisionID" : 2, "StopPins": [2095]},
+{"StopID": 22, "Name": "Terz 1 3/5", "DivisionID" : 2, "StopPins": [2096]},
+{"StopID": 23, "Name": "Sept 1 1/7", "DivisionID" : 2, "StopPins": [2097]},
+{"StopID": 24, "Name": "None 8/9", "DivisionID" : 2, "StopPins": [2098]},
+{"StopID": 25, "Name": "Cymbel 3f", "DivisionID" : 2, "StopPins": [2099]},
+{"StopID": 26, "Name": "Trompete 8", "DivisionID" : 2, "StopPins": [2100]},
+{"StopID": 31, "Name": "Principal 8", "DivisionID" : 3, "StopPins": [2073]},
+{"StopID": 32, "Name": "Gedeckt 8", "DivisionID" : 3, "StopPins": [2074]},
+{"StopID": 33, "Name": "Spitzgambe 8", "DivisionID" : 3, "StopPins": [2075]},
+{"StopID": 34, "Name": "Oktave 4", "DivisionID" : 3, "StopPins": [2076]},
+{"StopID": 35, "Name": "Blockflöte 4", "DivisionID" : 3, "StopPins": [2077]},
+{"StopID": 36, "Name": "Hintersatz 3f", "DivisionID" : 3, "StopPins": [2078]},
+{"StopID": 37, "Name": "Superoktave 2", "DivisionID" : 3, "StopPins": [2079]},
+{"StopID": 38, "Name": "Mixtur 4-6f", "DivisionID" : 3, "StopPins": [2080]},
+{"StopID": 39, "Name": "Nachthorn 1", "DivisionID" : 3, "StopPins": [2081]},
+{"StopID": 40, "Name": "Elfte 8/11", "DivisionID" : 3, "StopPins": [2082]},
+{"StopID": 41, "Name": "Schalmey 16", "DivisionID" : 3, "StopPins": [2083]},
+{"StopID": 42, "Name": "Trompete 8", "DivisionID" : 3, "StopPins": [2084]},
+{"StopID": 43, "Name": "Clarine 4", "DivisionID" : 3, "StopPins": [2085]},
+{"StopID": 44, "Name": "Saxophon 32", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g4", "pin": 1217}], "Movable": true, "EditorSource" : true},
+{"StopID": 45, "Name": "Saxophon 16", "DivisionID" : 4, "Sources": [{"Stop" : 44, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 46, "Name": "Saxophon 8", "DivisionID" : 4, "Sources": [{"Stop" : 44, "Route" : {"Transpose" : 24}}], "Movable": true},
+{"StopID": 47, "Name": "Saxophon 4", "DivisionID" : 4, "Sources": [{"Stop" : 44, "Route" : {"Transpose" : 36}}], "Movable": true},
+{"StopID": 48, "Name": "Cello 8", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1153}], "Movable": true, "EditorSource" : true},
+{"StopID": 49, "Name": "Cello 4 4/7", "DivisionID" : 4, "Sources": [{"Stop" : 48, "Route" : {"Transpose" : 10}}], "Movable": true},
+{"StopID": 50, "Name": "Cello 4", "DivisionID" : 4, "Sources": [{"Stop" : 48, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 51, "Name": "Cello 3 1/5", "DivisionID" : 4, "Sources": [{"Stop" : 48, "Route" : {"Transpose" : 17}}], "Movable": true},
+{"StopID": 52, "Name": "Cello 2", "DivisionID" : 4, "Sources": [{"Stop" : 48, "Route" : {"Transpose" : 24}}], "Movable": true},
+{"StopID": 53, "Name": "Weidenpfeife 4", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1089}], "Movable": true, "EditorSource" : true},
+{"StopID": 54, "Name": "Cornett 3 1/5", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1025}], "Movable": true, "EditorSource" : true},
+{"StopID": 55, "Name": "Cornett 5 1/3", "DivisionID" : 4, "Sources": [{"Stop" : 54, "Route" : {"Transpose" : 4}}], "Movable": true},
+{"StopID": 56, "Name": "Cornett 2 2/3", "DivisionID" : 4, "Sources": [{"Stop" : 55, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 57, "Name": "Mixtur 5-8f", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 961}], "Movable": true},
+{"StopID": 58, "Name": "Aeolsharfe", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 897}], "Movable": true, "EditorSource" : true},
+{"StopID": 59, "Name": "Aeolsharfe 4f 1 1/3", "DivisionID" : 4, "Sources": [{"Stop" : 58, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 60, "Name": "Aeolsharfe 4f 2/3", "DivisionID" : 4, "Sources": [{"Stop" : 58, "Route" : {"Transpose" : 24}}], "Movable": true},
+{"StopID": 61, "Name": "Trillerpfeife 1", "DivisionID" : 4, "Sources": [{"left": "C", "right": "gs1", "pin": 2041}], "Movable": true, "EditorSource" : true},
+{"StopID": 62, "Name": "Cymbel I", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 833}], "Movable": true, "EditorSource" : true},
+{"StopID": 63, "Name": "Cymbel II", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1985}], "Movable": true, "EditorSource" : true},
+{"StopID": 64, "Name": "Cymbel III", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1921}], "Movable": true, "EditorSource" : true},
+{"StopID": 65, "Name": "Cymbel IV", "DivisionID" : 4, "Sources": [{"left": "C", "right": "g3", "pin": 1857}], "Movable": true, "EditorSource" : true},
+{"StopID": 66, "Name": "Quadrupla I", "DivisionID" : 4},
+{"StopID": 67, "Name": "Quadrupla II", "DivisionID" : 4},
+{"StopID": 68, "Name": "Quadrupla III", "DivisionID" : 4},
+{"StopID": 69, "Name": "Quadrupla IV", "DivisionID" : 4},
+{"StopID": 70, "Name": "Quadrupla V", "DivisionID" : 4},
+{"StopID": 71, "Name": "Trompeta magna 16'", "DivisionID" : 5, "Sources": [{"left": "C", "right": "c3", "pin": 1665}], "Movable": true, "EditorSource" : true},
+{"StopID": 72, "Name": "Trompeta da batalla 8'", "DivisionID" : 5, "Sources": [{"left": "C", "right": "c3", "pin": 1616}], "Movable": true, "EditorSource" : true},
+{"StopID": 73, "Name": "Clarin brilliante 4'", "DivisionID" : 5, "Sources": [{"left": "C", "right": "c3", "pin": 1561}], "Movable": true, "EditorSource" : true},
+{"StopID": 74, "Name": "Glocken 16'", "DivisionID" : 6, "Sources": [{"left": "C", "right": "H", "pin": 1839}, {"left": "c0", "right": "f1", "pin": 1839}, {"left": "fs1", "right": "f2", "pin": 1845}, {"left": "fs2", "right": "f3", "pin": 1845}, {"left": "fs3", "right": "f4", "pin": 1845}], "Movable": true, "EditorSource" : true},
+{"StopID": 75, "Name": "Xylodur", "DivisionID" : 6, "Sources": [{"left": "C", "right": "g3", "pin": 1473}], "Movable": true, "EditorSource" : true},
+{"StopID": 76, "Name": "Xylodur permanent", "DivisionID" : 6, "Sources": [{"Stop" : 75, "Route" : {"Transpose" : 0}}], "Movable": true, "Pulsing": true},
+{"StopID": 77, "Name": "Becken", "DivisionID" : 1, "Sources": [{"left" : "C-1", "right" : "c5", "pin" : 1209, "semitones" : 1, "stepWidth" : 0}], "Movable": true, "EditorSource" : true},
+{"StopID": 78, "Name": "Harfe", "DivisionID" : 6, "Sources": [{"left": "C", "right": "H", "pin": 1729}, {"left": "c0", "right": "f2", "pin": 1729}, {"left": "fs2", "right": "f3", "pin": 1747}, {"left": "fs3", "right": "g3", "pin": 1747}], "Movable": true, "EditorSource" : true},
+{"StopID": 79, "Name": "Psalterium", "DivisionID" : 6, "Sources": [{"left": "C", "right": "H", "pin": 1761}, {"left": "c0", "right": "f1", "pin": 1761}, {"left": "fs1", "right": "f2", "pin": 1767},  {"left": "fs2", "right": "f3", "pin": 1767}, {"left": "fs3", "right": "f4", "pin": 1767}], "Movable": true, "EditorSource" : true},
+{"StopID": 80, "Name": "Psalterium permanent", "DivisionID" : 6, "Sources": [{"Stop" : 79, "Route" : {"Transpose" : 0}}], "Movable": true, "Pulsing": true},
+{"StopID": 81, "Name": "Turmglocken", "DivisionID" : 6},
+{"StopID": 82, "Name": "Beckenstern", "DivisionID" : 6, "StopPins": [1212]},
+{"StopID": 83, "Name": "Silberklang", "DivisionID" : 6, "StopPins": [1213]},
+
+{"StopID": 85, "Name": "Sirene", "DivisionID" : 6, "StopPins": [1214]},
+{"StopID": 86, "Name": "Gedecktbaß 16", "DivisionID" : 7, "StopPins": [1]},
+{"StopID": 87, "Name": "Pommer 8", "DivisionID" : 7, "StopPins": [2]},
+{"StopID": 88, "Name": "Violon 16", "DivisionID" : 7, "Sources": [{"left": "C", "right": "H", "pin": 233}, {"left": "c0", "right": "g5", "pin": 577}], "Movable": true, "EditorSource" : true},
+{"StopID": 89, "Name": "Violon 8", "DivisionID" : 7, "Sources": [{"Stop" : 88, "Route" : {"Transpose" : 12}}], "Movable": true},
+
+{"StopID": 91, "Name": "Akkord 3f.", "DivisionID" : 7, "Sources": [{"Stop" : 116, "Route" : {"Transpose" : 12}}, {"Stop" : 116, "Route" : {"Transpose" : 16}}, {"Stop" : 116, "Route" : {"Transpose" : 19}}]},
+{"StopID": 92, "Name": "Oberton 4f.", "DivisionID" : 7, "Sources": [{"Stop" : 117, "Route" : {"Transpose" : 19}}, {"Stop" : 117, "Route" : {"Transpose" : 24}}, {"Stop" : 117, "Route" : {"Transpose" : 28}}, {"Stop" : 117, "Route" : {"Transpose" : 34}}]},
+{"StopID": 93, "Name": "Fagott 8", "DivisionID" : 7, "Sources": [{"Stop" : 125, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 94, "Name": "Oboe 5 1/3", "DivisionID" : 7, "Sources": [{"Stop" : 126, "Route" : {"Transpose" : 7}}], "Movable": true},
+{"StopID": 95, "Name": "Oboe 4", "DivisionID" : 7, "Sources": [{"Stop" : 126, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 96, "Name": "Oboe 2", "DivisionID" : 7, "Sources": [{"Stop" : 126, "Route" : {"Transpose" : 24}}], "Movable": true},
+{"StopID": 97, "Name": "Gedeckt 8", "DivisionID" : 8, "StopPins": [12]},
+{"StopID": 98, "Name": "Principal 4", "DivisionID" : 8, "StopPins": [13]},
+{"StopID": 99, "Name": "Blockflöte 2", "DivisionID" : 8, "StopPins": [14]},
+{"StopID": 100, "Name": "Principal 1", "DivisionID" : 8, "StopPins": [15]},
+{"StopID": 101, "Name": "Scharff 3-4f", "DivisionID" : 8, "StopPins": [16]},
+{"StopID": 102, "Name": "Quinte 2/3", "DivisionID" : 8, "StopPins": [17]},
+{"StopID": 103, "Name": "Holzcymbel 2f ½,1/3", "DivisionID" : 8, "StopPins": [18]},
+{"StopID": 104, "Name": "Terz 2/5", "DivisionID" : 8, "StopPins": [19]},
+{"StopID": 105, "Name": "Bärpfeife 16", "DivisionID" : 8, "StopPins": [20]},
+{"StopID": 106, "Name": "Vox humana 8", "DivisionID" : 8, "StopPins": [21]},
+{"StopID": 27, "Name": "Physharmonika 64 c1-g3", "DivisionID" : 8, "Sources": [{"Stop" : 29, "Route" : {"Transpose" : -24}}], "Movable": true},
+{"StopID": 28, "Name": "Physharmonika 32 c0-g3", "DivisionID" : 8, "Sources": [{"Stop" : 29, "Route" : {"Transpose" : -12}}], "Movable": true},
+{"StopID": 29, "Name": "Physharmonika 16 C-g4", "DivisionID" : 8, "Sources": [{"left": "C", "right": "g4", "pin": 705}], "Movable": true, "EditorSource" : true},
+{"StopID": 30, "Name": "Physharmonika 8 C-g3", "DivisionID" : 8, "Sources": [{"Stop" : 29, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 107, "Name": "Gemshorn 8", "DivisionID" : 9, "StopPins": [22]},
+{"StopID": 108, "Name": "Rohrflöte 4", "DivisionID" : 9, "StopPins": [23]},
+{"StopID": 109, "Name": "Sesquialtera 2-3f 2 2/3,1 3/5", "DivisionID" : 9, "StopPins": [24]},
+{"StopID": 110, "Name": "Principal 2", "DivisionID" : 9, "StopPins": [25]},
+{"StopID": 111, "Name": "Quinte 1 1/3", "DivisionID" : 9, "StopPins": [26]},
+{"StopID": 112, "Name": "Cymbel 3f 2/3", "DivisionID" : 9, "StopPins": [27]},
+{"StopID": 113, "Name": "Musette 8", "DivisionID" : 9, "StopPins": [28]},
+{"StopID": 114, "Name": "Violon 16", "DivisionID" : 10, "Sources": [{"Stop" : 88}], "Movable": true},
+{"StopID": 115, "Name": "Geigenprinzipal 8", "DivisionID" : 10, "Sources": [{"Stop" : 114, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 116, "Name": "Gamba 8", "DivisionID" : 10, "Sources": [{"left": "C", "right": "g3", "pin": 321}], "Movable": true, "EditorSource" : true},
+{"StopID": 117, "Name": "Salicional 8", "DivisionID" : 10, "Sources": [{"left": "C", "right": "g3", "pin": 385}], "Movable": true, "EditorSource" : true},
+{"StopID": 118, "Name": "Celeste 8", "DivisionID" : 10, "Sources": [{"Stop" : 116}, {"Stop" : 117}], "Movable": true},
+
+{"StopID": 120, "Name": "Geigenprinzipal 4", "DivisionID" : 10, "Sources": [{"Stop" : 115, "Route" : {"Transpose" : 12}}], "Movable": true},
+
+{"StopID": 122, "Name": "Traversflöte 4", "DivisionID" : 10, "Sources": [{"left": "C", "right": "g3", "pin": 449}], "Movable": true, "EditorSource" : true},
+
+{"StopID": 124, "Name": "Flageolett 2", "DivisionID" : 10, "Sources": [{"Stop" : 122, "Route" : {"Transpose" : 12}}], "Movable": true},
+{"StopID": 125, "Name": "Fagott 16", "DivisionID" : 10, "Sources": [{"left": "C", "right": "g3", "pin": 513}], "Movable": true, "EditorSource" : true},
+{"StopID": 126, "Name": "Oboe 8", "DivisionID" : 10, "Sources": [{"left": "C", "right": "g3", "pin": 257}], "Movable": true, "EditorSource" : true},
+{"StopID": 127, "Name": "Xylophon", "DivisionID" : 11, "Sources": [{"left": "C", "right": "H", "pin": 208}, {"left": "c0", "right": "c2", "pin": 208}, {"left": "cs2", "right": "c3", "pin": 221}, {"left": "cs3", "right": "g3", "pin": 221}], "Movable": true, "EditorSource" : true},
+{"StopID": 128, "Name": "Xylophon permanent", "DivisionID" : 11, "Sources": [{"Stop" : 127, "Route" : {"Transpose" : 0}}], "Movable": true, "Pulsing": true},
+{"StopID": 129, "Name": "Glockencymbel", "DivisionID" : 11, "Sources": [{"left": "C", "right": "H", "pin": 193}, {"left": "c0", "right": "h0", "pin": 193}, {"left": "c1", "right": "h1", "pin": 193}, {"left": "c2", "right": "h2", "pin": 193}, {"left": "c3", "right": "h3", "pin": 193}], "Movable": true, "EditorSource" : true},
+{"StopID": 130, "Name": "Glockencymbel permanent", "DivisionID" : 11, "Sources": [{"Stop" : 129, "Route" : {"Transpose" : 0}}], "Movable": true, "Pulsing": true},
+{"StopID": 131, "Name": "Bronzeton", "DivisionID" : 11, "Sources": [{"left": "C", "right": "ds2", "pin": 665}], "Movable": true, "EditorSource" : true},
+{"StopID": 132, "Name": "Hahnschrei c0", "DivisionID" : 11, "StopPins": [657], "Sources": [{"left" : "C-1", "right" : "c5", "pin" : 658, "semitones" : 1, "stepWidth" : 0}], "Movable": true, "EditorSource" : true},
+{"StopID": 133, "Name": "Hahnschrei e0", "DivisionID" : 11, "StopPins": [657], "Sources": [{"left" : "C-1", "right" : "c5", "pin" : 659, "semitones" : 1, "stepWidth" : 0}], "Movable": true, "EditorSource" : true},
+{"StopID": 134, "Name": "Hahnschrei gis0", "DivisionID" : 11, "StopPins": [657], "Sources": [{"left" : "C-1", "right" : "c5", "pin" : 660, "semitones" : 1, "stepWidth" : 0}], "Movable": true, "EditorSource" : true},
+{"StopID": 135, "Name": "Harfe", "DivisionID" : 1, "Sources": [{"Stop" : 78, "Route" : {"Transpose" : 12}}], "Movable": true, "EditorSource" : true},
+{"StopID": 136, "Name": "Hahnschrei", "DivisionID" : 11, "StopPins": [657], "Sources": [{"left": "c0", "right": "c0", "pin": 658}, {"left": "e0", "right": "e0", "pin": 659}, {"left": "gs0", "right": "gs0", "pin": 660}], "Movable": true, "EditorSource" : true}
+]
+
+}

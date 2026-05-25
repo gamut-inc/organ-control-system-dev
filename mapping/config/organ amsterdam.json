@@ -1,0 +1,1307 @@
+{
+   "Controllers" : [
+      {
+         "Location" : "Sauer",
+         "IP" : "192.168.0.129",
+         "Pins" : 384,
+         "Legacy" : true
+      },
+      {
+         "Location" : "CRo",
+         "IP" : "192.168.0.130",
+         "xLegacy" : true,
+         "Edges32" : [ 13, 26, 14, 25, 15, 24, 16, 23 ]
+      },
+      {
+         "Location" : "CRu",
+         "IP" : "192.168.0.131",
+         "xLegacy" : true,
+         "Edges32" : [ 17, 22, 18, 21, 19, 20 ]
+      },
+      {
+         "Location" : "CLo",
+         "IP" : "192.168.0.132",
+         "xLegacy" : true,
+         "Edges32" : [ 27, 40, 28, 39, 29, 38, 30, 37 ]
+      },
+      {
+         "Location" : "CLu",
+         "IP" : "192.168.0.133",
+         "xLegacy" : true,
+         "Edges32" : [ 31, 36, 32, 35, 33, 34 ]
+      },
+      {
+         "Location" : "CsRo",
+         "IP" : "192.168.0.134",
+         "xLegacy" : true,
+         "Edges32" : [ 41, 54, 42, 53, 43, 52, 44, 51 ]
+      },
+      {
+         "Location" : "CsRu",
+         "IP" : "192.168.0.135",
+         "xLegacy" : true,
+         "Edges32" : [ 45, 50, 46, 49, 47, 48 ]
+      },
+      {
+         "Location" : "CsLo",
+         "IP" : "192.168.0.136",
+         "xLegacy" : true,
+         "Edges32" : [ 55, 68, 56, 67, 57, 66, 58, 65 ]
+      },
+      {
+         "Location" : "CsLu",
+         "IP" : "192.168.0.137",
+         "xLegacy" : true,
+         "Edges32" : [ 59, 64, 60, 63, 61, 62 ]
+      }
+   ],
+   "RemoteSwitches" : [
+      {
+         "IP" : "192.168.0.11",
+         "Name" : "Sauer"
+      },
+      {
+         "IP" : "192.168.0.12",
+         "Name" : "Barock"
+      }
+   ],
+   "SwellTargets" : [
+      {
+         "Name" : "SAUER",
+         "IP" : "192.168.0.129",
+         "bytenum" : -1
+      },
+      {
+         "Name" : "NBO WIND",
+         "IP" : "192.168.0.132",
+         "bytenum" : 8
+      }
+   ],
+   "Tremulants" : [
+      {
+         "IP" : "192.168.0.132",
+         "Name" : "Trem OW",
+         "pinPermanent" : 1271,
+         "pinPulse" : 1270
+      },
+      {
+         "IP" : "192.168.0.132",
+         "Name" : "Trem HW",
+         "pinPermanent" : 1269,
+         "pinPulse" : 1268
+      }
+   ],
+   "RampFile" : "default.rmp",
+   "DefaultRamp" : {
+      "AttackSlow" : 10,
+      "PeakSlow" : 40,
+      "DecaySlow" : 10,
+      "SustainSlow" : 30,
+      "ReleaseSlow" : 20,
+      "RemainSlow" : 10,
+      "FadeSlow" : 20,
+      "AttackFast" : 10,
+      "PeakFast" : 80,
+      "DecayFast" : 10,
+      "SustainFast" : 50,
+      "ReleaseFast" : 1,
+      "RemainFast" : 10,
+      "FadeFast" : 10
+   },
+   "Divisions" : [
+      {
+         "DivisionID" : 1,
+         "Name" : "grey",
+         "Colour" : "0xff808080",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a3",
+               "pin" : 289
+            }
+         ]
+      },
+      {
+         "DivisionID" : 2,
+         "Name" : "green",
+         "Colour" : "0xff6eae5b",
+         "xSources" : [
+            {
+               "left" : "C",
+               "right" : "f2",
+               "pin" : 83
+            }
+         ],
+         "MinimumPulseLength" : 500
+      },
+      {
+         "DivisionID" : 3,
+         "Name" : "white",
+         "Colour" : "0xffffffff",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "xpin" : 1,
+               "pin" : 129
+            }
+         ]
+      },
+      {
+         "DivisionID" : 4,
+         "Name" : "blue",
+         "Colour" : "0xff05aadb",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g3",
+               "pin" : 185
+            }
+         ]
+      },
+      {
+         "DivisionID" : 5,
+         "Name" : "yellow",
+         "Colour" : "0xffffff00",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g4",
+               "pin" : 241,
+               "pinx" : 309
+            }
+         ]
+      },
+      {
+         "DivisionID" : 6,
+         "Name" : "pink",
+         "Colour" : "0xffe8abd8",
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "g4",
+               "pin" : 309,
+               "pinx" : 241
+            }
+         ]
+      },
+      {
+         "DivisionID" : 7,
+         "Name" : "baroque HW",
+         "Colour" : "0xff000000"
+      },
+      {
+         "DivisionID" : 8,
+         "Name" : "baroque OW",
+         "Colour" : "0xff000000"
+      },
+      {
+         "DivisionID" : 9,
+         "Name" : "baroque P",
+         "Colour" : "0xff000000"
+      }
+   ],
+   "Stops" : [
+      {
+         "StopID": 165, 
+         "Name" : "Dulciana 8'",
+         "DivisionID" : 3,
+         "StopPins" : [ 10 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Bourdon 8'",
+         "DivisionID" : 4,
+         "StopPins" : [ 9 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Flute harm. 8'",
+         "DivisionID" : 3,
+         "StopPins" : [ 8 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Gamba 8'",
+         "DivisionID" : 3,
+         "StopPins" : [ 7 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Principal 8'",
+         "DivisionID" : 4,
+         "StopPins" : [ 6 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Rohrfloete 4'",
+         "DivisionID" : 4,
+         "StopPins" : [ 5 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Octave 4'",
+         "DivisionID" : 3,
+         "StopPins" : [ 4 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Bourdon 16'",
+         "DivisionID" : 3,
+         "StopPins" : [ 3 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Rauschquinte 2 2/3'",
+         "DivisionID" : 4,
+         "StopPins" : [ 2 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Cornettmixtur 3-5f",
+         "DivisionID" : 4,
+         "StopPins" : [ 1 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Trompete 8'",
+         "DivisionID" : 3,
+         "StopPins" : [ 11 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Schwellged. 16'",
+         "DivisionID" : 1,
+         "StopPins" : [ 18 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Subbass 16'",
+         "DivisionID" : 1,
+         "StopPins" : [ 17 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Contrabass 16'",
+         "DivisionID" : 2,
+         "StopPins" : [ 16 ],
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f2",
+               "pin" : 83
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Cello 8'",
+         "DivisionID" : 1,
+         "StopPins" : [ 15 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Bassfloete 8'",
+         "DivisionID" : 1,
+         "StopPins" : [ 14 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Octavbass 8'",
+         "DivisionID" : 1,
+         "StopPins" : [ 13 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Contrabass 32'",
+         "DivisionID" : 2,
+         "StopPins" : [ 16 ],
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a1",
+               "pin" : 90
+            },
+            {
+               "left" : "C",
+               "right" : "H",
+               "pin" : 83
+            },
+            {
+               "left" : "c0",
+               "right" : "f2",
+               "pin" : 83
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Posaune 16'",
+         "DivisionID" : 2,
+         "StopPins" : [ 12 ],
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "f2",
+               "pin" : 83
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Posaune 32'",
+         "DivisionID" : 2,
+         "StopPins" : [ 12 ],
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "a1",
+               "pin" : 90
+            },
+            {
+               "left" : "C",
+               "right" : "H",
+               "pin" : 83
+            },
+            {
+               "left" : "c0",
+               "right" : "f2",
+               "pin" : 83
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Motor ab",
+         "DivisionID" : 3,
+         "StopPins" : [ 33 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Quintatoen 8'",
+         "DivisionID" : 5,
+         "StopPins" : [ 21 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Konzertfloete 8'",
+         "DivisionID" : 5,
+         "StopPins" : [ 22 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Voix celeste 8'",
+         "DivisionID" : 5,
+         "StopPins" : [ 20 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Violine 4'",
+         "DivisionID" : 5,
+         "StopPins" : [ 25 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Traversfloete 4'",
+         "DivisionID" : 5,
+         "StopPins" : [ 26 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Flautino 2'",
+         "DivisionID" : 5,
+         "StopPins" : [ 27 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Harm. aeth. 3f",
+         "DivisionID" : 5,
+         "StopPins" : [ 28 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Tremulant",
+         "DivisionID" : 5,
+         "StopPins" : [ 29 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Aeoline 8'",
+         "DivisionID" : 6,
+         "StopPins" : [ 19 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Fugara 8'",
+         "DivisionID" : 6,
+         "StopPins" : [ 23 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Floetenprincipal 8'",
+         "DivisionID" : 6,
+         "StopPins" : [ 24 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Liebl. Ged. 16'",
+         "DivisionID" : 6,
+         "StopPins" : [ 30 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Oboe 8'",
+         "DivisionID" : 6,
+         "StopPins" : [ 31 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Clarinette 8'",
+         "DivisionID" : 6,
+         "StopPins" : [ 32 ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Burdun 16'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1292,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 396,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Principal 8'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1293,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 397,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Rohrfloett 8",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1290,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 394,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Quintathen 8'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1288,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 392,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Octav 4'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1289,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 393,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Gemshorn 4'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1287,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 391,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Weitpfeiffe 2'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1285,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 389,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Sexquint altra 2f",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1286,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 390,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Mixtur 4f",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1284,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 388,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Cymbel 3f",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1283,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 387,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Cornett 4f",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "c1",
+               "right" : "gs3",
+               "pin" : 1447,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "h0",
+               "right" : "g3",
+               "pin" : 551,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Fagott 16'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1281,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 385,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Trompet 8'",
+         "DivisionID" : 7,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1282,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 386,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Gedackt 8'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1667,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 771,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Violdigamba 8",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1669,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 773,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Unda maris 8'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "gs0",
+               "right" : "gs3",
+               "pin" : 1798,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "a0",
+               "right" : "g3",
+               "pin" : 915,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Principal 4'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1670,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 774,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Rohrflött 4",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1666,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 770,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Nassat 3'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1664,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 768,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Octav 2'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1665,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 769,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Waldflött 2'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1663,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 767,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Tertia 1 3/5'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1662,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 766,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Quinta 1 1/2'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1661,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 765,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Süfflött 1'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1660,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 764,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Scharff 4f",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1659,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 763,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Vox humana 8'",
+         "DivisionID" : 8,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "gs3",
+               "pin" : 1658,
+               "semitones" : 2,
+               "stepWidth" : 13
+            },
+            {
+               "left" : "H-1",
+               "right" : "g3",
+               "pin" : 762,
+               "semitones" : 2,
+               "stepWidth" : 13
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Principal 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "fs1",
+               "pin" : 2035,
+               "semitones" : 2,
+               "stepWidth" : 1
+            },
+            {
+               "left" : "H-1",
+               "right" : "f1",
+               "pin" : 1139,
+               "semitones" : 2,
+               "stepWidth" : 1
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Subbass 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2051,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2057,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1155,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1161,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Quintbass 12'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2053,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2059,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1157,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1163,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Octav 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2052,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2058,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1156,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1162,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Posaune 16'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2054,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2060,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1158,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1164,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Posaune 8'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2055,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2061,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1159,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1165,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      },
+      {
+         "StopID": 165, 
+         "Name" : "Clarin 4'",
+         "DivisionID" : 9,
+         "Movable" : true,
+         "EditorSource" : true,
+         "Sources" : [
+            {
+               "left" : "C",
+               "right" : "d0",
+               "pin" : 2056,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "e0",
+               "right" : "fs1",
+               "pin" : 2062,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "H-1",
+               "right" : "cs0",
+               "pin" : 1160,
+               "semitones" : 2,
+               "stepWidth" : 12
+            },
+            {
+               "left" : "ds0",
+               "right" : "f1",
+               "pin" : 1166,
+               "semitones" : 2,
+               "stepWidth" : 12
+            }
+         ]
+      }
+   ]
+}

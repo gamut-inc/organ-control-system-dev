@@ -1,0 +1,132 @@
+class,stopID,name,type,subtype,properties,manual,movable,feet,on/midiChan,on/midiCmd
+stop,1,32 nur C und D,,,,1,,,11,OSC
+stop,2,Principal,,,,1,YES,16,11,OSC
+stop,3,Subbaß,,,,1,,16,11,OSC
+stop,4,Quinte,,,,1,,10 2/3,11,OSC
+stop,5,Principal,,,,1,,8,11,OSC
+stop,6,Flöte,,,,1,,8,11,OSC
+stop,7,Quinte,,,,1,,5 2/3,11,OSC
+stop,8,Octave,,,,1,,4,11,OSC
+stop,9,Traversflöte,,,,1,,4,11,OSC
+stop,10,Hintersatz 4f,,,,1,,,11,OSC
+stop,11,Nachthorn,,,,1,,2,11,OSC
+stop,12,Posaune,trumpets,,,1,,16,11,OSC
+stop,13,Trompete,trumpets,,,1,,8,11,OSC
+stop,77,Becken,,,,1,YES,,11,OSC
+stop,14,Pommer,,,,2,,16,11,OSC
+stop,15,Principal,,,,2,,8,11,OSC
+stop,16,Rohrflöte,,,,2,,8,11,OSC
+stop,17,Oktave,,,,2,,4,11,OSC
+stop,18,Gedeckt,,,,2,,4,11,OSC
+stop,19,Nasard,,,,2,,2 2/3,11,OSC
+stop,20,Flöte,,,,2,,2,11,OSC
+stop,21,Mixtur 4-5f,mixtur,,,2,,,11,OSC
+stop,22,Terz,,,,2,,1 3/5,11,OSC
+stop,23,Sept,,,,2,,1 1/7,11,OSC
+stop,24,None,,,,2,,8/9,11,OSC
+stop,25,Cymbel 3f,,,,2,,,11,OSC
+stop,26,Trompete,trumpets,,,2,,8,11,OSC
+stop,31,Principal,,,,3,,8,11,OSC
+stop,32,Gedeckt,,,,3,,8,11,OSC
+stop,33,Spitzgambe,,,,3,,8,11,OSC
+stop,34,Oktave,,,,3,,4,11,OSC
+stop,35,Blockflöte,,,,3,,4,11,OSC
+stop,36,Hintersatz 3f,,,,3,,,11,OSC
+stop,37,Superoktave,,,,3,,2,11,OSC
+stop,38,Mixtur 4-6f,mixtur,,,3,,,11,OSC
+stop,39,Nachthorn,,,,3,,1,11,OSC
+stop,40,Elfte,,,,3,,8/11,11,OSC
+stop,41,Schalmey,,,,3,,16,11,OSC
+stop,42,Trompete,trumpets,,,3,,8,11,OSC
+stop,43,Clarine,,,,3,,4,11,OSC
+stop,44,Saxophon,trumpets,,,4,YES,32,11,OSC
+stop,45,Saxophon,trumpets,,,4,YES,16,11,OSC
+stop,46,Saxophon,trumpets,,,4,YES,8,11,OSC
+stop,47,Saxophon,trumpets,,,4,YES,4,11,OSC
+stop,48,Cello,,,,4,YES,8,11,OSC
+stop,49,Cello,,,,4,YES,4 4/7,11,OSC
+stop,50,Cello,,,,4,YES,4,11,OSC
+stop,51,Cello,,,,4,YES,3 1/5,11,OSC
+stop,52,Cello,,,,4,YES,2,11,OSC
+stop,53,Weidenpfeife,,,,4,YES,4,11,OSC
+stop,54,Cornett,,,,4,YES,3 1/5,11,OSC
+stop,55,Cornett,,,,4,YES,5 1/3,11,OSC
+stop,56,Cornett,,,,4,YES,2 2/3,11,OSC
+stop,57,Mixtur 5-8f,mixtur,,,4,YES,,11,OSC
+stop,58,Aeolsharfe,,,,4,YES,,11,OSC
+stop,59,Aeolsharfe 4f,,,,4,YES,1 1/3,11,OSC
+stop,60,Aeolsharfe 4f,,,,4,YES,2/3,11,OSC
+stop,61,Trillerpfeife,,,,4,YES,1,11,OSC
+stop,62,Cymbel I,mixtur,,,4,YES,,11,OSC
+stop,63,Cymbel II,,,,4,YES,,11,OSC
+stop,64,Cymbel III,,,,4,YES,,11,OSC
+stop,65,Cymbel IV,,,,4,YES,,11,OSC
+stop,66,Quadrupla I,,,,4,,,11,OSC
+stop,67,Quadrupla II,,,,4,,,11,OSC
+stop,68,Quadrupla III,,,,4,,,11,OSC
+stop,69,Quadrupla IV,,,,4,,,11,OSC
+stop,70,Quadrupla V,,,,4,,,11,OSC
+stop,71,Trompeta magna,trumpets,,,5,YES,16,11,OSC
+stop,72,Trompeta da batalla,trumpets,,,5,YES,8,11,OSC
+stop,73,Clarin brilliante,trumpets,,,5,YES,4,11,OSC
+stop,74,Glocken,percussion,,,6,YES,16,11,OSC
+stop,75,Xylodur,percussion,,,6,YES,,11,OSC
+stop,76,Xylodur permanent,percussion,,,6,YES,,11,OSC
+stop,78,Harfe,percussion,,,6,YES,,11,OSC
+stop,79,Psalterium,percussion,,,6,YES,,11,OSC
+stop,80,Psalterium permanent,percussion,,,6,YES,,11,OSC
+stop,81,Turmglocken,percussion,,,6,,,11,OSC
+stop,82,Beckenstern,,,,6,,,11,OSC
+stop,83,Silberklang,,,,6,,,11,OSC
+stop,85,Sirene,,,,6,,,11,OSC
+stop,86,Gedecktbaß,,,,7,,16,11,OSC
+stop,87,Pommer,,,,7,,8,11,OSC
+stop,88,Violon,,,,7,YES,16,11,OSC
+stop,89,Violon,,,,7,YES,8,11,OSC
+stop,91,Akkord 3f.,,,,7,,,11,OSC
+stop,92,Oberton 4f.,,,,7,,,11,OSC
+stop,93,Fagott,,,,7,YES,8,11,OSC
+stop,94,Oboe,,,,7,YES,5 1/3,11,OSC
+stop,95,Oboe,,,,7,YES,4,11,OSC
+stop,96,Oboe,,,,7,YES,2,11,OSC
+stop,97,Gedeckt,,,,8,,8,11,OSC
+stop,98,Principal,,,,8,,4,11,OSC
+stop,99,Blockflöte,,,,8,,2,11,OSC
+stop,100,Principal,,,,8,,1,11,OSC
+stop,101,Scharff 3-4f,,,,8,,,11,OSC
+stop,102,Quinte,,,,8,,2/3,11,OSC
+stop,103,Holzcymbel 2f,,,,8,,"½, 1/3",11,OSC
+stop,104,Terz,,,,8,,2/5,11,OSC
+stop,105,Bärpfeife,,,,8,,16,11,OSC
+stop,106,Vox humana,,,,8,,8,11,OSC
+stop,27,Physharmonika c1-g3,physharmonica,,,8,YES,64,11,OSC
+stop,28,Physharmonika c0-g3,physharmonica,,,8,YES,32,11,OSC
+stop,29,Physharmonika C-g4,physharmonica,,,8,YES,16,11,OSC
+stop,30,Physharmonika C-g3,physharmonica,,,8,YES,8,11,OSC
+stop,107,Gemshorn,,,,9,,8,11,OSC
+stop,108,Rohrflöte,,,,9,,4,11,OSC
+stop,109,Sesquialtera 2-3f,,,,9,,"2 2/3, 1 3/5",11,OSC
+stop,110,Principal,,,,9,,2,11,OSC
+stop,111,Quinte,,,,9,,1 1/3,11,OSC
+stop,112,Cymbel 3f,,,,9,,2/3,11,OSC
+stop,113,Musette,,,,9,,8,11,OSC
+stop,114,Violon,,,,10,YES,16,11,OSC
+stop,115,Geigenprinzipal,,,,10,YES,8,11,OSC
+stop,116,Gamba,,,,10,YES,8,11,OSC
+stop,117,Salicional,,,,10,YES,8,11,OSC
+stop,118,Celeste,,,,10,YES,8,11,OSC
+stop,120,Geigenprinzipal,,,,10,YES,4,11,OSC
+stop,122,Traversflöte,,,,10,YES,4,11,OSC
+stop,124,Flageolett,,,,10,YES,2,11,OSC
+stop,125,Fagott,,,,10,YES,16,11,OSC
+stop,126,Oboe,,,,10,YES,8,11,OSC
+stop,127,Xylophon,percussion,,,11,YES,,11,OSC
+stop,128,Xylophon permanent,percussion,,,11,YES,,11,OSC
+stop,129,Glockencymbel,percussion,,,11,YES,,11,OSC
+stop,130,Glockencymbel permanent,percussion,,,11,YES,,12,OSC
+stop,131,Bronzeton,percussion,,,11,YES,,12,OSC
+stop,132,Hahnschrei c0,,,,11,YES,,12,OSC
+stop,133,Hahnschrei e0,,,,11,YES,,12,OSC
+stop,134,Hahnschrei gis0,,,,11,YES,,12,OSC
+stop,135,Harfe,,,,1,YES,,12,OSC
+stop,136,Hahnschrei,,,,11,YES,,12,OSC
