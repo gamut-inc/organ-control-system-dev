@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.01 - Fix: Movable boolean coercion + split division panel vs DIV buttons
+// 01.02 - Fix: no DIV buttons for all-movable organs; flush cache in generateGUI
 // 25.05.2026
 
 autowatch = 1;
@@ -63,13 +63,11 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         parsed.tremulants = parseTremulants(organData.Tremulants);
         parsed.stops = parseStops(organData.Stops, dataLayer.getIncludeTransmissions());
 
-        // DIVISIONS PANEL: only divisions that have fixed (non-movable) stops
+        // DIVISIONS PANEL: only divisions that have fixed (non-movable) stops.
+        // DIV buttons in layers derive from the same list — organs with only movable
+        // stops (like Malmö) get no division panel AND no DIV buttons.
         parsed.divisions = parseDivisions(parsed.stops.fixed, organData.Divisions);
-
-        // DIV BUTTONS in layers: all divisions referenced by ANY stop (fixed or movable)
-        var allStops = parsed.stops.fixed.concat(parsed.stops.movable);
-        var allActiveDivisions = parseDivisions(allStops, organData.Divisions);
-        parsed.stops.divisions = parseDivisionStops(parsed.stops, allActiveDivisions);
+        parsed.stops.divisions = parseDivisionStops(parsed.stops, parsed.divisions);
 
         parsed.manuals = parseManuals(organData.Manuals);
 
@@ -242,6 +240,11 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var hasManuals     = organData.manuals && organData.stops && organData.stops.movable &&
                              organData.stops.movable.length > 0;
 
+        // Defensive cache flush — clearGUIObjects already clears it, but guard against
+        // any code path that touches the cache before we set the new row values.
+        G._cache = {};
+        G._calculatedWidths = {};
+
         // --- Dynamic Y layout: compute section start positions ---------------
         // Controls zone: header label (mainControls=60) + buttons reach to ~y=140
         var CTRL_ZONE_BOTTOM = 160; // below the 3 stacked buttons (at rows=5 → y=100+40=140, +gap)
@@ -252,14 +255,20 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 
         var currentY = CTRL_ZONE_BOTTOM;
 
+        // Always stamp G.rows.divisions so stale values from a previous organ never leak.
+        G.rows.divisions = currentY;
         if (hasDivisions) {
-            G.rows.divisions = currentY;
             currentY += G.stops.h * common.MAX_STOPS_PER_COLUMN + SECTION_GAP;
         }
 
         G.rows.manualSelector = currentY;
         currentY += G.stops.h + SECTION_GAP;
         G.rows.manuals = currentY;
+
+        common.log(common.LOG_LEVEL.INFO,
+            "Y layout — divisions:" + G.rows.divisions +
+            " manualSelector:" + G.rows.manualSelector +
+            " manuals:" + G.rows.manuals);
         // -------------------------------------------------------------------
 
         try {
