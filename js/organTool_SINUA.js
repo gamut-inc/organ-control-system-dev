@@ -421,7 +421,8 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var bpatcher = common.createBpatcher(p, pos.x, pos.y, pos.w, pos.h, "divisions");
         if (!bpatcher) return null;
 
-        var context = createActionContext(null, null, 0); // or all ? 
+        var context = createActionContext(null, null, null);
+        context.divisionsAll = true;  // section-level cancel: clear all divisions, not global
 
         common.log(common.LOG_LEVEL.DEBUG, "createDivisionSection(): context: "+Object.keys(context))
 
@@ -1119,14 +1120,16 @@ function clearButtonMap(buttonMap) {
 function updateUIStopsOff(actionContext) {
     if (!guiObjects) return;
 
-    // Use explicit null/undefined checks — !0 is truthy, so manualID=0 (PEDAL) must not
-    // be treated as absent.  Same pattern as isLayer/isManual below.
-    var hasManual = (actionContext.manual !== null && actionContext.manual !== undefined);
-    var hasLayer  = (actionContext.layer  !== null && actionContext.layer  !== undefined);
-    var isGlobal  = !hasManual && !hasLayer && !actionContext.divisionID;
-    var isDivision = !!actionContext.divisionID;
-    var isLayer    = hasManual && hasLayer;
-    var isManual   = hasManual && !isLayer;
+    // Explicit null/undefined checks throughout — !0 is truthy, which would mis-classify
+    // PEDAL (manualID=0) and the first division (divisionID=0) as absent.
+    var hasManual   = (actionContext.manual     !== null && actionContext.manual     !== undefined);
+    var hasLayer    = (actionContext.layer      !== null && actionContext.layer      !== undefined);
+    var hasDivision = (actionContext.divisionID !== null && actionContext.divisionID !== undefined);
+    var isGlobal      = !hasManual && !hasLayer && !hasDivision && !actionContext.divisionsAll;
+    var isDivisionsAll = !hasManual && !hasLayer && !hasDivision && !!actionContext.divisionsAll;
+    var isDivision    = hasDivision;
+    var isLayer       = hasManual && hasLayer;
+    var isManual      = hasManual && !isLayer;
 
     if (isGlobal) {
         // All layers across all manuals + all division stop buttons
@@ -1135,6 +1138,12 @@ function updateUIStopsOff(actionContext) {
                 manual.layers.forEach(function(layer) { clearButtonMap(layer.stopButtonMap); });
             });
         }
+        if (guiObjects.divisions && guiObjects.divisions.divisions) {
+            guiObjects.divisions.divisions.forEach(function(div) { clearButtonMap(div.stopButtonMap); });
+        }
+
+    } else if (isDivisionsAll) {
+        // Section-level division cancel: clear all division stop buttons (not manual layers)
         if (guiObjects.divisions && guiObjects.divisions.divisions) {
             guiObjects.divisions.divisions.forEach(function(div) { clearButtonMap(div.stopButtonMap); });
         }

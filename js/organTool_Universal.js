@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.10 - Fix isGlobal (PEDAL cancel affects all): !0===true, use explicit null checks
+// 01.11 - Fix division cancel scope: divisionsAll flag replaces divisionID=0 coercion
 // 25.05.2026
 
 autowatch = 1;
