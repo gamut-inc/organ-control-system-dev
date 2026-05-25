@@ -1,8 +1,9 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.00 - Context-aware commands with dependency injection
-// 08.07.2025
+// 01.03 - inlets=2: inlet 1 receives routed stop events from send/receive; jsbox in context
+// 25.05.2026
 
 autowatch = 1;
+inlets = 2;  // inlet 0: control messages; inlet 1: stop events from organ_stops receive
 
 // ================================================================================================
 // MODULE LOADING SYSTEM - FIXED PATH DETECTION
@@ -210,6 +211,8 @@ function loadOrganModule(organType) {
 function createOrganContext(organType) {
     return {
         patcher: this.patcher,
+        jsbox: this.box,       // js object's own MaxObj — used to connect receive → inlet 1
+        stopRouteInlet: 1,     // inlet index for stop routing
         organType: organType,
         
         // Context-aware command generator
@@ -526,6 +529,26 @@ function resetSystem() {
         system.modules.protocolLayer.clearCommandQueue();
     }
     system.modules.common.log(system.modules.common.LOG_LEVEL.INFO, "System reset");
+}
+
+// ================================================================================================
+// STOP EVENT ROUTING  (inlet 1 — routed from organ_stops send/receive)
+// ================================================================================================
+// Format: "stop <stopID> <manualID|-1> <layerID|-1> <divisionID|-1> <state 0|1>"
+// Called from organ_stops receive → js inlet 1 for every stop button toggle.
+// This replaces per-button MaxobjListeners (each cost ~59 ms at load time).
+
+function anything() {
+    if (inlet !== 1 || messagename !== "stop") return;
+    if (!system.organModule || typeof system.organModule.handleStopEvent !== "function") return;
+
+    var stopID    = arguments[0];
+    var manualID  = (arguments[1] !== -1) ? arguments[1]  : null;
+    var layerID   = (arguments[2] !== -1) ? arguments[2]  : null;
+    var divisionID= (arguments[3] !== -1) ? arguments[3]  : null;
+    var state     = Boolean(arguments[4]);
+
+    system.organModule.handleStopEvent(stopID, manualID, layerID, divisionID, state);
 }
 
 // ================================================================================================

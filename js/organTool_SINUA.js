@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.07 - CANCEL: visual clear + consolidated command; PANIC: velocity sweep; fix divisionID in context
+// 01.08 - Send/receive routing: replace per-button MaxobjListeners with prepend→send→receive→inlet1
 // 25.05.2026
 
 autowatch = 1;
@@ -16,6 +16,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     };
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
+    var stopRouteReceive = null; // The single "receive organ_stops" box in context.patcher
     
     // ================================================================================================
     // CONTEXT HELPER FUNCTIONS
@@ -225,10 +226,20 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     // ================================================================================================
     
     function clearGUI() {
+        // Remove the global stop-routing receive before clearing other objects
+        if (stopRouteReceive && context.patcher) {
+            try {
+                context.patcher.remove(stopRouteReceive);
+            } catch(e) {
+                // Ignore — object may already be gone after patcher clear
+            }
+            stopRouteReceive = null;
+        }
+
         if (context.patcher) {
             common.clearGUIObjects(context.patcher, ["organ_name_display"]);
         }
-        
+
         cleanupAllListeners();
         guiObjects = {};
         common.log(common.LOG_LEVEL.INFO, "GUI cleared with listener cleanup");
@@ -314,6 +325,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
                 guiObjects.divisions = createDivisionSection(context.patcher, organData.divisions);
             }
             var tG4 = Date.now();
+
+            // Set up ONE global receive in main patcher → js inlet 1 (replaces per-button listeners)
+            setupStopRouting();
 
             if (hasManuals) {
                 guiObjects.manuals = createManualSection(context.patcher, organData.manuals, organData.stops);
@@ -437,8 +451,8 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         common.GEOMETRY.sinua.divisions.stopArray.x() : 
         common.GEOMETRY.sinua.divisions.stopArray.x;
         
-        var stopButtonMap = createStopArray(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
-            divisionData.stops, divisionData.divisionID, null, null);
+        var stopButtonMap = createStopArrayRouted(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
+            divisionData.stops, null, null, divisionData.divisionID);
 
         return { bpatcher: bpatcher, label: label, context: context, stopButtonMap: stopButtonMap };
     }
@@ -528,14 +542,15 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
     var tL2 = Date.now();
 
-    var movableMap = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0,
-        stopData.movable, null, manualID, layerID);
+    // Use routed approach (prepend+send) — no per-button MaxobjListeners
+    var movableMap = createStopArrayRouted(bpatcher.subpatcher(),
+        common.GEOMETRY.sinua.layers.stopArray.x(), 0,
+        stopData.movable, manualID, layerID, null);
     var tL3 = Date.now();
 
-    // Fixed: Calculate division stop position properly
     var divisionPos = common.GEOMETRY.sinua.layers.divisionArray(stopData.movable.length);
-    var divMap = createStopArray(bpatcher.subpatcher(), divisionPos.x, 0,
-        stopData.divisions, null, manualID, layerID);
+    var divMap = createStopArrayRouted(bpatcher.subpatcher(), divisionPos.x, 0,
+        stopData.divisions, manualID, layerID, null);
     var tL4 = Date.now();
 
     // Merge movable + division button maps for CANCEL visual updates
@@ -730,6 +745,7 @@ function createGUIButton(p, pos, type, display, context, fontsize){
     return result;
 }
 
+// *** LEGACY: still used where jsbox routing is unavailable ***
 function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID) {
     if (!p || !stopData) return {};
 
@@ -766,6 +782,98 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
     });
 
     return buttonMap; // {stopID → live.text object}
+}
+
+// *** ROUTING VERSION: no per-button MaxobjListeners ***
+// Each button is wired: live.text → prepend "stop" stopID mID lID dID → send "organ_stops"
+// ONE global receive in context.patcher catches all and calls handleStopEvent via js inlet 1.
+function createStopArrayRouted(p, startX, startY, stopData, manualID, layerID, divisionID) {
+    if (!p || !stopData || stopData.length === 0) return {};
+
+    var buttonMap = {};
+    var currentColumn = 0;
+    var currentRow = 0;
+    var mID = (manualID  !== null && manualID  !== undefined) ? manualID  : -1;
+    var lID = (layerID   !== null && layerID   !== undefined) ? layerID   : -1;
+    var dID = (divisionID !== null && divisionID !== undefined) ? divisionID : -1;
+
+    // ONE send object for ALL stops in this array — placed offscreen
+    var sendObj = p.newdefault(-500, -20, "send", "organ_stops");
+
+    stopData.forEach(function(stop, index) {
+        var marginX = typeof common.GEOMETRY.columns.margin === 'function' ?
+            common.GEOMETRY.columns.margin() : common.GEOMETRY.columns.margin;
+
+        var pos = common.GEOMETRY.grid.pos(currentRow, currentColumn, marginX, marginX);
+        var x = startX + pos.x;
+        var y = startY + pos.y;
+
+        var stopObj = common.createLiveText(p, x, y,
+            common.GEOMETRY.stops.w, common.GEOMETRY.stops.h,
+            "stop" + stop.stopID, stop.name, stop.name, stop.name, 10);
+
+        if (stopObj && stopObj.liveText) {
+            buttonMap[stop.stopID] = stopObj.liveText;
+
+            // Prepend encodes routing metadata so the single receive can dispatch correctly.
+            // Output format: "stop <stopID> <mID> <lID> <dID> <0|1>"
+            var prepObj = p.newdefault(-500, -40 - (index * 20),
+                "prepend", "stop", stop.stopID, mID, lID, dID);
+
+            try {
+                p.connect(stopObj.liveText, 0, prepObj, 0);
+                p.connect(prepObj, 0, sendObj, 0);
+            } catch(e) {
+                common.log(common.LOG_LEVEL.ERROR,
+                    "createStopArrayRouted: connect failed for stop " + stop.stopID + ": " + e.message);
+            }
+        }
+
+        currentRow++;
+        if (currentRow >= common.MAX_STOPS_PER_COLUMN) {
+            currentColumn++;
+            currentRow = 0;
+        }
+    });
+
+    return buttonMap; // {stopID → live.text} — same format as createStopArray, for CANCEL visual update
+}
+
+// *** GLOBAL STOP ROUTING SETUP ***
+// Called once per organ load (in generateGUI) BEFORE manuals are created.
+// Creates receive "organ_stops" in context.patcher and wires it to jsbox inlet 1.
+function setupStopRouting() {
+    if (!context.patcher) {
+        common.log(common.LOG_LEVEL.WARN, "setupStopRouting: no patcher in context");
+        return;
+    }
+    if (!context.jsbox) {
+        common.log(common.LOG_LEVEL.WARN, "setupStopRouting: no jsbox in context — routing disabled");
+        return;
+    }
+
+    // Remove any receive from a previous organ load
+    if (stopRouteReceive) {
+        try { context.patcher.remove(stopRouteReceive); } catch(e) {}
+        stopRouteReceive = null;
+    }
+
+    try {
+        stopRouteReceive = context.patcher.newdefault(-200, -200, "receive", "organ_stops");
+        if (stopRouteReceive) {
+            context.patcher.connect(stopRouteReceive, 0, context.jsbox, context.stopRouteInlet || 1);
+            common.log(common.LOG_LEVEL.INFO,
+                "Stop routing: receive organ_stops → jsbox inlet " + (context.stopRouteInlet || 1));
+        }
+    } catch(e) {
+        common.log(common.LOG_LEVEL.ERROR, "setupStopRouting failed: " + e.message);
+    }
+}
+
+// *** STOP EVENT HANDLER (called from Universal.js anything() on inlet 1) ***
+function handleStopEvent(stopID, manualID, layerID, divisionID, state) {
+    var stopCtx = createStopContext(stopID, divisionID, manualID, layerID);
+    executeStopAction(stopID, Boolean(state), stopCtx);
 }
 
     // ================================================================================================
@@ -1077,6 +1185,7 @@ return {
     executeStopAction: executeStopAction,
     executePanic: executePanic,
     executeCancel: executeCancel,
+    handleStopEvent: handleStopEvent,   // called from Universal.js inlet 1 / anything()
         //executeReset: executeReset
 };
 }
@@ -1089,4 +1198,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.07 - CANCEL visual clear + PANIC sweep\n");
+post("organTool_SINUA_ContextAware.js v01.08 - send/receive routing replaces per-button MaxobjListeners\n");
