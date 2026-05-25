@@ -986,37 +986,57 @@ function generateLayerStopJSON(stopData, startX, startY) {
 
 // Write the layer stop patcher to disk next to the main Max patch.
 // Returns the filename (no path) for use in bpatcher @name, or null on failure.
-function writeLayerStopFile(stopData, organName) {
-    if (!context.patcher || !context.patcher.filepath) {
-        common.log(common.LOG_LEVEL.WARN, "writeLayerStopFile: no patcher filepath");
-        return null;
+// Resolve the directory in which to write the generated .maxpat file.
+// context.patcher.filepath may be null in Max for Live (.amxd) — use scriptDir global fallback.
+function resolvePatchDir() {
+    // 1. Try scriptDir (Universal.js resolves this at startup, even inside .amxd)
+    //    scriptDir = ".../organ-control-system-claudecode/js/"
+    //    We write next to the patch files (.amxd / .maxpat), one level up from /js/
+    if (typeof scriptDir !== 'undefined' && scriptDir) {
+        var parent = scriptDir.replace(/\/js\/?$/, "/");
+        if (parent && parent !== scriptDir) return parent;
+        return scriptDir; // js dir itself if no /js/ suffix
     }
 
+    // 2. Traverse parent patcher chain (handles nested bpatchers / Live devices)
+    var p = context.patcher;
+    for (var i = 0; i < 6 && p; i++) {
+        if (p.filepath) return p.filepath.replace(/\/[^\/]*$/, "/");
+        p = p.parentpatcher;
+    }
+
+    return null;
+}
+
+function writeLayerStopFile(stopData, organName) {
     try {
-        var startX = 0; // Stops start at left edge of the bpatcher; placement offset added by parent
-        var startY = 0;
-        var jsonStr = generateLayerStopJSON(stopData, startX, startY);
+        var dir = resolvePatchDir();
+        if (!dir) {
+            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: cannot resolve patch directory");
+            return null;
+        }
 
         var safeOrganName = (organName || "organ").replace(/[^a-zA-Z0-9_-]/g, "_");
         var filename = "layer_stops_" + safeOrganName + ".maxpat";
+        var fullPath = dir + filename;
 
-        // Write to the same directory as the main Max patch
-        var patcherDir = context.patcher.filepath.replace(/\/[^\/]*$/, "/");
-        var fullPath = patcherDir + filename;
+        var jsonStr = generateLayerStopJSON(stopData, 0, 0);
 
         var f = new File(fullPath, "write", "TEXT");
         if (!f || !f.isopen) {
-            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: could not open file for writing: " + fullPath);
+            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: cannot open for writing: " + fullPath);
             return null;
         }
         f.writestring(jsonStr);
         f.close();
 
-        common.log(common.LOG_LEVEL.INFO, "Layer stop patcher written: " + filename +
+        common.log(common.LOG_LEVEL.INFO, "Layer stop patcher written: " + fullPath +
             " (" + stopData.length + " stops)");
-        return filename;
+
+        // Return FULL absolute path — most reliable for bpatcher @name across all contexts
+        return fullPath;
     } catch(e) {
-        common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile failed: " + e.message);
+        common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: " + e.message);
         return null;
     }
 }
