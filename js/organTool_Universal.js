@@ -1,5 +1,5 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
-// 01.05 - Force SINUA.js reload: trigger autowatch by bumping Universal version
+// 01.06 - Simplify SINUA.js: Python generates .maxpat files, no runtime file generation
 // 25.05.2026
 
 autowatch = 1;
