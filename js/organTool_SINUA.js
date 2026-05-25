@@ -1,5 +1,5 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.05 - Remove double cache flush (redundant with clearGUIObjects)
+// 01.06 - Timing measurements for performance profiling
 // 25.05.2026
 
 autowatch = 1;
@@ -37,15 +37,19 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     // ================================================================================================
     
     function loadOrgan(organData, filepath) {
+        var tLoad = Date.now();
         common.log(common.LOG_LEVEL.INFO, "Loading SINUA organ with context awareness...");
-        
+
         if (filepath) {
             organState.filepath = filepath;
             organState.name = common.extractOrganNameFromPath(filepath);
         }
-        
+
         try {
+            var t0 = Date.now();
             var parsedData = parseOrganData(organData);
+            var t1 = Date.now();
+
             parsedData.type = "SINUA";
             parsedData.name = organState.name;
 
@@ -56,10 +60,17 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             };
 
             dataLayer.populateStateFromOrganData(parsedData);
+            var t2 = Date.now();
 
             clearGUI();
-            return generateGUI(parsedData);
-            
+            var t3 = Date.now();
+
+            var result = generateGUI(parsedData);
+            var t4 = Date.now();
+
+            post("⏱ LOAD total=" + (t4-tLoad) + "ms  [parse=" + (t1-t0) + "  populate=" + (t2-t1) + "  clearGUI=" + (t3-t2) + "  generateGUI=" + (t4-t3) + "]\n");
+            return result;
+
         } catch (error) {
             common.log(common.LOG_LEVEL.ERROR, "SINUA loadOrgan error: " + error.message);
             return false;
@@ -277,21 +288,26 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         // -------------------------------------------------------------------
 
         try {
+            var tG0 = Date.now();
             guiObjects.header = createMainHeader(context.patcher, organState.name);
+            var tG1 = Date.now();
 
             if (hasControllers) {
                 guiObjects.controllers = createControllerSection(context.patcher, organData.controllers);
             } else {
                 G._calculatedWidths.controllers = 0;
             }
+            var tG2 = Date.now();
 
             if (hasTremulants) {
                 guiObjects.tremulants = createTremulantSection(context.patcher, organData.tremulants);
             }
+            var tG3 = Date.now();
 
             if (hasDivisions) {
                 guiObjects.divisions = createDivisionSection(context.patcher, organData.divisions);
             }
+            var tG4 = Date.now();
 
             if (hasManuals) {
                 guiObjects.manuals = createManualSection(context.patcher, organData.manuals, organData.stops);
@@ -299,11 +315,15 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             } else {
                 common.log(common.LOG_LEVEL.WARN, "No manuals or movable stops found - skipping manual section");
             }
+            var tG5 = Date.now();
 
             common.log(common.LOG_LEVEL.INFO, "GUI built — divisions:" + hasDivisions +
                 " manualSelectorY:" + G.rows.manualSelector + " manualsY:" + G.rows.manuals);
 
             resizeWindowToContent(organData, G, hasDivisions, hasManuals, hasControllers);
+            var tG6 = Date.now();
+
+            post("⏱ GUI sections: header=" + (tG1-tG0) + "ms  ctrl=" + (tG2-tG1) + "ms  trem=" + (tG3-tG2) + "ms  div=" + (tG4-tG3) + "ms  manuals=" + (tG5-tG4) + "ms  resize=" + (tG6-tG5) + "ms\n");
             return true;
         } catch (error) {
             common.log(common.LOG_LEVEL.ERROR, "GUI creation error: " + error.message);
@@ -422,17 +442,22 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     
     function createManualSection(p, manualData, stopData) {
         var manuals = [];
-        
+        var tMS = Date.now();
+
         manualData.forEach(function(manual, index) {
+            var tM = Date.now();
             var manualBpatcher = createManualBpatcher(p, manual, stopData);
+            post("  ⏱ manual[" + index + "] " + manual.name + ": " + (Date.now()-tM) + "ms\n");
             if (manualBpatcher) {
                 manuals.push(manualBpatcher);
             }
         });
-        
+
+        var tSel = Date.now();
         var selector = createManualSelector(p, manualData);
         setupManualSelector(selector, manuals);
-        
+        post("  ⏱ selector setup: " + (Date.now()-tSel) + "ms  manualSection total: " + (Date.now()-tMS) + "ms\n");
+
         return { manuals: manuals, selector: selector };
     }
     
@@ -451,12 +476,14 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
 
         var layers = [];
+        var tLayers = Date.now();
         for (var i = 1; i <= common.GEOMETRY.sinua.manuals.defaultLayersPerManual; i++) {
             var layer = createLayerBpatcher(bpatcher.subpatcher(), i, stopData, manualData.manualID);
             if (layer) {
                 layers.push(layer);
             }
         }
+        post("    ⏱ all " + layers.length + " layers for " + manualData.name + ": " + (Date.now()-tLayers) + "ms  (stops=" + stopData.movable.length + " divs=" + stopData.divisions.length + ")\n");
 
     // Create manual object first
         var manual = {
@@ -481,10 +508,12 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 }
 
 function createLayerBpatcher(p, layerID, stopData, manualID) {
+    var tL0 = Date.now();
     var pos = common.GEOMETRY.sinua.layers.bpatcher(layerID, stopData.movable, stopData.divisions);
     var bpatcher = common.createBpatcher(p, pos.x, pos.y, pos.w, pos.h, "layer" + layerID);
     if (!bpatcher) return null;
-    
+    var tL1 = Date.now();
+
     var context = createActionContext(manualID, layerID, null);
 
     var fs = common.GEOMETRY.button.fontsize;
@@ -492,20 +521,25 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var label  = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h, "label", "LAYER " + layerID);
     var panic  = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 1), "panic",  "PANIC",  context, fs.large);
     var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.button.pos(0, 3), "cancel", "CANCEL", context, fs.small);
-    
-    var stops = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0, 
+    var tL2 = Date.now();
+
+    var stops = createStopArray(bpatcher.subpatcher(), common.GEOMETRY.sinua.layers.stopArray.x(), 0,
         stopData.movable, null, manualID, layerID);
-    
+    var tL3 = Date.now();
+
     // Fixed: Calculate division stop position properly
     var divisionPos = common.GEOMETRY.sinua.layers.divisionArray(stopData.movable.length);
-    createStopArray(bpatcher.subpatcher(), divisionPos.x, 0, 
+    createStopArray(bpatcher.subpatcher(), divisionPos.x, 0,
         stopData.divisions, null, manualID, layerID);
-    
+    var tL4 = Date.now();
+
+    post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stops[" + stopData.movable.length + "]=" + (tL3-tL2) + "ms  divs[" + stopData.divisions.length + "]=" + (tL4-tL3) + "ms\n");
+
     return {
         bpatcher: bpatcher,
         layerID: layerID,
-        panic: panic, 
-        cancel: cancel, 
+        panic: panic,
+        cancel: cancel,
         context: context,
         stops: stops
     };
@@ -975,4 +1009,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.05 - loaded\n");
+post("organTool_SINUA_ContextAware.js v01.06 - timing measurements\n");
