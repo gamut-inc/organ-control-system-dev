@@ -304,7 +304,7 @@ function createGeometryModule() {
                 
                 // *** MANUALS MODULE ***
                 manuals: {
-                    defaultLayersPerManual: 1, // Start with 1; user adds more via +Layer
+                    defaultLayersPerManual: 4,
                     createLayerButton: {
                         w: function() { return GEOMETRY.button.size * 1.5; },
                         h: function() { return GEOMETRY.button.size * 0.8; },
