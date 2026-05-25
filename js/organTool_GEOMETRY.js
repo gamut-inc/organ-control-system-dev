@@ -1,6 +1,6 @@
     // organTool_Geometry.js - GEOMETRY with Intelligent Caching
-    // 00.17 - Fixed circular references while maintaining best practices
-    // 05.07.2025
+    // 00.18 - Fix: subpatcherLabel.w 130 → 95 to prevent overflow into adjacent division bpatchers
+    // 25.05.2026
 
 autowatch = 1;
 
@@ -273,7 +273,7 @@ function createGeometryModule() {
                         });
                     },
                     
-                    subpatcherLabel: { x: 2, y: 0, w: 130, h: 20 },
+                    subpatcherLabel: { x: 2, y: 0, w: 95, h: 20 },
                     subpatcherCancel: { 
                         y: 1, 
                         w: 20, 

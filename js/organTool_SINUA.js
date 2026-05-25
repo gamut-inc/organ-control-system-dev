@@ -1,6 +1,6 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
-// 01.00 - Best practice with context injection
-// 08.07.2025
+// 01.01 - Fix: Movable boolean coercion + split division panel vs DIV buttons
+// 25.05.2026
 
 autowatch = 1;
 
@@ -58,14 +58,21 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     
     function parseOrganData(organData) {
         var parsed = {};
-        
+
         parsed.controllers = parseControllers(organData.Controllers);
         parsed.tremulants = parseTremulants(organData.Tremulants);
         parsed.stops = parseStops(organData.Stops, dataLayer.getIncludeTransmissions());
+
+        // DIVISIONS PANEL: only divisions that have fixed (non-movable) stops
         parsed.divisions = parseDivisions(parsed.stops.fixed, organData.Divisions);
-        parsed.stops.divisions = parseDivisionStops(parsed.stops, parsed.divisions); 
+
+        // DIV BUTTONS in layers: all divisions referenced by ANY stop (fixed or movable)
+        var allStops = parsed.stops.fixed.concat(parsed.stops.movable);
+        var allActiveDivisions = parseDivisions(allStops, organData.Divisions);
+        parsed.stops.divisions = parseDivisionStops(parsed.stops, allActiveDivisions);
+
         parsed.manuals = parseManuals(organData.Manuals);
-        
+
         return parsed;
     }
     
@@ -104,7 +111,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             var name    = stop.Name    || stop.name    || "";
             var stopID  = stop.StopID  || stop.stopID  || stop.id || "";
             var divID   = stop.DivisionID || stop.divisionID || null;
-            var movable = (stop.Movable === true) || (stop.movable === true);
+            var movableRaw = (stop.Movable !== undefined) ? stop.Movable : stop.movable;
+            var movable = (movableRaw === true) || (movableRaw === 1) ||
+                          (movableRaw === "true") || (movableRaw === "True");
             var parsed = {
                 name:        name,
                 divisionID:  divID,
