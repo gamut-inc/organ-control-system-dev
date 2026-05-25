@@ -909,59 +909,58 @@ function generateLayerStopJSON(stopData, startX, startY) {
     var marginX = typeof G.columns.margin === 'function' ? G.columns.margin() : G.columns.margin;
     var colW    = G.columns.w();
 
+    // *** NOTE: No JSON.stringify indentation — keeps file small enough for writestring() ***
+    // With pretty-print (null,2): ~34 KB for 32 stops → exceeds Max writestring limit (~32 KB)
+    // Without pretty-print:       ~12 KB for 32 stops → safe
+    // *** No parameter_enable / saved_attribute_attributes — avoids parameter name collisions
+    // *** between bpatcher instances AND shrinks file size further.
+
     var boxes = [];
     var lines = [];
 
-    // Outlet box — offscreen, collects all prepend outputs
+    // Outlet box — off to the side, collects all prepend outputs → becomes bpatcher outlet 0
     var outletID = "obj-out";
-    boxes.push({ "box": {
+    boxes.push({"box": {
         "id": outletID, "maxclass": "outlet",
-        "comment": "stopID state",
-        "patching_rect": [-500.0, -20.0, 30.0, 30.0],
+        "comment": "stop",
+        "patching_rect": [10.0, 10.0, 30.0, 30.0],
         "numinlets": 1, "numoutlets": 0
     }});
 
     var currentRow = 0;
     var currentColumn = 0;
+    // Prepend objects: stacked below the outlet area, invisible to user
+    var prepBaseY = 60.0;
 
     stopData.forEach(function(stop, index) {
         var x = startX + currentColumn * (colW + marginX);
-        var y = startY + currentRow   * (stopH + marginX);
+        var y = startY + currentRow   * stopH;   // NOTE: no marginX in row spacing (stops.margin is negative)
 
         var stopBoxID = "obj-s" + index;
         var prepBoxID = "obj-p" + index;
 
-        // live.text toggle button
-        boxes.push({ "box": {
+        // Minimal live.text toggle — no parameter_enable, no saved_attribute_attributes
+        // live.text works as a toggle regardless; omitting parameter settings avoids collisions.
+        boxes.push({"box": {
             "id": stopBoxID,
             "maxclass": "live.text",
             "numinlets": 1, "numoutlets": 2,
             "outlettype": ["", ""],
-            "parameter_enable": 1,
             "patching_rect":     [x, y, stopW, stopH],
             "presentation_rect": [x, y, stopW, stopH],
             "presentation": 1,
-            "saved_attribute_attributes": { "valueof": {
-                "parameter_enum":      ["val1", "val2"],
-                "parameter_longname":  "stop" + stop.stopID,
-                "parameter_mmax":      1,
-                "parameter_modmode":   0,
-                "parameter_osc_name":  "<default>",
-                "parameter_shortname": "stop" + stop.stopID,
-                "parameter_type":      2
-            }},
             "text":    stop.name,
             "texton":  stop.name,
             "varname": "stop" + stop.stopID,
             "fontsize": 10.0
         }});
 
-        // prepend stopID — wires this button to the shared outlet
-        boxes.push({ "box": {
+        // prepend stopID — tags this button's output with its stopID before the shared outlet
+        boxes.push({"box": {
             "id": prepBoxID,
             "maxclass": "newobj",
             "text": "prepend " + stop.stopID,
-            "patching_rect": [-500.0, -60.0 - index * 20, 80.0, 22.0],
+            "patching_rect": [50.0, prepBaseY + index * 25.0, 100.0, 22.0],
             "numinlets": 2, "numoutlets": 1
         }});
 
@@ -972,12 +971,16 @@ function generateLayerStopJSON(stopData, startX, startY) {
         if (currentRow >= MAX_PC) { currentColumn++; currentRow = 0; }
     });
 
+    var cols    = Math.ceil(stopData.length / MAX_PC);
+    var pWidth  = Math.max(600.0, cols * (colW + marginX) + 200.0);
+    var pHeight = Math.max(200.0, MAX_PC * stopH + stopData.length * 25.0 + 100.0);
+
     var patcherJSON = {
         "patcher": {
             "fileversion": 1,
-            "appversion": { "major": 8, "minor": 6, "revision": 2, "architecture": "x64", "modernui": 1 },
+            "appversion": {"major": 8, "minor": 6, "revision": 0, "architecture": "x64", "modernui": 1},
             "classnamespace": "box",
-            "rect": [0.0, 0.0, 800.0, 200.0],
+            "rect": [100.0, 100.0, pWidth, pHeight],
             "bglocked": 0,
             "openinpresentation": 0,
             "default_fontsize": 12.0,
@@ -992,7 +995,8 @@ function generateLayerStopJSON(stopData, startX, startY) {
         }
     };
 
-    return JSON.stringify(patcherJSON, null, 2);
+    // NO indentation — JSON.stringify without (null,2) keeps size ~12KB for 32 stops
+    return JSON.stringify(patcherJSON);
 }
 
 // Write the layer stop patcher to disk next to the main Max patch.
@@ -1020,15 +1024,16 @@ function resolvePatchDir() {
 }
 
 // Max's File API uses HFS paths (e.g. "Macintosh HD:/Users/...").
-// bpatcher @name needs a POSIX path ("/Users/...") or a bare filename in the search path.
-// Strip the volume name prefix (everything up to and including the first ":").
+// bpatcher @name needs a POSIX path ("/Users/...").
+// Strategy: if the path does NOT start with '/', strip everything up to and including
+// the first colon (the volume name).  Already-POSIX paths pass through unchanged.
 function hfsToPosix(hfsPath) {
     if (!hfsPath || typeof hfsPath !== 'string') return hfsPath;
-    var colon = hfsPath.indexOf(":");
-    if (colon !== -1 && hfsPath[colon + 1] === "/") {
-        return hfsPath.substring(colon + 1); // "Macintosh HD:/foo" → "/foo"
-    }
-    return hfsPath;
+    if (hfsPath.charAt(0) === '/') return hfsPath;   // already POSIX
+    // HFS: "Volume Name:/path" — strip "Volume Name:" prefix
+    var stripped = hfsPath.replace(/^[^:]+:/, '');    // remove "anything:"
+    post("hfsToPosix: '" + hfsPath.substring(0, 20) + "...' → '" + stripped.substring(0, 20) + "...'\n");
+    return (stripped.charAt(0) === '/') ? stripped : hfsPath;  // sanity check
 }
 
 function writeLayerStopFile(stopData, organName) {
@@ -1045,18 +1050,22 @@ function writeLayerStopFile(stopData, organName) {
         var fullPathPOSIX = hfsToPosix(fullPathHFS);          // POSIX — for bpatcher @name
 
         var jsonStr = generateLayerStopJSON(stopData, 0, 0);
+        post("writeLayerStopFile: JSON size=" + jsonStr.length + " chars  stops=" + stopData.length + "\n");
 
         var f = new File(fullPathHFS, "write", "TEXT");
         if (!f || !f.isopen) {
-            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: cannot open for writing: " + fullPathHFS);
+            post("writeLayerStopFile: cannot open for writing: " + fullPathHFS + "\n");
             return null;
         }
-        f.writestring(jsonStr);
+        // Write in 8KB chunks to avoid writestring() size limits
+        var CHUNK = 8192;
+        for (var ci = 0; ci < jsonStr.length; ci += CHUNK) {
+            f.writestring(jsonStr.substring(ci, ci + CHUNK));
+        }
         f.close();
 
-        common.log(common.LOG_LEVEL.INFO,
-            "Layer stop patcher written: " + fullPathHFS + " (" + stopData.length + " stops)\n" +
-            "  POSIX path for @name: " + fullPathPOSIX);
+        post("writeLayerStopFile: written HFS=" + fullPathHFS.substring(0, 50) + "...\n");
+        post("writeLayerStopFile: POSIX=" + fullPathPOSIX.substring(0, 50) + "...\n");
 
         return fullPathPOSIX;  // POSIX path — used in bpatcher @name
     } catch(e) {
