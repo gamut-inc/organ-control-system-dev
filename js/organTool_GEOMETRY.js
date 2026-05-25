@@ -304,7 +304,7 @@ function createGeometryModule() {
                 
                 // *** MANUALS MODULE ***
                 manuals: {
-                    defaultLayersPerManual: 4,
+                    defaultLayersPerManual: 1, // Start with 1; user adds more via +Layer
                     createLayerButton: {
                         w: function() { return GEOMETRY.button.size * 1.5; },
                         h: function() { return GEOMETRY.button.size * 0.8; },
@@ -480,4 +480,4 @@ function createGeometryModule() {
         global.createGeometryModule = createGeometryModule;
     }
 
-    post("organTool_Geometry.js v00.19 - dialW:70, control.h=2*stops.h loaded\n");
+    post("organTool_Geometry.js v00.20 - defaultLayersPerManual:1 loaded\n");
