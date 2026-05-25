@@ -571,10 +571,12 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
             "@embed", 0
         );
 
-        if (stopsBp) {
-            // Harvest button references via getnamed() for CANCEL visual updates (zero newdefault)
+        var innerPatcher = stopsBp ? stopsBp.subpatcher() : null;
+
+        if (innerPatcher) {
+            // File loaded OK — harvest button references via getnamed() (zero newdefault calls)
             stopData.movable.forEach(function(stop) {
-                var liveText = stopsBp.subpatcher().getnamed("stop" + stop.stopID);
+                var liveText = innerPatcher.getnamed("stop" + stop.stopID);
                 if (liveText) { stopButtonMap[stop.stopID] = liveText; }
             });
 
@@ -589,7 +591,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                 common.log(common.LOG_LEVEL.ERROR, "Layer routing connect failed: " + e.message);
             }
         } else {
-            common.log(common.LOG_LEVEL.WARN, "Could not load stops from file — falling back to newdefault");
+            common.log(common.LOG_LEVEL.WARN,
+                "L" + layerID + ": file bpatcher failed (subpatcher null) — falling back to createStopArrayRouted");
             var movableMap = createStopArrayRouted(sp, sx, 0, stopData.movable, manualID, layerID, null);
             Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
         }
@@ -1008,6 +1011,18 @@ function resolvePatchDir() {
     return null;
 }
 
+// Max's File API uses HFS paths (e.g. "Macintosh HD:/Users/...").
+// bpatcher @name needs a POSIX path ("/Users/...") or a bare filename in the search path.
+// Strip the volume name prefix (everything up to and including the first ":").
+function hfsToPosix(hfsPath) {
+    if (!hfsPath || typeof hfsPath !== 'string') return hfsPath;
+    var colon = hfsPath.indexOf(":");
+    if (colon !== -1 && hfsPath[colon + 1] === "/") {
+        return hfsPath.substring(colon + 1); // "Macintosh HD:/foo" → "/foo"
+    }
+    return hfsPath;
+}
+
 function writeLayerStopFile(stopData, organName) {
     try {
         var dir = resolvePatchDir();
@@ -1018,23 +1033,24 @@ function writeLayerStopFile(stopData, organName) {
 
         var safeOrganName = (organName || "organ").replace(/[^a-zA-Z0-9_-]/g, "_");
         var filename = "layer_stops_" + safeOrganName + ".maxpat";
-        var fullPath = dir + filename;
+        var fullPathHFS  = dir + filename;                    // HFS  — for File API write
+        var fullPathPOSIX = hfsToPosix(fullPathHFS);          // POSIX — for bpatcher @name
 
         var jsonStr = generateLayerStopJSON(stopData, 0, 0);
 
-        var f = new File(fullPath, "write", "TEXT");
+        var f = new File(fullPathHFS, "write", "TEXT");
         if (!f || !f.isopen) {
-            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: cannot open for writing: " + fullPath);
+            common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: cannot open for writing: " + fullPathHFS);
             return null;
         }
         f.writestring(jsonStr);
         f.close();
 
-        common.log(common.LOG_LEVEL.INFO, "Layer stop patcher written: " + fullPath +
-            " (" + stopData.length + " stops)");
+        common.log(common.LOG_LEVEL.INFO,
+            "Layer stop patcher written: " + fullPathHFS + " (" + stopData.length + " stops)\n" +
+            "  POSIX path for @name: " + fullPathPOSIX);
 
-        // Return FULL absolute path — most reliable for bpatcher @name across all contexts
-        return fullPath;
+        return fullPathPOSIX;  // POSIX path — used in bpatcher @name
     } catch(e) {
         common.log(common.LOG_LEVEL.ERROR, "writeLayerStopFile: " + e.message);
         return null;
