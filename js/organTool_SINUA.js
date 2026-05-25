@@ -932,12 +932,25 @@ function generateLayerStopJSON(stopData, startX, startY) {
     // Prepend objects: stacked below the outlet area, invisible to user
     var prepBaseY = 60.0;
 
+    // Track seen stopIDs to handle duplicate IDs (e.g. three manual couplers all ID=97)
+    var seenIDs = {};
+
     stopData.forEach(function(stop, index) {
         var x = startX + currentColumn * (colW + marginX);
-        var y = startY + currentRow   * stopH;   // NOTE: no marginX in row spacing (stops.margin is negative)
+        var y = startY + currentRow   * stopH;
 
         var stopBoxID = "obj-s" + index;
         var prepBoxID = "obj-p" + index;
+
+        // Unique varname: if stopID seen before, append index to disambiguate
+        var idKey = "id" + stop.stopID;
+        var varname;
+        if (!seenIDs[idKey]) {
+            seenIDs[idKey] = true;
+            varname = "stop" + stop.stopID;
+        } else {
+            varname = "stop" + stop.stopID + "_" + index;  // e.g. "stop97_29"
+        }
 
         // Minimal live.text toggle — no parameter_enable, no saved_attribute_attributes
         // live.text works as a toggle regardless; omitting parameter settings avoids collisions.
@@ -951,7 +964,7 @@ function generateLayerStopJSON(stopData, startX, startY) {
             "presentation": 1,
             "text":    stop.name,
             "texton":  stop.name,
-            "varname": "stop" + stop.stopID,
+            "varname": varname,
             "fontsize": 10.0
         }});
 
@@ -995,8 +1008,24 @@ function generateLayerStopJSON(stopData, startX, startY) {
         }
     };
 
-    // NO indentation — JSON.stringify without (null,2) keeps size ~12KB for 32 stops
-    return JSON.stringify(patcherJSON);
+    // NO indentation — JSON.stringify without (null,2) keeps size ~20KB for 32 stops
+    var jsonStr = JSON.stringify(patcherJSON);
+
+    // *** TRUNCATION FIX ***
+    // Max's File API "write" mode does NOT truncate the old file — it writes from position 0
+    // but leaves any excess old bytes beyond the new content. To guarantee full overwrite,
+    // pad the JSON with trailing spaces to a fixed size (50 KB).
+    // Trailing whitespace is valid per JSON RFC 8259 §2.
+    var PAD_TARGET = 50000;
+    if (jsonStr.length < PAD_TARGET) {
+        var pad = "";
+        var needed = PAD_TARGET - jsonStr.length;
+        // Build padding in chunks (avoid huge string literals)
+        var chunk = "          ";  // 10 spaces
+        while (pad.length < needed) { pad += chunk; }
+        jsonStr = jsonStr + pad.substring(0, needed);
+    }
+    return jsonStr;
 }
 
 // Write the layer stop patcher to disk next to the main Max patch.
