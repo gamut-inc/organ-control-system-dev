@@ -443,9 +443,10 @@ function clearGUIObjects(patcher, keepObjects) {
         log(LOG_LEVEL.WARN, "clearGUIObjects(): Error during clearing: " + error.message);
     }
 
-        // *** CHANGED: Use geometry's GEOMETRY for cache clearing ***
-    if (geometry && geometry.GEOMETRY && geometry.GEOMETRY._calculatedWidths) {
+        // Clear entire geometry cache so next organ load gets fresh positions
+    if (geometry && geometry.GEOMETRY) {
         geometry.GEOMETRY._calculatedWidths = {};
+        geometry.GEOMETRY._cache = {};  // FIX: was missing — stale positions persisted across organ loads
     }
 }
 

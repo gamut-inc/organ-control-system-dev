@@ -132,12 +132,13 @@ function createGeometryModule() {
             sinua: {
                 // *** CONTROLLERS MODULE ***
                 controllers: {
+                    dialW: 44, // wider dials so labels aren't clipped
                     bpatcher: function(count) {
                         var cacheKey = "ctl_"+ count;
-                        var self = GEOMETRY; // Local reference
-                        
+                        var self = GEOMETRY;
+
                         return self.getCachedWidth(cacheKey, function() {
-                            var width = count * 30;
+                            var width = count * self.sinua.controllers.dialW;
                             self._calculatedWidths.controllers = width;
                             return {
                                 x: self.margin.x,
@@ -147,12 +148,13 @@ function createGeometryModule() {
                             };
                         });
                     },
-                    
+
                     control: function(index) {
+                        var dw = GEOMETRY.sinua.controllers.dialW;
                         return {
-                            w: 30,
+                            w: dw,
                             h: 56,
-                            x: index * 30,
+                            x: index * dw,
                             y: GEOMETRY.stops.h
                         };
                     }
@@ -271,7 +273,7 @@ function createGeometryModule() {
                         });
                     },
                     
-                    subpatcherLabel: { x: 2, y: 0, w: 90, h: 20 },
+                    subpatcherLabel: { x: 2, y: 0, w: 130, h: 20 },
                     subpatcherCancel: { 
                         y: 1, 
                         w: 20, 
@@ -377,18 +379,19 @@ function createGeometryModule() {
                     },
                     
                     divisionArray: function(layerStopCount) {
-                        var cacheKey = "div_array"// + layerStopCount;
-                        var self = GEOMETRY; // Local reference
-                        
+                        var cacheKey = "div_array_" + layerStopCount;
+                        var self = GEOMETRY;
+
                         return self.getCachedWidth(cacheKey, function() {
                             var layerColumns = self.grid.columnsNeeded(layerStopCount);
-                            var layerWidth = layerColumns * (self.columns.w() + self.columns.margin()); 
-                            if (layerColumns > 1) {
-                                layerWidth -= self.columns.margin(); // Remove last margin
+                            var layerWidth = 0;
+                            if (layerColumns > 0) {
+                                layerWidth = layerColumns * (self.columns.w() + self.columns.margin());
+                                layerWidth -= self.columns.margin(); // remove trailing margin
                             }
-                            
+                            // +8 positive gap so DIV buttons never overlap last stop column
                             return {
-                                x: self.margin.x + layerWidth + self.columns.margin(),
+                                x: self.margin.x + layerWidth + 8,
                                 y: 0
                             };
                         });

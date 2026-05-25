@@ -101,14 +101,18 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         });
         
         filteredStops.forEach(function(stop) {
+            var name    = stop.Name    || stop.name    || "";
+            var stopID  = stop.StopID  || stop.stopID  || stop.id || "";
+            var divID   = stop.DivisionID || stop.divisionID || null;
+            var movable = (stop.Movable === true) || (stop.movable === true);
             var parsed = {
-                name: stop.Name,
-                divisionID: stop.DivisionID,
-                stopID: stop.StopID,
-                short_label: stop.StopID + " " + stop.Name
+                name:        name,
+                divisionID:  divID,
+                stopID:      stopID,
+                short_label: stopID + " " + name
             };
-            
-            if (stop.Movable == true) {
+
+            if (movable) {
                 stops.movable.push(parsed);
             } else {
                 stops.fixed.push(parsed);
@@ -131,14 +135,16 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         
         var divisions = [];
         divisionData.forEach(function(division) {
-            if (activeDivisionIDs.indexOf(division.DivisionID) !== -1) {
+            // normalize: JSON may use DivisionID or divisionID
+            var dID  = division.DivisionID || division.divisionID || division.id;
+            var name = division.Name || division.name || ("Division " + dID);
+            if (activeDivisionIDs.indexOf(dID) !== -1) {
                 var divisionStops = stopData.filter(function(stop) {
-                    return stop.divisionID === division.DivisionID;
+                    return stop.divisionID === dID;
                 });
-                
                 divisions.push({
-                    divisionID: division.DivisionID,
-                    name: division.Name || "Division " + division.DivisionID,
+                    divisionID: dID,
+                    name: name,
                     stops: divisionStops
                 });
             }
@@ -219,36 +225,60 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             common.log(common.LOG_LEVEL.WARN, "No patcher context - skipping GUI");
             return true;
         }
-        
+
+        var G = common.GEOMETRY;
+        var hasControllers = organData.controllers && organData.controllers.length > 0;
+        var hasTremulants  = organData.tremulants  && organData.tremulants.length  > 0;
+        var hasDivisions   = organData.divisions   && organData.divisions.length   > 0;
+        var hasManuals     = organData.manuals && organData.stops && organData.stops.movable &&
+                             organData.stops.movable.length > 0;
+
+        // --- Dynamic Y layout: compute section start positions ---------------
+        // Controls zone: header label (mainControls=60) + buttons reach to ~y=140
+        var CTRL_ZONE_BOTTOM = 160; // below the 3 stacked buttons (at rows=5 → y=100+40=140, +gap)
+        var SECTION_GAP      = 10;
+
+        // Controllers row stays fixed — side-by-side with the left-hand buttons
+        G.rows.controllers = 100;
+
+        var currentY = CTRL_ZONE_BOTTOM;
+
+        if (hasDivisions) {
+            G.rows.divisions = currentY;
+            currentY += G.stops.h * common.MAX_STOPS_PER_COLUMN + SECTION_GAP;
+        }
+
+        G.rows.manualSelector = currentY;
+        currentY += G.stops.h + SECTION_GAP;
+        G.rows.manuals = currentY;
+        // -------------------------------------------------------------------
+
         try {
             guiObjects.header = createMainHeader(context.patcher, organState.name);
 
-            if (organData.controllers && organData.controllers.length > 0) {
+            if (hasControllers) {
                 guiObjects.controllers = createControllerSection(context.patcher, organData.controllers);
             } else {
-                common.GEOMETRY._calculatedWidths.controllers = 0;
+                G._calculatedWidths.controllers = 0;
             }
 
-            if (organData.tremulants && organData.tremulants.length > 0) {
+            if (hasTremulants) {
                 guiObjects.tremulants = createTremulantSection(context.patcher, organData.tremulants);
             }
 
-            if (organData.divisions && organData.divisions.length > 0) {
+            if (hasDivisions) {
                 guiObjects.divisions = createDivisionSection(context.patcher, organData.divisions);
             }
-            if (organData.manuals && organData.stops.movable && organData.stops.movable.length > 0) {
+
+            if (hasManuals) {
                 guiObjects.manuals = createManualSection(context.patcher, organData.manuals, organData.stops);
                 common.log(common.LOG_LEVEL.INFO, "Created " + organData.manuals.length + " manual bpatchers");
             } else {
                 common.log(common.LOG_LEVEL.WARN, "No manuals or movable stops found - skipping manual section");
             }
-            common.log(common.LOG_LEVEL.DEBUG, "CACHE: "+Object.keys(common.GEOMETRY._cache));
-            common.log(common.LOG_LEVEL.DEBUG, "CONTROLLERS: "+common.GEOMETRY._cache.layer.x);
-            common.log(common.LOG_LEVEL.DEBUG, "CONTROLLERS: "+common.GEOMETRY._cache.layer.y);
-            common.log(common.LOG_LEVEL.DEBUG, "CONTROLLERS: "+common.GEOMETRY._cache.layer.w);
-            common.log(common.LOG_LEVEL.DEBUG, "CONTROLLERS: "+common.GEOMETRY._cache.layer.h);
 
-            common.log(common.LOG_LEVEL.INFO, "Context-aware GUI created successfully");
+            common.log(common.LOG_LEVEL.INFO, "GUI built — divisions:" + hasDivisions +
+                " manualSelectorY:" + G.rows.manualSelector + " manualsY:" + G.rows.manuals);
             return true;
         } catch (error) {
             common.log(common.LOG_LEVEL.ERROR, "GUI creation error: " + error.message);
@@ -264,11 +294,10 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         
         var context = createActionContext(null, null, null); // Organ-level context
 
-        var panic; 
-        var cancel; 
-        var reset = createGUIButton(p, common.GEOMETRY.button.pos(0, 1), "reset", "0", context); 
-        var panic = createGUIButton(p, common.GEOMETRY.button.pos(0, 3), "panic", "PANIC", context);
-        var cancel = createGUIButton(p, common.GEOMETRY.button.pos(0, 5), "cancel", "CANCEL", context);
+        var fs = common.GEOMETRY.button.fontsize;
+        var reset  = createGUIButton(p, common.GEOMETRY.button.pos(0, 1), "reset",  "RST",   context, fs.small);
+        var panic  = createGUIButton(p, common.GEOMETRY.button.pos(0, 3), "panic",  "PANIC", context, fs.small);
+        var cancel = createGUIButton(p, common.GEOMETRY.button.pos(0, 5), "cancel", "CANC",  context, fs.small);
         
         return { label: label, reset: reset, panic: panic, cancel: cancel };
     }
@@ -563,18 +592,21 @@ function switchToManual(selectedIndex, manuals) {
 
 // *** GUI CREATION HELPER ***
 
-function createGUIButton(p, pos, type, display, context){
-    var button = common.createLiveButton(p, pos.x, pos.y, pos.w, pos.h, 
-     type, type, type, display, common.GEOMETRY.button.fontsize.large);
+function createGUIButton(p, pos, type, display, context, fontsize){
+    fontsize = fontsize || common.GEOMETRY.button.fontsize.large;
+    var button = common.createLiveButton(p, pos.x, pos.y, pos.w, pos.h,
+        type, type, type, display, fontsize);
 
     if (button && button.liveText) {
-     addListener(new MaxobjListener(button.liveText, function(data) {
-         if (data.value > 0) {
-             executeGUIButton(type, context);
-         }
-     }));
- }
- return {[type]: button};
+        addListener(new MaxobjListener(button.liveText, function(data) {
+            if (data.value > 0) {
+                executeGUIButton(type, context);
+            }
+        }));
+    }
+    var result = {};
+    result[type] = button;
+    return result;
 }
 
 function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID) {
