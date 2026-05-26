@@ -357,7 +357,7 @@ function createDataLayerModule(common) {
                 var panicBase = getSinuaPath(context);
                 cancelAllBundlesForBase(panicBase);
                 var panicArgs = [0.0];
-                for (var pn = 0; pn <= 127; pn++) panicArgs.push(pn);
+                for (var pn = 1; pn <= 128; pn++) panicArgs.push(pn);
                 sendOSCDirect(panicBase + "/V", panicArgs);
                 return true;
             }
