@@ -578,9 +578,6 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         var stopsW = G.grid.multiColumnWidth(totalCols * common.MAX_STOPS_PER_COLUMN, G.columns.margin());
         var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
 
-        post("  DBG L" + layerID + ": movable=" + stopData.movable.length + " divs=" + stopData.divisions.length +
-             "  nMovCols=" + nMovCols + " nDivCols=" + nDivCols + " gap=" + gapCols +
-             "  totalCols=" + totalCols + "  stopsW=" + stopsW + "  pos.w=" + pos.w + "  sx=" + sx + "\n");
 
         // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS.
         // Use just the filename (no absolute path): Max searches the main patcher's directory,
@@ -1419,4 +1416,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.19 - GEOMETRY cache reset on each organ load; createStopArray unique varnames/keys for dup IDs\n");
+post("organTool_SINUA_ContextAware.js v01.20 - generator transmission filter: JS/file movable-stop counts now match\n");

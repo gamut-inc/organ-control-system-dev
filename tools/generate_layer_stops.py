@@ -256,7 +256,21 @@ def process_organ(config_path: str):
         return None
 
     raw_stops = data.get("Stops", [])
-    movable   = [(s["StopID"], s["Name"]) for s in raw_stops if s.get("Movable", False)]
+
+    # Mirrors JS parseStops() transmission filter:
+    #   keep stops where Sources[0] does NOT have a "Stop" property.
+    # Transmission stops (driven by another stop) are excluded because JS hides them.
+    # Without this filter the column count in the generated file mismatches the JS
+    # movable-stop count, shifting the DIV buttons outside the bpatcher clip.
+    def is_transmission(stop: dict) -> bool:
+        sources = stop.get("Sources") or []
+        return bool(sources) and "Stop" in sources[0]
+
+    movable = [
+        (s["StopID"], s["Name"])
+        for s in raw_stops
+        if s.get("Movable", False) and not is_transmission(s)
+    ]
 
     if not movable:
         print(f"  ⚠ No movable stops found — skipping")
