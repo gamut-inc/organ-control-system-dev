@@ -3,6 +3,8 @@
 // 01.10 - Layer-div buttons use executeDivisionAction → /M/L/D ±divID (was wrongly /S)
 //         parseDivisionStops adds numeric divisionID field
 // 01.11 - _suppressListeners flag: updateUIStopsOff visual clear no longer triggers OSC
+// 01.12 - clearLayer uses clearButtonMap (sync) not pattrReset (async) — pattrReset
+//         fired MaxobjListeners outside the _suppressListeners window
 // 27.05.2026
 
 autowatch = 1;
@@ -1195,17 +1197,16 @@ function clearButtonMap(buttonMap, label) {
 }
 
 // Clear all stop buttons in a layer via pattr-based reset.
-// pattrReset (pattrforward layer<N>::set) sends 0 to pattr "set" inside the stops bpatcher.
-//   pattr "set" → prepend set → "set 0" to every live.text (movable stops + DIV buttons)
-//   Silent clear — no MaxobjListeners fire, no outlet output.
-// Falls back to clearButtonMap if no bpatcher is present (file-not-found fallback path).
+// Clear all stop buttons in a layer bpatcher.
+// Uses clearButtonMap directly (synchronous) so the clear happens within the
+// _suppressListeners=true window in executeCancel.
+// pattrReset.message(0) fires the pattr chain ASYNCHRONOUSLY — by the time the
+// live.text buttons receive "set 0" the _suppressListeners flag is already false,
+// so the listeners would fire and schedule wrong OSC bundles.
+// clearButtonMap calls message("set", 0) synchronously on each live.text reference.
 function clearLayer(layer) {
     if (!layer) return;
-    if (layer.pattrReset) {
-        try { layer.pattrReset.message(0); } catch(e) {}
-    } else {
-        clearButtonMap(layer.stopButtonMap, "layer-fallback");
-    }
+    clearButtonMap(layer.stopButtonMap, "layer");
 }
 
 // Clear all non-movable stop buttons in a division.
