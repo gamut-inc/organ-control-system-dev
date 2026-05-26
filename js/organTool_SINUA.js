@@ -9,6 +9,9 @@
 //         Root cause: message("set",0) schedules MaxobjListener callbacks ASYNCHRONOUSLY;
 //         they arrive after executeCancel() returns, after _suppressListeners was reset.
 //         Fix: both flags stay true until a 10ms Task fires, covering all async callbacks.
+// 01.14 - Organ-level CANCEL: iterate manuals → /Mx/S 0 + divisionsAll → /Dx/S 0
+//         Was: getSinuaPath(organCtx)="" → cancelOSCBundle("/S") → invalid "/S 0"
+//         formatContextInfo: divisionsAll context now shows "DIVISIONS" (was "ORGAN")
 // 27.05.2026
 
 autowatch = 1;
@@ -1348,8 +1351,33 @@ function executeCancel(actionContext) {
 
     updateUIStopsOff(actionContext);
 
-    // Send ONE consolidated command: /M1/L1/S 0  (+ /D 0 for layer contexts)
-    dataLayer.executeCommand('cancel', null, null, actionContext);
+    // Send cancel OSC.
+    // Organ-level context has no manual/layer/divisionID — getSinuaPath() returns ""
+    // and cancelOSCBundle("/S") would emit invalid "/S 0".
+    // Instead, iterate guiObjects so we send /Mx/S 0 per manual + /Dx/S 0 per division.
+    var hasManual    = (actionContext.manual    !== null && actionContext.manual    !== undefined);
+    var hasLayer     = (actionContext.layer     !== null && actionContext.layer     !== undefined);
+    var hasDivision  = (actionContext.divisionID !== null && actionContext.divisionID !== undefined);
+    var isGlobal     = !hasManual && !hasLayer && !hasDivision && !actionContext.divisionsAll;
+
+    if (isGlobal) {
+        // Per manual: /Mx/S 0  (catches all movable stops in that manual across all layers)
+        if (guiObjects.manuals && guiObjects.manuals.manuals) {
+            guiObjects.manuals.manuals.forEach(function(manual) {
+                var mCtx = createActionContext(manual.manualData.manualID, null, null);
+                dataLayer.executeCommand('cancel', null, null, mCtx);
+            });
+        }
+        // Per division section: /Dx/S 0 for each known division
+        if (guiObjects.divisions) {
+            var divCtx = createActionContext(null, null, null);
+            divCtx.divisionsAll = true;
+            dataLayer.executeCommand('cancel', null, null, divCtx);
+        }
+    } else {
+        // Layer, manual, division, or divisionsAll context — DataLayer handles directly
+        dataLayer.executeCommand('cancel', null, null, actionContext);
+    }
 
     // Reset both flags after async callbacks have fired.
     // Async callbacks arrive within ~2ms; 10ms gives a comfortable margin.
@@ -1415,7 +1443,9 @@ function clearStopsInContext(actionContext) {
 }
 
 function formatContextInfo(context) {
-    if (!context.manual && !context.layer && !context.divisionID) {
+    if (context.divisionsAll) {
+        return "DIVISIONS";
+    } else if (!context.manual && !context.layer && !context.divisionID) {
         return "ORGAN";
     } else if (context.divisionID) {
         return "DIVISION " + context.divisionID;
@@ -1464,4 +1494,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.30 - Task-deferred cancel flags fix async listener OSC flood\n");
+post("organTool_SINUA_ContextAware.js v01.14 - Organ cancel iterates manuals; divisionsAll label fixed\n");

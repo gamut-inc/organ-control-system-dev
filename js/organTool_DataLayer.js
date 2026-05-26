@@ -7,6 +7,9 @@
 //         _maxPatcher global captured in Universal.js, shared with DataLayer via include()
 // 01.03 - _oscSuppressed flag + suppressOSC(bool): blocks scheduleOSC during cancel visual
 //         clear so async MaxobjListener callbacks do not flood /S with individual off commands
+// 01.04 - divisionsAll cancel: use organState.divisions for reliable /Dx/S 0 per division
+//         Old code only sent cancel for divisions with pending bundles or active DataLayer
+//         state — sent nothing when no bundles were pending (most common case)
 // 27.05.2026
 // Maciej Sledziecki
 
@@ -328,20 +331,11 @@ function createDataLayerModule(common) {
                 clearStopsInContext(context, true);
 
                 if (context && context.divisionsAll) {
-                    // Section-level division cancel: find all division IDs with pending bundles
-                    // or active stops, send /D<x>/S 0 for each.
-                    var divsToClear = {};
-                    Object.keys(pendingBundles).forEach(function(path) {
-                        var m = path.match(/^\/D(\d+)\/S$/);
-                        if (m) divsToClear[m[1]] = true;
-                    });
-                    Object.keys(organState.stops).forEach(function(sid) {
-                        var s = organState.stops[sid];
-                        if (s && !s.movable && s.state && s.divisionID) {
-                            divsToClear[s.divisionID] = true;
-                        }
-                    });
-                    Object.keys(divsToClear).forEach(function(dKey) {
+                    // Cancel ALL known divisions unconditionally.
+                    // organState.divisions is populated during organ load.
+                    // Old approach (scan pendingBundles + active state) sent nothing
+                    // when no bundles were pending — the common case at cancel time.
+                    Object.keys(organState.divisions).forEach(function(dKey) {
                         cancelOSCBundle("/D" + dKey + "/S");
                     });
                 } else {
@@ -1453,4 +1447,4 @@ if (typeof global !== 'undefined') {
     global.createDataLayerModule = createDataLayerModule;
 }
 
-post("organTool_DataLayer_ContextAware.js v01.03 - suppressOSC flag blocks async cancel listener flood\n");
+post("organTool_DataLayer_ContextAware.js v01.04 - divisionsAll cancel uses organState.divisions\n");
