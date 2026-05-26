@@ -578,6 +578,10 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         var stopsW = G.grid.multiColumnWidth(totalCols * common.MAX_STOPS_PER_COLUMN, G.columns.margin());
         var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
 
+        post("  DBG L" + layerID + ": movable=" + stopData.movable.length + " divs=" + stopData.divisions.length +
+             "  nMovCols=" + nMovCols + " nDivCols=" + nDivCols + " gap=" + gapCols +
+             "  totalCols=" + totalCols + "  stopsW=" + stopsW + "  pos.w=" + pos.w + "  sx=" + sx + "\n");
+
         // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS.
         // Use just the filename (no absolute path): Max searches the main patcher's directory,
         // which is the project root where layer_stops_*.maxpat files live.
