@@ -3,6 +3,8 @@
 // 01.01 - Real OSC output: two-stage bundler replaces dead command queue
 //         20ms bundle window + 200ms per-stop cooldown
 //         new action types: layerdiv (/M/L/D), cancel sends /S 0 + /D 0, panic/reset wired
+// 01.02 - initOSCTransport(ip, port): udpsend created from JS — no external patcher wiring
+//         _maxPatcher global captured in Universal.js, shared with DataLayer via include()
 // 27.05.2026
 // Maciej Sledziecki
 
@@ -186,12 +188,38 @@ function createDataLayerModule(common) {
         stopCooldowns = {};
     }
 
+    // ── UDP/OSC transport ─────────────────────────────────────────────────────
+    // Created from JS so no external patcher wiring is needed for the udpsend object.
+    // Call initOSCTransport(ip, port) once per organ load.
+    var _udpsend = null;
+
+    function initOSCTransport(ip, port) {
+        if (_udpsend) {
+            try { _udpsend.freepeer(); } catch(e) {}
+        }
+        _udpsend = null;
+        if (typeof _maxPatcher !== 'undefined' && _maxPatcher) {
+            _udpsend = _maxPatcher.newdefault(0, -300, "udpsend", ip, port);
+            common.log(common.LOG_LEVEL.INFO,
+                "OSC transport: udpsend → " + ip + ":" + port);
+        } else {
+            common.log(common.LOG_LEVEL.WARN,
+                "OSC transport: _maxPatcher not available, falling back to outlet 0");
+        }
+    }
+
     function sendOSCDirect(oscPath, vals) {
         common.log(common.LOG_LEVEL.INFO, "OSC → " + oscPath + " " + vals.join(" "));
         try {
-            outlet.apply(null, [0, oscPath].concat(vals));
+            if (_udpsend) {
+                // udpsend.message(address, arg1, arg2, ...) sends an OSC packet over UDP
+                _udpsend.message.apply(_udpsend, [oscPath].concat(vals));
+            } else {
+                // Fallback: output from outlet 0 → connect to udpsend in patcher
+                outlet.apply(null, [0, oscPath].concat(vals));
+            }
         } catch (e) {
-            post("OSC outlet error: " + e + "\n");
+            post("OSC send error: " + e + "\n");
         }
     }
 
@@ -1339,6 +1367,7 @@ function createDataLayerModule(common) {
     return {
         // State management
         initializeState: initializeState,
+        initOSCTransport: initOSCTransport,  // call once per organ load with (ip, port)
         getOrganState: getOrganState,
         getStopState: getStopState,
         executeCommand: executeCommand,

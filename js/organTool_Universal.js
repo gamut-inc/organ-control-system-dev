@@ -58,6 +58,12 @@ if (!scriptDir) {
 }
 
 // ================================================================================================
+// MAX PATCHER REFERENCE — shared with included modules (DataLayer, etc.)
+// ================================================================================================
+// Captured at load time so included modules can call this.patcher.newdefault() etc.
+var _maxPatcher = this.patcher;
+
+// ================================================================================================
 // SYSTEM STATE
 // ================================================================================================
 
@@ -345,6 +351,20 @@ function configureProtocol(organType) {
         system.modules.common.log(system.modules.common.LOG_LEVEL.ERROR, 
             "Protocol configuration failed: " + error.message);
     }
+}
+
+// ================================================================================================
+// OSC TARGET CONFIGURATION
+// ================================================================================================
+// Call from Max:  [message setOSCTarget 192.168.1.10 8000] → [js organTool_Universal.js]
+// Or configure via organ JSON in loadOrgan (if OSCTarget field present).
+
+function setOSCTarget(ip, port) {
+    if (!system.modules.dataLayer) {
+        post("setOSCTarget: DataLayer not ready\n");
+        return;
+    }
+    system.modules.dataLayer.initOSCTransport(ip, port);
 }
 
 // ================================================================================================

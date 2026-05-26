@@ -2,6 +2,7 @@
 // 01.09 - File-based layer patchers: generate .maxpat once, load from disk per layer (skip newdefault)
 // 01.10 - Layer-div buttons use executeDivisionAction → /M/L/D ±divID (was wrongly /S)
 //         parseDivisionStops adds numeric divisionID field
+// 01.11 - _suppressListeners flag: updateUIStopsOff visual clear no longer triggers OSC
 // 27.05.2026
 
 autowatch = 1;
@@ -20,6 +21,9 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
     var stopRouteReceive = null; // The single "receive organ_stops" box in context.patcher
+    // When true, MaxobjListener callbacks in executeStopAction / executeDivisionAction do nothing.
+    // Set during updateUIStopsOff() so visual clear does NOT trigger OSC output.
+    var _suppressListeners = false;
     
     // ================================================================================================
     // CONTEXT HELPER FUNCTIONS
@@ -1322,9 +1326,11 @@ function executePanic(actionContext) {
 
 function executeCancel(actionContext) {
     common.log(common.LOG_LEVEL.INFO, "CANCEL executed for " + formatContextInfo(actionContext));
-    // 1. Turn off buttons visually (no individual stop commands sent)
+    // 1. Suppress listener callbacks so visual clear does NOT schedule OSC
+    _suppressListeners = true;
     updateUIStopsOff(actionContext);
-    // 2. Update DataLayer state silently + send ONE consolidated command (M1/L1/S 0 etc.)
+    _suppressListeners = false;
+    // 2. Send ONE consolidated command: /M1/L1/S 0  (+ /D 0 for layer contexts)
     dataLayer.executeCommand('cancel', null, null, actionContext);
 }
 
@@ -1339,13 +1345,14 @@ function executeTremulant(actionContext, tremulantName, value){
 }
 
 function executeStopAction(stopID, state, stopContext) {
+    if (_suppressListeners) return;  // visual-only clear — no OSC
     common.log(common.LOG_LEVEL.VERBOSE,
         "Stop " + stopID + " -> " + state + " [" + formatContextInfo(stopContext) + "]");
-
     dataLayer.executeCommand('stop', stopID, state, stopContext);
 }
 
 function executeDivisionAction(divisionID, state, divContext) {
+    if (_suppressListeners) return;  // visual-only clear — no OSC
     // Layer-div (DIV button inside a layer bpatcher) → /Mx/Lx/D ±divisionID
     common.log(common.LOG_LEVEL.VERBOSE,
         "LayerDiv " + divisionID + " -> " + state + " [" + formatContextInfo(divContext) + "]");
