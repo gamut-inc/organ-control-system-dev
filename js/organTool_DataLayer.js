@@ -1,6 +1,7 @@
 // organTool_DataLayer_ContextAware.js - CONTEXT-AWARE STATE MANAGEMENT MODULE
 // 01.00 - Complete context-aware state management with dependency injection
-// 01.01 - Real OSC output: bundler (200ms window) replaces dead command queue
+// 01.01 - Real OSC output: two-stage bundler replaces dead command queue
+//         20ms bundle window + 200ms per-stop cooldown
 //         new action types: layerdiv (/M/L/D), cancel sends /S 0 + /D 0, panic/reset wired
 // 27.05.2026
 // Maciej Sledziecki
@@ -49,28 +50,50 @@ function createDataLayerModule(common) {
     var stateHistory = [];
 
     // ================================================================================================
-    // OSC OUTPUT — BUNDLER WITH RATE LIMITING
+    // OSC OUTPUT — TWO-STAGE BUNDLER WITH PER-STOP COOLDOWN
     // ================================================================================================
-    // All stop commands within BUNDLE_WINDOW_MS are grouped per OSC path and sent as one message:
-    //   /M1/L1/S 10 11 -2    (not three separate messages)
-    // Per-stop: last command within the window wins (debounce).
-    // cancel/panic/reset bypass the bundler and send immediately.
+    //
+    // Stage 1 — Bundle window (20ms):
+    //   Commands arriving within BUNDLE_WINDOW_MS for the same OSC path are collected,
+    //   then flushed as one message:  /M1/L1/S 10 11 -2
+    //
+    // Stage 2 — Per-stop cooldown (200ms):
+    //   After a stop is sent, it enters COOLDOWN_MS lockout to protect the organ hardware.
+    //   If a new command arrives during cooldown, it is remembered (last wins).
+    //   When cooldown expires the pending command is submitted to a new bundle window.
+    //
+    // cancel/panic/reset bypass both stages and send immediately.
 
-    var BUNDLE_WINDOW_MS = 200;
+    var BUNDLE_WINDOW_MS = 20;
+    var COOLDOWN_MS      = 200;
+
     var pendingBundles = {};
     // pendingBundles["/M1/L1/S"] = { values: { <stopKey>: <signedValue> }, task: <Task> }
 
+    var stopCooldowns = {};
+    // stopCooldowns[<stopKey>] = { endTime: <ms>, pendingPath: <str|null>, pendingValue: <num|null>, task: <Task> }
+
     function scheduleOSC(oscPath, stopKey, signedValue) {
+        var cd = stopCooldowns[stopKey];
+        if (cd && Date.now() < cd.endTime) {
+            // Stop is cooling down — remember last command, will retry after cooldown
+            cd.pendingPath  = oscPath;
+            cd.pendingValue = signedValue;
+            return;
+        }
+        addToBundle(oscPath, stopKey, signedValue);
+    }
+
+    function addToBundle(oscPath, stopKey, signedValue) {
         if (!pendingBundles[oscPath]) {
             pendingBundles[oscPath] = { values: {} };
-            // IIFE captures oscPath for the Task callback
             (function(p) {
                 var task = new Task(function() { flushOSCBundle(p); });
                 task.schedule(BUNDLE_WINDOW_MS);
                 pendingBundles[p].task = task;
             })(oscPath);
         }
-        // Last command wins for this stop within the window
+        // Last command wins within the bundle window
         pendingBundles[oscPath].values[stopKey] = signedValue;
     }
 
@@ -78,18 +101,61 @@ function createDataLayerModule(common) {
         var bundle = pendingBundles[oscPath];
         if (!bundle) return;
         delete pendingBundles[oscPath];
-        var vals = [];
+
         var keys = Object.keys(bundle.values);
+        var vals = [];
         for (var i = 0; i < keys.length; i++) vals.push(bundle.values[keys[i]]);
-        if (vals.length > 0) sendOSCDirect(oscPath, vals);
+
+        if (vals.length === 0) return;
+        sendOSCDirect(oscPath, vals);
+
+        // Start per-stop cooldown for every stop just sent
+        var now = Date.now();
+        for (var j = 0; j < keys.length; j++) {
+            (function(sk) {
+                // Cancel any existing cooldown task for this stop
+                if (stopCooldowns[sk] && stopCooldowns[sk].task) {
+                    stopCooldowns[sk].task.cancel();
+                }
+                stopCooldowns[sk] = {
+                    endTime:      now + COOLDOWN_MS,
+                    pendingPath:  null,
+                    pendingValue: null,
+                    task:         null
+                };
+                var t = new Task(function() { onCooldownExpired(sk); });
+                t.schedule(COOLDOWN_MS);
+                stopCooldowns[sk].task = t;
+            })(keys[j]);
+        }
+    }
+
+    function onCooldownExpired(stopKey) {
+        var cd = stopCooldowns[stopKey];
+        if (!cd) return;
+        var pendingPath  = cd.pendingPath;
+        var pendingValue = cd.pendingValue;
+        delete stopCooldowns[stopKey];
+        // If a command arrived during the cooldown, submit it now
+        if (pendingPath !== null && pendingValue !== null) {
+            addToBundle(pendingPath, stopKey, pendingValue);
+        }
     }
 
     function cancelOSCBundle(oscPath) {
-        // Cancel any pending bundle for this path, then send 0 immediately
+        // Kill pending bundle
         if (pendingBundles[oscPath]) {
             if (pendingBundles[oscPath].task) pendingBundles[oscPath].task.cancel();
             delete pendingBundles[oscPath];
         }
+        // Clear any pending retry commands for stops on this path
+        Object.keys(stopCooldowns).forEach(function(sk) {
+            if (stopCooldowns[sk].pendingPath === oscPath) {
+                stopCooldowns[sk].pendingPath  = null;
+                stopCooldowns[sk].pendingValue = null;
+                // Leave the cooldown timer running — it will expire cleanly and send nothing
+            }
+        });
         sendOSCDirect(oscPath, [0]);
     }
 
@@ -100,6 +166,13 @@ function createDataLayerModule(common) {
                 delete pendingBundles[path];
             }
         });
+        Object.keys(stopCooldowns).forEach(function(sk) {
+            var cd = stopCooldowns[sk];
+            if (cd.pendingPath && cd.pendingPath.indexOf(basePath) === 0) {
+                cd.pendingPath  = null;
+                cd.pendingValue = null;
+            }
+        });
     }
 
     function clearAllOSCBundles() {
@@ -107,6 +180,10 @@ function createDataLayerModule(common) {
             if (pendingBundles[path].task) pendingBundles[path].task.cancel();
         });
         pendingBundles = {};
+        Object.keys(stopCooldowns).forEach(function(sk) {
+            if (stopCooldowns[sk].task) stopCooldowns[sk].task.cancel();
+        });
+        stopCooldowns = {};
     }
 
     function sendOSCDirect(oscPath, vals) {
