@@ -3,7 +3,8 @@
 // 25.05.2026
 
 autowatch = 1;
-inlets = 2;  // inlet 0: control messages; inlet 1: stop events from organ_stops receive
+inlets  = 2;  // inlet 0: control messages; inlet 1: stop events from organ_stops receive
+outlets = 1;  // outlet 0: OSC messages → connect to udpsend in patcher  (address, arg1, arg2, ...)
 
 // ================================================================================================
 // MODULE LOADING SYSTEM - FIXED PATH DETECTION

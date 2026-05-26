@@ -1,6 +1,8 @@
 // organTool_DataLayer_ContextAware.js - CONTEXT-AWARE STATE MANAGEMENT MODULE
 // 01.00 - Complete context-aware state management with dependency injection
-// 08.07.2025
+// 01.01 - Real OSC output: bundler (200ms window) replaces dead command queue
+//         new action types: layerdiv (/M/L/D), cancel sends /S 0 + /D 0, panic/reset wired
+// 27.05.2026
 // Maciej Sledziecki
 
 autowatch = 1;
@@ -45,7 +47,77 @@ function createDataLayerModule(common) {
     
     var commandQueue = [];
     var stateHistory = [];
-    
+
+    // ================================================================================================
+    // OSC OUTPUT — BUNDLER WITH RATE LIMITING
+    // ================================================================================================
+    // All stop commands within BUNDLE_WINDOW_MS are grouped per OSC path and sent as one message:
+    //   /M1/L1/S 10 11 -2    (not three separate messages)
+    // Per-stop: last command within the window wins (debounce).
+    // cancel/panic/reset bypass the bundler and send immediately.
+
+    var BUNDLE_WINDOW_MS = 200;
+    var pendingBundles = {};
+    // pendingBundles["/M1/L1/S"] = { values: { <stopKey>: <signedValue> }, task: <Task> }
+
+    function scheduleOSC(oscPath, stopKey, signedValue) {
+        if (!pendingBundles[oscPath]) {
+            pendingBundles[oscPath] = { values: {} };
+            // IIFE captures oscPath for the Task callback
+            (function(p) {
+                var task = new Task(function() { flushOSCBundle(p); });
+                task.schedule(BUNDLE_WINDOW_MS);
+                pendingBundles[p].task = task;
+            })(oscPath);
+        }
+        // Last command wins for this stop within the window
+        pendingBundles[oscPath].values[stopKey] = signedValue;
+    }
+
+    function flushOSCBundle(oscPath) {
+        var bundle = pendingBundles[oscPath];
+        if (!bundle) return;
+        delete pendingBundles[oscPath];
+        var vals = [];
+        var keys = Object.keys(bundle.values);
+        for (var i = 0; i < keys.length; i++) vals.push(bundle.values[keys[i]]);
+        if (vals.length > 0) sendOSCDirect(oscPath, vals);
+    }
+
+    function cancelOSCBundle(oscPath) {
+        // Cancel any pending bundle for this path, then send 0 immediately
+        if (pendingBundles[oscPath]) {
+            if (pendingBundles[oscPath].task) pendingBundles[oscPath].task.cancel();
+            delete pendingBundles[oscPath];
+        }
+        sendOSCDirect(oscPath, [0]);
+    }
+
+    function cancelAllBundlesForBase(basePath) {
+        Object.keys(pendingBundles).forEach(function(path) {
+            if (path.indexOf(basePath) === 0) {
+                if (pendingBundles[path].task) pendingBundles[path].task.cancel();
+                delete pendingBundles[path];
+            }
+        });
+    }
+
+    function clearAllOSCBundles() {
+        Object.keys(pendingBundles).forEach(function(path) {
+            if (pendingBundles[path].task) pendingBundles[path].task.cancel();
+        });
+        pendingBundles = {};
+    }
+
+    function sendOSCDirect(oscPath, vals) {
+        common.log(common.LOG_LEVEL.INFO, "OSC → " + oscPath + " " + vals.join(" "));
+        try {
+            outlet.apply(null, [0, oscPath].concat(vals));
+        } catch (e) {
+            post("OSC outlet error: " + e + "\n");
+        }
+    }
+
     // ================================================================================================
     // CONTEXT UTILITIES
     // ================================================================================================
@@ -123,31 +195,66 @@ function createDataLayerModule(common) {
             case 'controller':
                 return setControllerState(id, value, context);
                 
-            case 'cancel':
-                // Update DataLayer state silently (no individual stop commands)
-                clearStopsInContext(context, true);
-                // Queue ONE consolidated cancel command: M1/L1/S 0, M1/S 0, D2/S 0, or /S 0
-                return queueOrganCommand('cancel', 'context', 0, 1, {
-                    context: context,
-                    sinuaCommand: createSinuaCommand(context, 'cancel')
-                });
-
-            case 'panic':
-                // Velocity sweep 0→127 for the given context (M1/L1/V 0 … V 127)
-                for (var vel = 0; vel <= 127; vel++) {
-                    queueOrganCommand('panic', vel, vel, 0, {
-                        context: context,
-                        sinuaCommand: getSinuaPath(context) + '/V ' + vel
-                    });
+            case 'layerdiv': {
+                // DIV button in a layer bpatcher — sends /Mx/Lx/D ±divID
+                var divID = Number(id);
+                if (!isNaN(divID) && divID !== 0) {
+                    var divOscPath = getSinuaPath(context) + "/D";
+                    scheduleOSC(divOscPath, String(id), value ? divID : -divID);
                 }
                 return true;
-                
-            case 'reset':
+            }
+
+            case 'cancel': {
+                // Update DataLayer state silently (no individual stop commands)
+                clearStopsInContext(context, true);
+
+                if (context && context.divisionsAll) {
+                    // Section-level division cancel: find all division IDs with pending bundles
+                    // or active stops, send /D<x>/S 0 for each.
+                    var divsToClear = {};
+                    Object.keys(pendingBundles).forEach(function(path) {
+                        var m = path.match(/^\/D(\d+)\/S$/);
+                        if (m) divsToClear[m[1]] = true;
+                    });
+                    Object.keys(organState.stops).forEach(function(sid) {
+                        var s = organState.stops[sid];
+                        if (s && !s.movable && s.state && s.divisionID) {
+                            divsToClear[s.divisionID] = true;
+                        }
+                    });
+                    Object.keys(divsToClear).forEach(function(dKey) {
+                        cancelOSCBundle("/D" + dKey + "/S");
+                    });
+                } else {
+                    var basePath = getSinuaPath(context);
+                    // Cancel stops (/S 0)
+                    cancelOSCBundle(basePath + "/S");
+                    // For manual context: also cancel layer-div assignments (/D 0)
+                    if (context && context.manual !== null && context.manual !== undefined) {
+                        cancelOSCBundle(basePath + "/D");
+                    }
+                }
+                return true;
+            }
+
+            case 'panic': {
+                // /Mx/Lx/V 0. 0 1 2 … 127  — all notes off at velocity 0 for this context
+                var panicBase = getSinuaPath(context);
+                cancelAllBundlesForBase(panicBase);
+                var panicArgs = [0.0];
+                for (var pn = 0; pn <= 127; pn++) panicArgs.push(pn);
+                sendOSCDirect(panicBase + "/V", panicArgs);
+                return true;
+            }
+
+            case 'reset': {
+                // RST button: /panic — clears everything on the console
+                clearAllOSCBundles();
                 initializeState();
-                return queueOrganCommand('reset', 'organ', 1, 0, {
-                    context: context,
-                    sinuaCommand: '/panic'
-                });
+                sendOSCDirect("/panic", []);
+                return true;
+            }
                 
             default:
                 common.log(common.LOG_LEVEL.ERROR, "Unknown command: " + action);
@@ -193,11 +300,16 @@ function createDataLayerModule(common) {
 
             recordStateChange('stop', stopID, prevState, organState.stops[stopID]);
 
-            if (!skipQueue) { // Only queue individual command when not part of a batch/cancel
-                queueOrganCommand('stop', stopID, state, 1, {
-                    context: context,
-                    sinuaCommand: createSinuaCommand(context, 'stop', stopID, state)
-                });
+            if (!skipQueue) {
+                // Build SINUA path and schedule in bundler
+                var oscPath = getSinuaPath(context) + "/S";
+                var numID = Number(stopID);
+                if (!isNaN(numID) && numID !== 0) {
+                    scheduleOSC(oscPath, String(stopID), state ? numID : -numID);
+                } else {
+                    common.log(common.LOG_LEVEL.WARN,
+                        "setStopState: non-numeric stopID, skipping OSC: " + stopID);
+                }
             }
 
             notifyStateChange('stop', stopID, state, context);

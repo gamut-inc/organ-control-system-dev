@@ -1,6 +1,8 @@
 // organTool_SINUA_ContextAware.js - CONTEXT-AWARE SINUA MODULE
 // 01.09 - File-based layer patchers: generate .maxpat once, load from disk per layer (skip newdefault)
-// 25.05.2026
+// 01.10 - Layer-div buttons use executeDivisionAction → /M/L/D ±divID (was wrongly /S)
+//         parseDivisionStops adds numeric divisionID field
+// 27.05.2026
 
 autowatch = 1;
 
@@ -197,7 +199,8 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             divisionStops.push({
                 name: "DIV"+division.divisionID,
                 stopID: "division"+division.divisionID,
-                short_label: "DIV"+division.divisionID
+                short_label: "DIV"+division.divisionID,
+                divisionID: division.divisionID  // numeric ID for OSC /M/L/D commands
             });
         }); 
         return divisionStops;
@@ -639,15 +642,20 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                 }
             });
             // Division buttons — also in the bpatcher file (varname "stopdivision<ID>").
-            // Listeners for clicks only; visual clear is handled by pattrReset for all buttons.
+            // These send /Mx/Lx/D ±divID (not /S) — use executeDivisionAction.
             stopData.divisions.forEach(function(div) {
                 var divVarname = "stop" + div.stopID;  // "stopdivision1", "stopdivision2" etc.
                 var divBtn = innerPatcher.getnamed(divVarname);
                 if (divBtn) {
                     stopButtonMap[div.stopID] = divBtn;
-                    var divCtx = createStopContext(div.stopID, null, manualID, layerID);
+                    // Prefer the divisionID field added by parseDivisionStops;
+                    // fall back to parsing the string stopID ("division3" → 3).
+                    var numDivID = (div.divisionID !== undefined && div.divisionID !== null)
+                        ? div.divisionID
+                        : parseInt(div.stopID.replace("division", ""), 10);
+                    var divCtx = createStopContext(div.stopID, numDivID, manualID, layerID);
                     addListener(new MaxobjListener(divBtn, function(data) {
-                        executeStopAction(div.stopID, Boolean(data.value), divCtx);
+                        executeDivisionAction(numDivID, Boolean(data.value), divCtx);
                     }));
                 }
             });
@@ -1331,10 +1339,17 @@ function executeTremulant(actionContext, tremulantName, value){
 }
 
 function executeStopAction(stopID, state, stopContext) {
-    common.log(common.LOG_LEVEL.VERBOSE, 
+    common.log(common.LOG_LEVEL.VERBOSE,
         "Stop " + stopID + " -> " + state + " [" + formatContextInfo(stopContext) + "]");
 
     dataLayer.executeCommand('stop', stopID, state, stopContext);
+}
+
+function executeDivisionAction(divisionID, state, divContext) {
+    // Layer-div (DIV button inside a layer bpatcher) → /Mx/Lx/D ±divisionID
+    common.log(common.LOG_LEVEL.VERBOSE,
+        "LayerDiv " + divisionID + " -> " + state + " [" + formatContextInfo(divContext) + "]");
+    dataLayer.executeCommand('layerdiv', divisionID, state, divContext);
 }
 
 
