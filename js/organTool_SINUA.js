@@ -5,6 +5,10 @@
 // 01.11 - _suppressListeners flag: updateUIStopsOff visual clear no longer triggers OSC
 // 01.12 - clearLayer uses clearButtonMap (sync) not pattrReset (async) — pattrReset
 //         fired MaxobjListeners outside the _suppressListeners window
+// 01.13 - executeCancel: Task-deferred reset of _suppressListeners + dataLayer.suppressOSC
+//         Root cause: message("set",0) schedules MaxobjListener callbacks ASYNCHRONOUSLY;
+//         they arrive after executeCancel() returns, after _suppressListeners was reset.
+//         Fix: both flags stay true until a 10ms Task fires, covering all async callbacks.
 // 27.05.2026
 
 autowatch = 1;
@@ -1327,12 +1331,33 @@ function executePanic(actionContext) {
 
 function executeCancel(actionContext) {
     common.log(common.LOG_LEVEL.INFO, "CANCEL executed for " + formatContextInfo(actionContext));
-    // 1. Suppress listener callbacks so visual clear does NOT schedule OSC
+
+    // WHY TWO FLAGS + TASK:
+    // message("set", 0) on live.text fires MaxobjListener callbacks ASYNCHRONOUSLY.
+    // They arrive after executeCancel() returns — after a synchronous flag reset would
+    // already be false.  We must keep both flags true until all async callbacks have fired.
+    //
+    // _suppressListeners  → executeStopAction / executeDivisionAction return early (no DataLayer call)
+    // dataLayer.suppressOSC(true) → scheduleOSC() is a no-op (defence-in-depth)
+    //
+    // cancelOSCBundle (called inside 'cancel' command below) uses sendOSCDirect, which
+    // bypasses _oscSuppressed — so the /S 0 + /D 0 cancels ARE sent immediately.
+
     _suppressListeners = true;
+    dataLayer.suppressOSC(true);
+
     updateUIStopsOff(actionContext);
-    _suppressListeners = false;
-    // 2. Send ONE consolidated command: /M1/L1/S 0  (+ /D 0 for layer contexts)
+
+    // Send ONE consolidated command: /M1/L1/S 0  (+ /D 0 for layer contexts)
     dataLayer.executeCommand('cancel', null, null, actionContext);
+
+    // Reset both flags after async callbacks have fired.
+    // Async callbacks arrive within ~2ms; 10ms gives a comfortable margin.
+    var cancelResetTask = new Task(function() {
+        _suppressListeners = false;
+        dataLayer.suppressOSC(false);
+    });
+    cancelResetTask.schedule(10);
 }
 
 function executeControl(actionContext, controlID, value){
@@ -1439,4 +1464,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.20 - generator transmission filter: JS/file movable-stop counts now match\n");
+post("organTool_SINUA_ContextAware.js v01.30 - Task-deferred cancel flags fix async listener OSC flood\n");

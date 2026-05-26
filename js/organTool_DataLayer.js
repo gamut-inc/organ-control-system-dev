@@ -5,6 +5,8 @@
 //         new action types: layerdiv (/M/L/D), cancel sends /S 0 + /D 0, panic/reset wired
 // 01.02 - initOSCTransport(ip, port): udpsend created from JS — no external patcher wiring
 //         _maxPatcher global captured in Universal.js, shared with DataLayer via include()
+// 01.03 - _oscSuppressed flag + suppressOSC(bool): blocks scheduleOSC during cancel visual
+//         clear so async MaxobjListener callbacks do not flood /S with individual off commands
 // 27.05.2026
 // Maciej Sledziecki
 
@@ -75,7 +77,18 @@ function createDataLayerModule(common) {
     var stopCooldowns = {};
     // stopCooldowns[<stopKey>] = { endTime: <ms>, pendingPath: <str|null>, pendingValue: <num|null>, task: <Task> }
 
+    // When true, scheduleOSC() is a no-op.
+    // Set by suppressOSC(true) before cancel visual clear so that async MaxobjListener callbacks
+    // that arrive after executeCancel() returns cannot schedule new OSC bundles.
+    // Cleared by suppressOSC(false) via a Task 10ms later (after all callbacks have fired).
+    var _oscSuppressed = false;
+
+    function suppressOSC(val) {
+        _oscSuppressed = Boolean(val);
+    }
+
     function scheduleOSC(oscPath, stopKey, signedValue) {
+        if (_oscSuppressed) return;  // suppress during cancel / reset visual clear
         var cd = stopCooldowns[stopKey];
         if (cd && Date.now() < cd.endTime) {
             // Stop is cooling down — remember last command, will retry after cooldown
@@ -1368,6 +1381,7 @@ function createDataLayerModule(common) {
         // State management
         initializeState: initializeState,
         initOSCTransport: initOSCTransport,  // call once per organ load with (ip, port)
+        suppressOSC: suppressOSC,            // suppressOSC(true/false) — block scheduleOSC during cancel
         getOrganState: getOrganState,
         getStopState: getStopState,
         executeCommand: executeCommand,
@@ -1439,4 +1453,4 @@ if (typeof global !== 'undefined') {
     global.createDataLayerModule = createDataLayerModule;
 }
 
-post("organTool_DataLayer_ContextAware.js v01.01 - CANCEL consolidated, PANIC sweep, skipQueue fixed\n");
+post("organTool_DataLayer_ContextAware.js v01.03 - suppressOSC flag blocks async cancel listener flood\n");
