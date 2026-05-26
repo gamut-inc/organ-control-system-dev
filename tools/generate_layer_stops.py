@@ -10,6 +10,15 @@ Usage:
     python3 tools/generate_layer_stops.py
 
 Run this whenever an organ JSON is added or its stops change.
+
+Reset mechanism (pattr-based, v2):
+  JS creates  [pattrforward ::stops_<layerID>::set]  in the layer sub-patcher.
+  To cancel:  pattrForwardObj.message(0)
+    → pattrforward routes 0  →  pattr "set" inside this bpatcher
+    → pattr outlets 0  →  [prepend set]  →  "set 0" to every live.text
+    →  all buttons go dark silently (no MaxobjListener fires, no outlet output)
+  autopattr @autorestore 0  collects all live.text parameters automatically
+  (useful for future preset save/recall via pattrstorage).
 """
 
 import json
@@ -28,6 +37,7 @@ STOP_H       = 20
 COL_W        = 99       # stops.w + widthOffset(-1)
 COL_MARGIN   = -3       # stops.margin
 MAX_PER_COL  = 8
+DIV_GAP_COLS = 1        # empty columns between movable stops and DIV buttons
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -51,76 +61,87 @@ def extract_organ_name(filepath: str) -> str:
     return name or filename
 
 
-def generate_maxpat(stops: list[tuple[int, str]]) -> str:
+def generate_maxpat(
+    movable_stops:  list[tuple],   # [(stopID_int, stopName_str), ...]
+    division_stops: list[tuple],   # [(divisionID_int, "DIV<N>"), ...]
+) -> str:
     """
     Returns a compact (non-indented) Max patcher JSON string containing:
-      - One inlet object  (inlet 0  of the bpatcher) — sends 0 to reset all buttons silently
-      - One outlet object (outlet 0 of the bpatcher) — outputs stop-button clicks
-      - One "prepend set" object — converts reset 0 → "set 0" (silent value set, no output)
-      - One live.text toggle per stop (varname = 'stop<ID>')
-      - One prepend <stopID> per stop (routes clicks to the outlet)
-      - Patch lines wiring:
-          inlet → prepend-set → each live.text inlet  (visual reset path)
-          each live.text outlet → prepend stopID → outlet  (click output path)
 
-    Reset usage from JS:  stopsBpatcher.message(0)
-      → bpatcher forwards to inlet → prepend set → "set 0" to every live.text
-      → all buttons go dark silently (no MaxobjListener fires, no outlet output)
+    Hidden objects (negative Y, outside presentation area):
+      - outlet 0          — stop-button clicks (prepend stopID → here)
+      - pattr set         — reset target: pattrforward sends 0 here → prepend set → all live.text
+      - autopattr         — auto-collects all live.text parameters for pattrstorage
+      - prepend set       — converts received 0 → "set 0" (silent value set, no outlet output)
+      - prepend <stopID>  — one per stop/div, tags clicks with their ID before outlet
 
-    live.text has no parameter_enable / saved_attribute_attributes to:
-      • keep the file small
-      • avoid parameter-name collisions across multiple bpatcher instances
+    Visible objects (presentation mode):
+      - live.text toggle  — one per movable stop  (varname = "stop<ID>")
+      - live.text toggle  — one per division       (varname = "stopdivision<ID>")
+
+    Layout:
+      Movable stops fill columns 0 … n (MAX_PER_COL rows each).
+      Division buttons start at column (n + DIV_GAP_COLS + 1) for visual separation.
+
+    Reset path:
+      JS pattrforward.message(0)
+        → pattr "set" receives 0 → outputs 0
+        → prepend set → "set 0" to every live.text
+        → buttons go dark silently
+
+    Click path:
+      live.text outlet → prepend <stopID> → outlet 0
+      JS MaxobjListener on each live.text detects the click directly.
     """
     boxes: list[dict] = []
     lines: list[dict] = []
 
-    # ── Hidden objects (negative Y, outside presentation area) ────────────────
+    # ── Hidden infrastructure ─────────────────────────────────────────────────
 
-    # Outlet 0 — stop clicks: prepend stopID output routes here.
-    # No inlet needed: reset is driven by send/receive (hierarchy-independent global namespace).
+    # outlet 0 — stop/div click output
     boxes.append({"box": {
         "id": "obj-out", "maxclass": "outlet", "comment": "stop",
         "patching_rect": [10.0, -30.0, 30.0, 30.0],
         "numinlets": 1, "numoutlets": 0,
     }})
 
-    # "receive #1" — receives the reset signal from JS via a matching 'send <resetName>' object.
-    # JS sets bpatcher arg #1 = resetName via stopsBp.message("args", resetName).
-    # Hierarchy-independent: s/r pairs work across any nesting depth without routing issues.
+    # pattr set — reset target for pattrforward from JS.
+    # JS: pattrforward("::stops_<layerID>::set").message(0)  →  this receives 0
+    #     →  outputs 0  →  prepend set  →  "set 0" to every live.text
     boxes.append({"box": {
-        "id": "obj-recv", "maxclass": "newobj", "text": "receive #1",
-        "patching_rect": [10.0, -60.0, 100.0, 22.0],
-        "numinlets": 0, "numoutlets": 1,
+        "id": "obj-pattr", "maxclass": "newobj",
+        "text": "pattr set @invisible 1 @autorestore 0",
+        "patching_rect": [10.0, -60.0, 210.0, 22.0],
+        "numinlets": 2, "numoutlets": 2,
     }})
 
-    # "prepend set" — converts received 0 → "set 0" so live.text clears silently (no outlet fire).
+    # autopattr — automatically registers all live.text parameters.
+    # @autorestore 0 — do not restore values on patch load (buttons start off).
+    boxes.append({"box": {
+        "id": "obj-autopattr", "maxclass": "newobj",
+        "text": "autopattr @autorestore 0",
+        "patching_rect": [230.0, -60.0, 150.0, 22.0],
+        "numinlets": 1, "numoutlets": 1,
+    }})
+
+    # prepend set — pattr outlet (a number) → "set <number>" for silent live.text clear
     boxes.append({"box": {
         "id": "obj-prepset", "maxclass": "newobj", "text": "prepend set",
         "patching_rect": [10.0, -90.0, 80.0, 22.0],
         "numinlets": 2, "numoutlets": 1,
     }})
 
-    # Wire: receive #1 → prepend-set
-    lines.append({"patchline": {"source": ["obj-recv", 0], "destination": ["obj-prepset", 0]}})
+    # Wire: pattr set outlet 0 → prepend set inlet 0
+    lines.append({"patchline": {"source": ["obj-pattr", 0], "destination": ["obj-prepset", 0]}})
 
-    seen_ids: set[int] = set()
-    row, col = 0, 0
+    # ── Helper: add one live.text + prepend <id> pair ─────────────────────────
 
-    for i, (stop_id, stop_name) in enumerate(stops):
-        x = float(col * (COL_W + COL_MARGIN))   # col × 96
-        y = float(row * STOP_H)                  # row × 20
-
+    def add_button(i: int, stop_id, stop_name: str, varname: str, col: int, row: int):
+        x = float(col * (COL_W + COL_MARGIN))
+        y = float(row * STOP_H)
         s_id = f"obj-s{i}"
         p_id = f"obj-p{i}"
 
-        # Unique varname — duplicate stopIDs get an index suffix
-        if stop_id not in seen_ids:
-            seen_ids.add(stop_id)
-            varname = f"stop{stop_id}"
-        else:
-            varname = f"stop{stop_id}_{i}"
-
-        # Minimal live.text toggle button
         boxes.append({"box": {
             "id": s_id, "maxclass": "live.text",
             "numinlets": 1, "numoutlets": 2, "outlettype": ["", ""],
@@ -130,29 +151,66 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
             "text": stop_name, "texton": stop_name,
             "varname": varname, "fontsize": 10.0,
         }})
-
-        # prepend <stopID> — tags each button click with its stopID.
-        # Placed at negative Y (hidden area) — only live.text buttons appear in presentation.
         boxes.append({"box": {
             "id": p_id, "maxclass": "newobj",
             "text": f"prepend {stop_id}",
             "patching_rect": [x, -90.0 - i * 25.0, 100.0, 22.0],
             "numinlets": 2, "numoutlets": 1,
         }})
-
-        lines.append({"patchline": {"source": [s_id, 0], "destination": [p_id, 0]}})
-        lines.append({"patchline": {"source": [p_id, 0], "destination": ["obj-out", 0]}})
-        # Reset path: prepend-set → this live.text inlet (set 0 = silent visual clear)
+        lines.append({"patchline": {"source": [s_id, 0],        "destination": [p_id, 0]}})
+        lines.append({"patchline": {"source": [p_id, 0],        "destination": ["obj-out", 0]}})
         lines.append({"patchline": {"source": ["obj-prepset", 0], "destination": [s_id, 0]}})
+
+    # ── Movable stops ─────────────────────────────────────────────────────────
+
+    seen_ids: set = set()
+    row, col = 0, 0
+
+    for i, (stop_id, stop_name) in enumerate(movable_stops):
+        # Unique varname — duplicate stopIDs get an index suffix (e.g. Amsterdam)
+        if stop_id not in seen_ids:
+            seen_ids.add(stop_id)
+            varname = f"stop{stop_id}"
+        else:
+            varname = f"stop{stop_id}_{i}"
+
+        add_button(i, stop_id, stop_name, varname, col, row)
 
         row += 1
         if row >= MAX_PER_COL:
             col += 1
             row = 0
 
-    n_cols  = max(1, -(-len(stops) // MAX_PER_COL))   # ceil division
-    p_width = max(600.0, n_cols * (COL_W + COL_MARGIN) + 200.0)
-    p_height = max(300.0, MAX_PER_COL * STOP_H + len(stops) * 25.0 + 100.0)
+    # ── Division buttons ──────────────────────────────────────────────────────
+    # Start after a visual gap of DIV_GAP_COLS columns.
+    # Varname mirrors JS createStopArray: "stop" + stopID  = "stopdivision<ID>"
+
+    if division_stops:
+        n_movable_cols = max(1, -(-len(movable_stops) // MAX_PER_COL))  # ceil
+        col = n_movable_cols + DIV_GAP_COLS
+        row = 0
+
+        for j, (div_id, div_name) in enumerate(division_stops):
+            stop_id_str = f"division{div_id}"          # matches JS stopID
+            varname     = f"stopdivision{div_id}"       # matches JS "stop" + stopID
+
+            add_button(
+                len(movable_stops) + j,
+                stop_id_str, div_name, varname,
+                col, row,
+            )
+
+            row += 1
+            if row >= MAX_PER_COL:
+                col += 1
+                row = 0
+
+    # ── Patcher frame ─────────────────────────────────────────────────────────
+
+    total = len(movable_stops) + len(division_stops)
+    n_cols   = max(1, -(-total // MAX_PER_COL)) + (DIV_GAP_COLS if division_stops else 0)
+    p_width  = max(600.0, n_cols * (COL_W + COL_MARGIN) + 200.0)
+    p_height = max(300.0, MAX_PER_COL * STOP_H + total * 25.0 + 100.0)
 
     patch = {
         "patcher": {
@@ -163,10 +221,10 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
             },
             "classnamespace": "box",
             "rect": [100.0, 100.0, p_width, p_height],
-            # openinpresentation: 1 → bpatcher shows PRESENTATION mode, not patching view.
-            # Only objects with "presentation": 1 are visible — the live.text toggle buttons.
-            # Outlet, prepend objects, and patch cables are hidden automatically.
-            # bglocked: 1 → prevents accidental editing when opened.
+            # openinpresentation: 1  →  bpatcher shows PRESENTATION mode.
+            # Only objects with "presentation": 1 visible — the live.text buttons.
+            # Outlet/prepend/pattr/autopattr objects are invisible automatically.
+            # bglocked: 1  →  prevents accidental editing.
             "bglocked": 1, "openinpresentation": 1,
             "default_fontsize": 12.0, "default_fontface": 0,
             "default_fontname": "Arial",
@@ -177,14 +235,13 @@ def generate_maxpat(stops: list[tuple[int, str]]) -> str:
         }
     }
 
-    # Compact JSON (no indentation) — avoids Max writestring size limits
     return json.dumps(patch, ensure_ascii=False)
 
 
 def process_organ(config_path: str):
     """
-    Read one organ JSON, extract movable stops, write .maxpat.
-    Returns (output_path, stop_count) or None on error.
+    Read one organ JSON, extract movable stops + divisions, write .maxpat.
+    Returns (output_path, n_movable, n_divisions, box_count) or None on error.
     """
     data = None
     for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252"):
@@ -205,28 +262,43 @@ def process_organ(config_path: str):
         print(f"  ⚠ No movable stops found — skipping")
         return None
 
+    # Division buttons — mirrors JS parseDivisions() + parseDivisionStops():
+    #   Only include divisions that have at least one non-movable stop.
+    #   stopID = "division<ID>",  varname = "stopdivision<ID>",  text = "DIV<ID>"
+    divs_with_fixed_stops: set = set()
+    for s in raw_stops:
+        if not s.get("Movable", False):
+            div_id = s.get("DivisionID")
+            if div_id is not None:
+                divs_with_fixed_stops.add(div_id)
+
+    raw_divs  = data.get("Divisions", [])
+    divisions = sorted(
+        [(d["DivisionID"], f"DIV{d['DivisionID']}") for d in raw_divs
+         if d["DivisionID"] in divs_with_fixed_stops],
+        key=lambda x: x[0]
+    )
+
     organ_name  = extract_organ_name(config_path)
     safe_name   = safe_organ_name(organ_name)
     filename    = f"layer_stops_{safe_name}.maxpat"
     output_path = os.path.join(PROJECT_ROOT, filename)
 
-    json_str = generate_maxpat(movable)
+    json_str = generate_maxpat(movable, divisions)
 
-    # Python open('w') always truncates — no leftover bytes from previous runs
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(json_str)
 
-    # Verify
-    parsed = json.loads(json_str)
+    parsed    = json.loads(json_str)
     box_count = len(parsed["patcher"]["boxes"])
 
-    return output_path, len(movable), box_count
+    return output_path, len(movable), len(divisions), box_count
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    print(f"Organ stop .maxpat generator")
+    print(f"Organ stop .maxpat generator  (pattr reset, v2)")
     print(f"Config dir : {CONFIG_DIR}")
     print(f"Output dir : {PROJECT_ROOT}")
     print()
@@ -250,10 +322,11 @@ def main() -> None:
 
         result = process_organ(path)
         if result:
-            out_path, n_stops, n_boxes = result
+            out_path, n_movable, n_divs, n_boxes = result
             size_kb = os.path.getsize(out_path) / 1024
             print(f"    ✓ {os.path.basename(out_path)}  "
-                  f"({n_stops} stops, {n_boxes} boxes, {size_kb:.1f} KB)")
+                  f"({n_movable} stops + {n_divs} divs = {n_movable+n_divs} buttons, "
+                  f"{n_boxes} boxes, {size_kb:.1f} KB)")
             ok += 1
         print()
 

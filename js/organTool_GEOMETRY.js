@@ -318,32 +318,25 @@ function createGeometryModule() {
                             var self = GEOMETRY;
 
                             return self.getCachedWidth(cacheKey, function() {
-                                var layerWidth = self.grid.multiColumnWidth(
-                                    layerStopData.length, 
-                                    self.columns.margin()
-                                    );
-                                var divisionWidth = divisionStops.length > 0 ? 
-                                self.grid.multiColumnWidth(
-                                    divisionStops.length, 
-                                    self.columns.margin()
-                                    ) : 0;
-
-                                // FIX: Add spacing between layer and division stops
-                                var spacing = divisionStops.length > 0 ? self.columns.margin() : 0;
-                                var totalContentWidth = layerWidth + spacing + divisionWidth;
+                                // Mirror generate_layer_stops.py layout:
+                                //   movable cols  +  DIV_GAP_COLS (1)  +  div cols
+                                var nMovCols  = self.grid.columnsNeeded(layerStopData.length);
+                                var nDivCols  = divisionStops.length > 0
+                                                ? self.grid.columnsNeeded(divisionStops.length) : 0;
+                                var gapCols   = divisionStops.length > 0 ? 1 : 0;
+                                var totalCols = nMovCols + gapCols + nDivCols;
+                                var totalW    = self.grid.multiColumnWidth(
+                                                    totalCols * MAX_STOPS_PER_COLUMN,
+                                                    self.columns.margin());
                                 var layerHeight = self.stops.h * MAX_STOPS_PER_COLUMN;
-
-                                self._calculatedWidths.divStopsX = self.margin.x + layerWidth + spacing;
 
                                 return {
                                     x: 0,
-                                    y: self.rows.manuals, 
-            w: (self.margin.x * 2) + totalContentWidth, // FIX: Use corrected total width
-            h: layerHeight * self.sinua.manuals.defaultLayersPerManual,
-            layerWidth: layerWidth,
-            divisionWidth: divisionWidth
-        };
-    });
+                                    y: self.rows.manuals,
+                                    w: (self.margin.x * 2) + totalW,
+                                    h: layerHeight * self.sinua.manuals.defaultLayersPerManual,
+                                };
+                            });
                         }
                     },
 
@@ -352,25 +345,26 @@ function createGeometryModule() {
                     divisionSpacing: 20, // abstand von Layer-Stops und Division-Stops TODO - does not work yet 
                     bpatcher: function(layerID, layerStopData, divisionStops) {
                         divisionStops = divisionStops || [];
-                        var cacheKey = "layer_"+layerID//_bp_" + layerID + "_" + layerStopData.length + "_" + divisionStops.length;
-                        var self = GEOMETRY; // Local reference
-                        
+                        var cacheKey = "layer_"+layerID;
+                        var self = GEOMETRY;
+
                         return self.getCachedWidth(cacheKey, function() {
-                            var layerWidth = self.grid.multiColumnWidth(
-                                layerStopData.length, 
-                                self.columns.margin()
-                                );
-                            var divisionWidth = divisionStops.length > 0 ? 
-                            self.grid.multiColumnWidth(
-                                divisionStops.length, 
-                                self.columns.margin()
-                                ) : 0;
+                            // Mirror generate_layer_stops.py layout:
+                            //   movable cols  +  DIV_GAP_COLS (1)  +  div cols
+                            var nMovCols  = self.grid.columnsNeeded(layerStopData.length);
+                            var nDivCols  = divisionStops.length > 0
+                                            ? self.grid.columnsNeeded(divisionStops.length) : 0;
+                            var gapCols   = divisionStops.length > 0 ? 1 : 0;
+                            var totalCols = nMovCols + gapCols + nDivCols;
+                            var totalW    = self.grid.multiColumnWidth(
+                                                totalCols * MAX_STOPS_PER_COLUMN,
+                                                self.columns.margin());
                             var layerHeight = self.stops.h * MAX_STOPS_PER_COLUMN;
-                            
-                            return {                        
-                                w: self.margin.x + layerWidth + divisionWidth,
+
+                            return {
+                                w: self.margin.x + totalW,
                                 h: layerHeight,
-                                x: self.margin.x, 
+                                x: self.margin.x,
                                 y: layerHeight * (layerID - 1),
                             };
                         });
@@ -480,4 +474,4 @@ function createGeometryModule() {
         global.createGeometryModule = createGeometryModule;
     }
 
-    post("organTool_Geometry.js v00.20 - defaultLayersPerManual:1 loaded\n");
+    post("organTool_Geometry.js v00.21 - layer/manual bpatcher width includes div gap column\n");

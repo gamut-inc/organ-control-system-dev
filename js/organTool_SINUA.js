@@ -18,7 +18,6 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     var guiObjects = {};
     var listeners = []; // Global listener tracking for cleanup
     var stopRouteReceive = null; // The single "receive organ_stops" box in context.patcher
-    var _stopResetSeq = 0; // Monotonically-increasing counter — unique send/receive names per layer
     
     // ================================================================================================
     // CONTEXT HELPER FUNCTIONS
@@ -273,6 +272,11 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             return true;
         }
 
+        // Reset GEOMETRY cache — must be first so all dimension calculations use fresh values.
+        // Without this, fixed cache keys ("man", "layer_1" … "layer_4", "col_width_N") retain
+        // stale values from the previously loaded organ, causing wrong bpatcher sizes.
+        common.GEOMETRY.resetForNewOrgan();
+
         var G = common.GEOMETRY;
         var hasControllers = organData.controllers && organData.controllers.length > 0;
         var hasTremulants  = organData.tremulants  && organData.tremulants.length  > 0;
@@ -446,28 +450,29 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     function createDivisionBpatcher(p, x, y, w, h, divisionData) {
         var bpatcher = common.createBpatcher(p, x, y, w, h, "division" + divisionData.divisionID);
         if (!bpatcher) return null;
-        // Presentation mode: hides routing cables (prepend/send from createStopArrayRouted)
-        try { bpatcher.subpatcher().openinpresentation = 1; } catch(e) {}
+        var sp = bpatcher.subpatcher();
+        try { sp.openinpresentation = 1; } catch(e) {}
 
         var labelPos = common.GEOMETRY.sinua.divisions.subpatcherLabel;
-        var label = common.createLiveComment(bpatcher.subpatcher(), labelPos.x, labelPos.y, labelPos.w, labelPos.h,
-            "division_label_" + divisionData.divisionID, 
+        var label = common.createLiveComment(sp, labelPos.x, labelPos.y, labelPos.w, labelPos.h,
+            "division_label_" + divisionData.divisionID,
             "D" + divisionData.divisionID + " " + divisionData.name);
-        
-        var context = createActionContext(null, null, divisionData.divisionID);
 
-        // TODO add small cancel here 
-        var cancel = createGUIButton(bpatcher.subpatcher(), common.GEOMETRY.sinua.divisions.cancel, "cancel", "C", context);
-        
-        var stopArrayX = typeof common.GEOMETRY.sinua.divisions.stopArray.x === 'function' ? 
-        common.GEOMETRY.sinua.divisions.stopArray.x() : 
-        common.GEOMETRY.sinua.divisions.stopArray.x;
-        
-        // MaxobjListener-based: no cables in division subpatcher
-        var stopButtonMap = createStopArray(bpatcher.subpatcher(), stopArrayX, common.GEOMETRY.stops.h,
+        var context = createActionContext(null, null, divisionData.divisionID);
+        var cancel  = createGUIButton(sp, common.GEOMETRY.sinua.divisions.cancel, "cancel", "C", context);
+
+        var stopArrayX = typeof common.GEOMETRY.sinua.divisions.stopArray.x === 'function' ?
+            common.GEOMETRY.sinua.divisions.stopArray.x() :
+            common.GEOMETRY.sinua.divisions.stopArray.x;
+
+        var stopButtonMap = createStopArray(sp, stopArrayX, common.GEOMETRY.stops.h,
             divisionData.stops, divisionData.divisionID, null, null);
 
-        return { bpatcher: bpatcher, label: label, context: context, stopButtonMap: stopButtonMap };
+        // stopButtonMap holds direct newdefault() refs — message("set", 0) works reliably
+        // on direct refs regardless of nesting depth.  No pattr/pattrforward/sp.connect
+        // needed here; those create visible patch cables in the embedded patcher.
+        return { bpatcher: bpatcher, label: label, context: context,
+                 stopButtonMap: stopButtonMap };
     }
 
 // *** MANUAL SECTION ***
@@ -563,7 +568,14 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     var G  = common.GEOMETRY;
 
     if (organState.layerStopFilename) {
-        var stopsW = G.grid.multiColumnWidth(stopData.movable.length, G.columns.margin());
+        // Width must match the generated file layout:  movable cols + 1 gap col + div cols
+        // (DIV_GAP_COLS = 1 in generate_layer_stops.py)
+        var nMovCols  = Math.ceil(stopData.movable.length  / common.MAX_STOPS_PER_COLUMN);
+        var nDivCols  = stopData.divisions.length > 0
+                        ? Math.ceil(stopData.divisions.length / common.MAX_STOPS_PER_COLUMN) : 0;
+        var gapCols   = stopData.divisions.length > 0 ? 1 : 0;
+        var totalCols = nMovCols + gapCols + nDivCols;
+        var stopsW = G.grid.multiColumnWidth(totalCols * common.MAX_STOPS_PER_COLUMN, G.columns.margin());
         var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
 
         // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS.
@@ -575,30 +587,23 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
             ? organState.layerStopFilename.replace(/.*[\/\\]/, '')  // extract filename only
             : null;
 
-        // Unique send/receive name for this layer's reset signal.
-        // send/receive are hierarchy-independent (global namespace), so resetSend in sp
-        // can reach receive #1 inside any nested bpatcher depth without path issues.
-        var resetName = "sr_" + (++_stopResetSeq);
-
         var stopsBp = stopFilename ? sp.newdefault(sx, 0, "bpatcher",
-            "@varname", "stops_" + layerID,
+            "@name", stopFilename,
+            "@varname", "layer" + layerID,
+            "@embed", 0,
             "@patching_rect", sx, 0, stopsW, stopsH,
             "@presentation_rect", sx, 0, stopsW, stopsH,
-            "@presentation", 1,
-            "@name", stopFilename,
-            "@embed", 0
+            "@presentation", 1
         ) : null;
 
-        // Pass resetName as bpatcher arg #1 so 'receive #1' inside becomes 'receive <resetName>'.
-        // Do this AFTER newdefault so the file has a chance to load before args are applied.
-        if (stopsBp) {
-            try { stopsBp.message("args", resetName); } catch(e) {}
-        }
-
-        // Send object in sp (same nesting level as DIV buttons — message() confirmed working).
-        // resetSend.message("int", 0) → s <resetName> broadcasts globally →
-        // receive #1 inside stops bpatcher → prepend set → "set 0" to each live.text
-        var resetSend = stopFilename ? sp.newdefault(0, -200, "send", resetName) : null;
+        // pattrforward targets pattr "set" inside the stops bpatcher by its varname address.
+        // Scripting name must be "layer<N>". Inside a subpatcher, NO leading :: —
+        // relative address is  layer<N>::set  (leading :: is only for top-level / absolute paths).
+        // pattrReset.message(0)  →  pattrforward sends 0 to  pattr "set"  inside "layer<N>"
+        //   →  pattr outlets 0  →  [prepend set]  →  "set 0" to every live.text silently
+        var pattrReset = stopFilename ? sp.newdefault(0, -200, "pattrforward",
+            "layer" + layerID + "::set"
+        ) : null;
 
         var innerPatcher = stopsBp ? stopsBp.subpatcher() : null;
 
@@ -609,25 +614,55 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
 
         if (fileLoadedOK) {
             // File loaded OK — harvest references + attach direct MaxobjListeners.
-            // NO cable routing in the layer's sp (routePrep/routeSend/connect removed):
-            // Patcher.openinpresentation is read-only from Max JS, so cables in patching
-            // view can't be hidden that way. Listeners on inner-patcher objects work fine
-            // (same mechanism as cancel buttons inside bpatchers) and create zero cables.
-            stopData.movable.forEach(function(stop) {
-                var liveText = innerPatcher.getnamed("stop" + stop.stopID);
+            // Mirror Python generator's duplicate-ID suffix logic exactly:
+            //   first occurrence  → varname "stop<ID>"
+            //   subsequent (idx i) → varname "stop<ID>_<i>"
+            // This is critical for organs like Amsterdam where all 33 movable stops
+            // share StopID=165 — without suffix matching, getnamed("stop165") would
+            // always return the same first object and only 1/33 stops get a listener.
+            var seenStopIDs = {};
+            stopData.movable.forEach(function(stop, index) {
+                var sid = stop.stopID;
+                var varname = seenStopIDs[sid] ? ("stop" + sid + "_" + index) : ("stop" + sid);
+                seenStopIDs[sid] = true;
+
+                var liveText = innerPatcher.getnamed(varname);
                 if (liveText) {
-                    stopButtonMap[stop.stopID] = liveText;
+                    // Use varname as key so duplicate stopIDs don't overwrite each other.
+                    // clearLayer() uses pattrReset for all bpatcher buttons — stored here for listeners only.
+                    stopButtonMap[varname] = liveText;
                     var stopCtx = createStopContext(stop.stopID, stop.divisionID, manualID, layerID);
                     addListener(new MaxobjListener(liveText, function(data) {
                         executeStopAction(stop.stopID, Boolean(data.value), stopCtx);
                     }));
                 }
             });
-            post("      L" + layerID + ": file OK — " + Object.keys(stopButtonMap).length + "/" +
-                stopData.movable.length + " stops mapped\n");
+            // Division buttons — also in the bpatcher file (varname "stopdivision<ID>").
+            // Listeners for clicks only; visual clear is handled by pattrReset for all buttons.
+            stopData.divisions.forEach(function(div) {
+                var divVarname = "stop" + div.stopID;  // "stopdivision1", "stopdivision2" etc.
+                var divBtn = innerPatcher.getnamed(divVarname);
+                if (divBtn) {
+                    stopButtonMap[div.stopID] = divBtn;
+                    var divCtx = createStopContext(div.stopID, null, manualID, layerID);
+                    addListener(new MaxobjListener(divBtn, function(data) {
+                        executeStopAction(div.stopID, Boolean(data.value), divCtx);
+                    }));
+                }
+            });
+
+            post("      L" + layerID + ": file OK — " +
+                stopData.movable.length + " stops + " + stopData.divisions.length + " divs\n");
+        } else if (stopsBp) {
+            // Bpatcher was created but probe failed (file still loading or stops not found).
+            // DO NOT create fallback createStopArray buttons at the same position (sx, 0) —
+            // overlapping objects cause the irregular "random" cancel pattern.
+            // pattrReset will reach pattr "set" once the bpatcher finishes loading.
+            post("      L" + layerID + ": probe failed (bpatcher exists) — skipping fallback to avoid overlap\n");
         } else {
+            // stopsBp is null = file not found — no overlap risk, safe to use createStopArray
             common.log(common.LOG_LEVEL.WARN,
-                "L" + layerID + ": file bpatcher failed — falling back to createStopArray");
+                "L" + layerID + ": no bpatcher (file not found) — falling back to createStopArray");
             var movableMap = createStopArray(sp, sx, 0, stopData.movable, null, manualID, layerID);
             Object.keys(movableMap).forEach(function(id) { stopButtonMap[id] = movableMap[id]; });
         }
@@ -638,13 +673,7 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
     }
     var tL3 = Date.now();
 
-    // *** DIVISION (DIV) BUTTONS: MaxobjListener-based — no cables in layer subpatcher ***
-    var divisionPos = G.sinua.layers.divisionArray(stopData.movable.length);
-    var divMap = createStopArray(sp, divisionPos.x, 0, stopData.divisions, null, manualID, layerID);
-    Object.keys(divMap).forEach(function(id) { stopButtonMap[id] = divMap[id]; });
-    var tL4 = Date.now();
-
-    post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stopsFile=" + (tL3-tL2) + "ms  divs=" + (tL4-tL3) + "ms\n");
+    post("      ⏱ L" + layerID + ": bpatcher=" + (tL1-tL0) + "ms  buttons=" + (tL2-tL1) + "ms  stopsFile=" + (tL3-tL2) + "ms\n");
 
     return {
         bpatcher: bpatcher,
@@ -652,8 +681,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         panic: panic,
         cancel: cancel,
         context: actionCtx,
-        resetSend: resetSend || null,   // send object in sp — broadcasts to receive #1 in stops bpatcher
-        stopButtonMap: stopButtonMap    // JS-created buttons (DIV/division buttons) for CANCEL
+        pattrReset: pattrReset || null,  // pattrforward ::stops_<id>::set — clears all buttons in bpatcher
+        stopButtonMap: stopButtonMap     // listener references (movable stops + divs via getnamed)
     };
 }
 
@@ -840,10 +869,18 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
 
     var currentColumn = 0;
     var currentRow = 0;
-    var buttonMap = {}; // stopID → live.text object, used by CANCEL to clear visually
+    var buttonMap = {}; // key → live.text object, used by CANCEL to clear visually
+    var seenIDs = {};   // track duplicate stopIDs (e.g. Amsterdam: all IDs=165)
 
     stopData.forEach(function(stop, index) {
         var stopContext = createStopContext(stop.stopID, divisionID || stop.divisionID, manualID, layerID);
+
+        // Unique varname: first occurrence → "stop<ID>", duplicates → "stop<ID>_<index>"
+        // Mirrors the fileLoadedOK branch above and generate_layer_stops.py suffix logic.
+        // Prevents Max from auto-renaming objects to "stop165[1]", "stop165[2]" etc.
+        var sid = stop.stopID;
+        var varname = seenIDs[sid] ? ("stop" + sid + "_" + index) : ("stop" + sid);
+        seenIDs[sid] = true;
 
         var marginX = typeof common.GEOMETRY.columns.margin === 'function' ?
         common.GEOMETRY.columns.margin() : common.GEOMETRY.columns.margin;
@@ -854,10 +891,12 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
 
         var stopObj = common.createLiveText(p, x, y,
             common.GEOMETRY.stops.w, common.GEOMETRY.stops.h,
-            "stop" + stop.stopID, stop.name, stop.name, stop.name, 10);
+            varname, stop.name, stop.name, stop.name, 10);
 
         if (stopObj && stopObj.liveText) {
-            buttonMap[stop.stopID] = stopObj.liveText; // store for CANCEL visual update
+            // Use varname as key — unique even when stopIDs are duplicated.
+            // clearButtonMap iterates all keys, so every button gets cleared.
+            buttonMap[varname] = stopObj.liveText;
             addListener(new MaxobjListener(stopObj.liveText, function(data) {
                 executeStopAction(stop.stopID, Boolean(data.value), stopContext);
             }));
@@ -870,7 +909,7 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
         }
     });
 
-    return buttonMap; // {stopID → live.text object}
+    return buttonMap; // {varname → live.text object}
 }
 
 // *** ROUTING VERSION: no per-button MaxobjListeners ***
@@ -1128,31 +1167,39 @@ function getDivisionStopsFromState() {
 // ================================================================================================
 
 // Set all live.text buttons in a map to 0 (visual only, no DataLayer call)
-function clearButtonMap(buttonMap) {
+function clearButtonMap(buttonMap, label) {
     // Clears JS-created live.text buttons (DIV buttons in layer, division panel stops).
     // For bpatcher-loaded stops, use clearLayer() which sends message(0) to the bpatcher inlet.
-    if (!buttonMap) return;
-    Object.keys(buttonMap).forEach(function(stopID) {
-        try { buttonMap[stopID].message("set", 0); } catch(e) {}
+    if (!buttonMap) { post("  clearButtonMap[" + (label||"?") + "]: null map\n"); return; }
+    var keys = Object.keys(buttonMap);
+    post("  clearButtonMap[" + (label||"?") + "]: " + keys.length + " buttons\n");
+    var ok = 0, fail = 0;
+    keys.forEach(function(stopID) {
+        try { buttonMap[stopID].message("set", 0); ok++; }
+        catch(e) { fail++; post("    FAIL " + stopID + ": " + e + "\n"); }
     });
+    post("    ok=" + ok + " fail=" + fail + "\n");
 }
 
-// Clear all stop buttons in a layer: bpatcher stops via inlet 0, JS stops via direct message.
-// Background: message() to objects nested inside a bpatcher-inside-bpatcher does not propagate
-// to the inlet of the nested object (Max JS limitation). Instead we send one message to the
-// BPATCHER itself (inlet 0 → internal prepend-set → all live.text buttons silently set to 0).
+// Clear all stop buttons in a layer via pattr-based reset.
+// pattrReset (pattrforward layer<N>::set) sends 0 to pattr "set" inside the stops bpatcher.
+//   pattr "set" → prepend set → "set 0" to every live.text (movable stops + DIV buttons)
+//   Silent clear — no MaxobjListeners fire, no outlet output.
+// Falls back to clearButtonMap if no bpatcher is present (file-not-found fallback path).
 function clearLayer(layer) {
     if (!layer) return;
-    // 1. Send/receive reset: hierarchy-independent global broadcast
-    //    resetSend (in layer sp, same level as DIV buttons — message() confirmed working)
-    //    sends int 0 → 's <resetName>' broadcasts globally
-    //    → 'receive #1' inside stops bpatcher receives 0
-    //    → prepend set → "set 0" → each live.text silent visual clear
-    if (layer.resetSend) {
-        try { layer.resetSend.message("int", 0); } catch(e) {}
+    if (layer.pattrReset) {
+        try { layer.pattrReset.message(0); } catch(e) {}
+    } else {
+        clearButtonMap(layer.stopButtonMap, "layer-fallback");
     }
-    // 2. Clear JS-created buttons (DIV/division buttons created by createStopArray)
-    clearButtonMap(layer.stopButtonMap);
+}
+
+// Clear all non-movable stop buttons in a division.
+// stopButtonMap holds direct newdefault() refs; message("set", 0) clears each live.text silently.
+function clearDivision(div) {
+    if (!div) return;
+    clearButtonMap(div.stopButtonMap, "div");
 }
 
 // Turn off all stop buttons in the UI for the given context — no commands sent
@@ -1170,6 +1217,9 @@ function updateUIStopsOff(actionContext) {
     var isLayer       = hasManual && hasLayer;
     var isManual      = hasManual && !isLayer;
 
+    post("updateUIStopsOff: isGlobal=" + isGlobal + " isDivisionsAll=" + isDivisionsAll +
+         " isDivision=" + isDivision + " isLayer=" + isLayer + " isManual=" + isManual + "\n");
+
     if (isGlobal) {
         // All layers across all manuals + all division stop buttons
         if (guiObjects.manuals && guiObjects.manuals.manuals) {
@@ -1178,20 +1228,24 @@ function updateUIStopsOff(actionContext) {
             });
         }
         if (guiObjects.divisions && guiObjects.divisions.divisions) {
-            guiObjects.divisions.divisions.forEach(function(div) { clearButtonMap(div.stopButtonMap); });
+            guiObjects.divisions.divisions.forEach(function(div) {
+                if (div) clearDivision(div);
+            });
         }
 
     } else if (isDivisionsAll) {
         // Section-level division cancel: clear all division stop buttons (not manual layers)
         if (guiObjects.divisions && guiObjects.divisions.divisions) {
-            guiObjects.divisions.divisions.forEach(function(div) { clearButtonMap(div.stopButtonMap); });
+            guiObjects.divisions.divisions.forEach(function(div) {
+                if (div) clearDivision(div);
+            });
         }
 
     } else if (isDivision) {
         if (guiObjects.divisions && guiObjects.divisions.divisions) {
             guiObjects.divisions.divisions.forEach(function(div) {
-                if (div.context && div.context.divisionID === actionContext.divisionID) {
-                    clearButtonMap(div.stopButtonMap);
+                if (div && div.context && div.context.divisionID === actionContext.divisionID) {
+                    clearDivision(div);
                 }
             });
         }
@@ -1361,4 +1415,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.09 - file-based layer patchers eliminate newdefault bottleneck\n");
+post("organTool_SINUA_ContextAware.js v01.19 - GEOMETRY cache reset on each organ load; createStopArray unique varnames/keys for dup IDs\n");
