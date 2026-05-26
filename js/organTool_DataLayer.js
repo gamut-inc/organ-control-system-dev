@@ -10,6 +10,7 @@
 // 01.04 - divisionsAll cancel: use organState.divisions for reliable /Dx/S 0 per division
 //         Old code only sent cancel for divisions with pending bundles or active DataLayer
 //         state — sent nothing when no bundles were pending (most common case)
+// 01.05 - getSinuaPath: manual=0 (Pedal) → /P instead of /M0
 // 27.05.2026
 // Maciej Sledziecki
 
@@ -288,11 +289,12 @@ function createDataLayerModule(common) {
         var path  = '';
 
         if (context.manual !== null && context.manual !== undefined) {
-            path += '/M' + context.manual;
-            
+            // Pedal (manualID=0) uses /P; all other manuals use /Mx
+            path += (context.manual === 0) ? '/P' : '/M' + context.manual;
+
             if (context.layer !== null && context.layer !== undefined) {
                 path += '/L' + context.layer;
-            } 
+            }
         } else if (context.divisionID !== null && context.divisionID !== undefined) {
             path += '/D' + context.divisionID;
         }
@@ -1447,4 +1449,4 @@ if (typeof global !== 'undefined') {
     global.createDataLayerModule = createDataLayerModule;
 }
 
-post("organTool_DataLayer_ContextAware.js v01.04 - divisionsAll cancel uses organState.divisions\n");
+post("organTool_DataLayer_ContextAware.js v01.05 - Pedal uses /P path (manual=0)\n");
