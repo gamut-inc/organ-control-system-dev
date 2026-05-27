@@ -639,17 +639,19 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         var stopsH = G.stops.h * common.MAX_STOPS_PER_COLUMN;
 
 
-        // Load the pre-built stop bpatcher from disk — no per-button newdefault inside JS.
-        // Use just the filename (no absolute path): Max searches the main patcher's directory,
-        // which is the project root where layer_stops_*.maxpat files live.
-        // Absolute POSIX paths fail on APFS because Max converts them to HFS using the
-        // wrong volume ("Macintosh HD:" instead of "Macintosh HD - Data:").
+        // Load the pre-built stop bpatcher from disk.
+        // Use resolveStopFileNativePath() which builds an absolute path in the same format
+        // as context.patcher.filepath (HFS on macOS, POSIX on others). This ensures Max can
+        // resolve the file even when @name is called from a dynamic button-click context
+        // (where filename-only search fails because the search root context is lost).
         var stopFilename = organState.layerStopFilename
             ? organState.layerStopFilename.replace(/.*[\/\\]/, '')  // extract filename only
             : null;
+        // Prefer absolute native path; fall back to filename-only (works during initial load)
+        var stopFileRef = stopFilename ? resolveStopFileNativePath(stopFilename) : null;
 
-        var stopsBp = stopFilename ? sp.newdefault(sx, 0, "bpatcher",
-            "@name", stopFilename,
+        var stopsBp = stopFileRef ? sp.newdefault(sx, 0, "bpatcher",
+            "@name", stopFileRef,
             "@varname", "layer" + layerID,
             "@embed", 0,
             "@patching_rect", sx, 0, stopsW, stopsH,
@@ -662,7 +664,7 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         // relative address is  layer<N>::set  (leading :: is only for top-level / absolute paths).
         // pattrReset.message(0)  →  pattrforward sends 0 to  pattr "set"  inside "layer<N>"
         //   →  pattr outlets 0  →  [prepend set]  →  "set 0" to every live.text silently
-        var pattrReset = stopFilename ? sp.newdefault(0, -200, "pattrforward",
+        var pattrReset = stopFileRef ? sp.newdefault(0, -200, "pattrforward",
             "layer" + layerID + "::set"
         ) : null;
 
@@ -678,10 +680,8 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
             post("      L" + layerID + ": file OK — " +
                 stopData.movable.length + " stops + " + stopData.divisions.length + " divs\n");
         } else if (stopsBp) {
-            // Bpatcher was created but probe failed — bpatcher file loads asynchronously when
-            // added dynamically (e.g. +Layer click).  Schedule a retry after 200ms.
-            // DO NOT create fallback createStopArray at the same position — overlapping objects
-            // cause the irregular "random" cancel pattern.
+            // Probe failed: file not yet loaded (shouldn't happen with absolute path, but guard).
+            // Schedule a single 200ms retry. If that also fails the file is genuinely missing.
             post("      L" + layerID + ": probe failed — scheduling deferred listener attach (200ms)\n");
             (function(bp, sd, sbm, mID, lID) {
                 var retryTask = new Task(function() {
@@ -691,7 +691,7 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                         connectLayerStopListeners(inner, sd, sbm, mID, lID);
                         post("      L" + lID + ": deferred probe OK — listeners connected\n");
                     } else {
-                        post("      L" + lID + ": deferred probe ALSO failed — stops not interactive\n");
+                        post("      L" + lID + ": deferred probe ALSO failed — check file path\n");
                     }
                 });
                 retryTask.schedule(200);
@@ -1055,6 +1055,37 @@ function resolveLayerStopFilename(organName) {
     var path = dir + "layer_stops_" + safeOrganName + ".maxpat";
     post("resolveLayerStopFilename: " + path + "\n");
     return path;
+}
+
+// Build the native (HFS or POSIX) absolute path for a file in the project root.
+// Uses context.patcher.filepath — the same path Max used to open the owning patcher —
+// so the volume name is already correct and @name resolution works even for bpatchers
+// created dynamically from a button click (where the filename-only search context is lost).
+//
+// Example: patcher.filepath = "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/OrganPatch_2026.amxd"
+//          → dir            = "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/"
+//          → returns          "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/layer_stops_Reinoldi.maxpat"
+function resolveStopFileNativePath(filename) {
+    // Walk the patcher chain to find the outermost patcher with a filepath.
+    var p = context.patcher;
+    for (var i = 0; i < 8 && p; i++) {
+        var fp = p.filepath;
+        if (fp) {
+            // Strip the filename (last path component after the last / or \)
+            var lastSlash     = fp.lastIndexOf("/");
+            var lastBackslash = fp.lastIndexOf("\\");
+            var sep = (lastSlash > lastBackslash) ? lastSlash : lastBackslash;
+            if (sep >= 0) {
+                var nativePath = fp.substring(0, sep + 1) + filename;
+                post("resolveStopFileNativePath: " + nativePath + "\n");
+                return nativePath;
+            }
+        }
+        p = p.parentpatcher;
+    }
+    // Fallback: filename only (works during initial patcher construction)
+    post("resolveStopFileNativePath: no patcher filepath found, using filename only: " + filename + "\n");
+    return filename;
 }
 
 // *** GLOBAL STOP ROUTING SETUP ***
