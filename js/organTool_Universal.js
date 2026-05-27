@@ -1,6 +1,8 @@
 // organTool_Universal_Optimized.js - BEST PRACTICE ORGAN CONTROL SYSTEM
 // 01.11 - Fix division cancel scope: divisionsAll flag replaces divisionID=0 coercion
-// 25.05.2026
+// 01.12 - Default OSC target: 192.168.0.1:1803 (was 127.0.0.1:8000)
+//         console.json / console <OrganName>.json: load alongside organ JSON to get Manuals
+// 27.05.2026
 
 autowatch = 1;
 inlets  = 2;  // inlet 0: control messages; inlet 1: stop events from organ_stops receive
@@ -274,11 +276,22 @@ function loadOrgan(filepath) {
     try {
         var organData = loadOrganJSON(filepath);
         if (!organData) return false;
-        
+
+        // Inject Manuals from console JSON if not already in organ JSON.
+        // Try "console <OrganName>.json" first, then "console.json" in same dir.
+        if (!organData.Manuals) {
+            var consoleManuals = loadConsoleManuals(filepath);
+            if (consoleManuals) {
+                organData.Manuals = consoleManuals;
+                system.modules.common.log(system.modules.common.LOG_LEVEL.INFO,
+                    "Manuals loaded from console JSON: " + consoleManuals.length);
+            }
+        }
+
         var organType = detectOrganType(organData);
-        system.modules.common.log(system.modules.common.LOG_LEVEL.INFO, 
+        system.modules.common.log(system.modules.common.LOG_LEVEL.INFO,
             "Detected organ type: " + organType);
-        
+
         // Update system state
         system.currentOrgan = {
             filepath: filepath,
@@ -286,10 +299,10 @@ function loadOrgan(filepath) {
             name: system.modules.common.extractOrganNameFromPath(filepath),
             loaded: false
         };
-        
+
         // Load appropriate module
         if (!loadOrganModule(organType)) return false;
-        
+
         // Load organ data
         var success = system.organModule.loadOrgan(organData, filepath);
         system.currentOrgan.loaded = success;
@@ -316,10 +329,41 @@ function loadOrganJSON(filepath) {
         tempDict.freepeer();
         return data;
     } catch (error) {
-        system.modules.common.log(system.modules.common.LOG_LEVEL.ERROR, 
+        system.modules.common.log(system.modules.common.LOG_LEVEL.ERROR,
             "JSON load failed: " + error.message);
         return null;
     }
+}
+
+// Try to load Manuals from a companion console JSON in the same directory.
+// Priority: "console <OrganName>.json" → "console.json"
+// Returns Manuals array or null.
+function loadConsoleManuals(organFilepath) {
+    // Extract directory and organ name from organ filepath
+    // filepath is like ".../mapping/config/organ Reinoldi.json"
+    var dir = organFilepath.replace(/[^\/\\]*$/, '');  // everything up to last /
+    var organName = system.modules.common.extractOrganNameFromPath(organFilepath);
+
+    var candidates = [
+        dir + "console " + organName + ".json",
+        dir + "console.json"
+    ];
+
+    for (var i = 0; i < candidates.length; i++) {
+        try {
+            var tempDict = new Dict("temp_console_load");
+            tempDict.import_json(candidates[i]);
+            var data = system.modules.common.dictToJson(tempDict);
+            tempDict.freepeer();
+            if (data && data.Manuals && data.Manuals.length > 0) {
+                post("loadConsoleManuals: loaded from " + candidates[i] + "\n");
+                return data.Manuals;
+            }
+        } catch (e) {
+            // File not found or parse error — try next candidate
+        }
+    }
+    return null;
 }
 
 function configureProtocol(organType) {
@@ -330,8 +374,8 @@ function configureProtocol(organType) {
         
         if (organType === "SINUA") {
             config = {
-                targetIP: "127.0.0.1",
-                targetPort: 8000,
+                targetIP: "192.168.0.1",
+                targetPort: 1803,
                 localPort: 9000
             };
             system.modules.protocolLayer.connect("SINUA", config);

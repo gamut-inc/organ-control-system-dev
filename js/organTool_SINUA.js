@@ -12,6 +12,12 @@
 // 01.14 - Organ-level CANCEL: iterate manuals → /Mx/S 0 + divisionsAll → /Dx/S 0
 //         Was: getSinuaPath(organCtx)="" → cancelOSCBundle("/S") → invalid "/S 0"
 //         formatContextInfo: divisionsAll context now shows "DIVISIONS" (was "ORGAN")
+// 01.15 - parseTremulants: extract Name field (was only DivisionName) → label shows correct name
+//         Tremulant/Controller OSC: use scheduleOSC/sendOSCDirect (was queueOrganCommand → no output)
+//         Tremulant: /T ±ID (same sign convention as stops)
+//         Controller: /C <ID> <value> via sendOSCDirect (continuous, bypasses cooldown)
+//         +Layer deferred probe: 200ms Task retry if bpatcher loads async
+//         Reset: restore all manuals to default 4 layers + suppress OSC during visual clear
 // 27.05.2026
 
 autowatch = 1;
@@ -131,10 +137,12 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     
     function parseTremulants(tremulantData) {
         if (!tremulantData) return [];
-        return tremulantData.map(function(tremulant) {
+        return tremulantData.map(function(tremulant, index) {
             return {
-                divisionName: tremulant.DivisionName,
-                divisionID: tremulant.DivisionID || null
+                tremulantID: index + 1,
+                name:        tremulant.Name       || tremulant.DivisionName || ("Trem " + (index + 1)),
+                divisionName: tremulant.DivisionName || tremulant.Name || null,
+                divisionID:  tremulant.DivisionID || null
             };
         });
     }
@@ -560,6 +568,42 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
     return manual;
 }
 
+// Attach MaxobjListeners to all stop and division buttons in a loaded layer_stops bpatcher.
+// Called immediately after a successful probe, OR from the 200ms deferred Task for +Layer.
+// Mirrors Python generator's duplicate-ID suffix logic exactly.
+function connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID) {
+    var seenStopIDs = {};
+    stopData.movable.forEach(function(stop, index) {
+        var sid = stop.stopID;
+        var varname = seenStopIDs[sid] ? ("stop" + sid + "_" + index) : ("stop" + sid);
+        seenStopIDs[sid] = true;
+
+        var liveText = innerPatcher.getnamed(varname);
+        if (liveText) {
+            stopButtonMap[varname] = liveText;
+            var stopCtx = createStopContext(stop.stopID, stop.divisionID, manualID, layerID);
+            addListener(new MaxobjListener(liveText, function(data) {
+                executeStopAction(stop.stopID, Boolean(data.value), stopCtx);
+            }));
+        }
+    });
+    // Division buttons — varname "stopdivision<N>" → /Mx/Lx/D ±divID
+    stopData.divisions.forEach(function(div) {
+        var divVarname = "stop" + div.stopID;  // e.g. "stopdivision1"
+        var divBtn = innerPatcher.getnamed(divVarname);
+        if (divBtn) {
+            stopButtonMap[div.stopID] = divBtn;
+            var numDivID = (div.divisionID !== undefined && div.divisionID !== null)
+                ? div.divisionID
+                : parseInt(div.stopID.replace("division", ""), 10);
+            var divCtx = createStopContext(div.stopID, numDivID, manualID, layerID);
+            addListener(new MaxobjListener(divBtn, function(data) {
+                executeDivisionAction(numDivID, Boolean(data.value), divCtx);
+            }));
+        }
+    });
+}
+
 function createLayerBpatcher(p, layerID, stopData, manualID) {
     var tL0 = Date.now();
     var pos = common.GEOMETRY.sinua.layers.bpatcher(layerID, stopData.movable, stopData.divisions);
@@ -630,57 +674,28 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                            (innerPatcher.getnamed("stop" + probeStop.stopID) !== null);
 
         if (fileLoadedOK) {
-            // File loaded OK — harvest references + attach direct MaxobjListeners.
-            // Mirror Python generator's duplicate-ID suffix logic exactly:
-            //   first occurrence  → varname "stop<ID>"
-            //   subsequent (idx i) → varname "stop<ID>_<i>"
-            // This is critical for organs like Amsterdam where all 33 movable stops
-            // share StopID=165 — without suffix matching, getnamed("stop165") would
-            // always return the same first object and only 1/33 stops get a listener.
-            var seenStopIDs = {};
-            stopData.movable.forEach(function(stop, index) {
-                var sid = stop.stopID;
-                var varname = seenStopIDs[sid] ? ("stop" + sid + "_" + index) : ("stop" + sid);
-                seenStopIDs[sid] = true;
-
-                var liveText = innerPatcher.getnamed(varname);
-                if (liveText) {
-                    // Use varname as key so duplicate stopIDs don't overwrite each other.
-                    // clearLayer() uses pattrReset for all bpatcher buttons — stored here for listeners only.
-                    stopButtonMap[varname] = liveText;
-                    var stopCtx = createStopContext(stop.stopID, stop.divisionID, manualID, layerID);
-                    addListener(new MaxobjListener(liveText, function(data) {
-                        executeStopAction(stop.stopID, Boolean(data.value), stopCtx);
-                    }));
-                }
-            });
-            // Division buttons — also in the bpatcher file (varname "stopdivision<ID>").
-            // These send /Mx/Lx/D ±divID (not /S) — use executeDivisionAction.
-            stopData.divisions.forEach(function(div) {
-                var divVarname = "stop" + div.stopID;  // "stopdivision1", "stopdivision2" etc.
-                var divBtn = innerPatcher.getnamed(divVarname);
-                if (divBtn) {
-                    stopButtonMap[div.stopID] = divBtn;
-                    // Prefer the divisionID field added by parseDivisionStops;
-                    // fall back to parsing the string stopID ("division3" → 3).
-                    var numDivID = (div.divisionID !== undefined && div.divisionID !== null)
-                        ? div.divisionID
-                        : parseInt(div.stopID.replace("division", ""), 10);
-                    var divCtx = createStopContext(div.stopID, numDivID, manualID, layerID);
-                    addListener(new MaxobjListener(divBtn, function(data) {
-                        executeDivisionAction(numDivID, Boolean(data.value), divCtx);
-                    }));
-                }
-            });
-
+            connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID);
             post("      L" + layerID + ": file OK — " +
                 stopData.movable.length + " stops + " + stopData.divisions.length + " divs\n");
         } else if (stopsBp) {
-            // Bpatcher was created but probe failed (file still loading or stops not found).
-            // DO NOT create fallback createStopArray buttons at the same position (sx, 0) —
-            // overlapping objects cause the irregular "random" cancel pattern.
-            // pattrReset will reach pattr "set" once the bpatcher finishes loading.
-            post("      L" + layerID + ": probe failed (bpatcher exists) — skipping fallback to avoid overlap\n");
+            // Bpatcher was created but probe failed — bpatcher file loads asynchronously when
+            // added dynamically (e.g. +Layer click).  Schedule a retry after 200ms.
+            // DO NOT create fallback createStopArray at the same position — overlapping objects
+            // cause the irregular "random" cancel pattern.
+            post("      L" + layerID + ": probe failed — scheduling deferred listener attach (200ms)\n");
+            (function(bp, sd, sbm, mID, lID) {
+                var retryTask = new Task(function() {
+                    var inner = bp.subpatcher();
+                    var ps = sd.movable.length > 0 ? sd.movable[0] : null;
+                    if (inner && ps && inner.getnamed("stop" + ps.stopID) !== null) {
+                        connectLayerStopListeners(inner, sd, sbm, mID, lID);
+                        post("      L" + lID + ": deferred probe OK — listeners connected\n");
+                    } else {
+                        post("      L" + lID + ": deferred probe ALSO failed — stops not interactive\n");
+                    }
+                });
+                retryTask.schedule(200);
+            })(stopsBp, stopData, stopButtonMap, manualID, layerID);
         } else {
             // stopsBp is null = file not found — no overlap risk, safe to use createStopArray
             common.log(common.LOG_LEVEL.WARN,
@@ -738,6 +753,8 @@ function createControllerSection(p, controllerData) {
 
         if (dial) {
             addListener(new MaxobjListener(dial, function(data) {
+                // OSC: /C <controllerID> <value>  (continuous, sent directly — no bundler cooldown)
+                dataLayer.sendControllerOSC(controllerID, data.value);
                 dataLayer.setControllerState(controllerID, data.value);
             }));
         }
@@ -766,32 +783,40 @@ function createTremulantBpatcher(p, x, y, w, h, tremulantData, tremulantID) {
     var bpatcher = common.createBpatcher(p, x, y, w, h, "tremulant" + tremulantID);
     if (!bpatcher) return null;
 
+    // Use Name field (e.g. "Trem OW") if available, fall back to DivisionName / generic
+    var displayName = tremulantData.name || tremulantData.divisionName || ("Trem " + tremulantID);
     var label = bpatcher.subpatcher().newdefault(0, 0, "comment");
-    label.message("set", tremulantData.divisionName || "tremulant");
+    label.message("set", displayName);
 
     var onPos = common.GEOMETRY.sinua.tremulants.on;
-    var onButton = common.createLiveText(bpatcher.subpatcher(), 
-        onPos.x, onPos.y, onPos.w, onPos.h, 
+    var onButton = common.createLiveText(bpatcher.subpatcher(),
+        onPos.x, onPos.y, onPos.w, onPos.h,
         "on", "on", "on", "ON");
 
     var speedPos = common.GEOMETRY.sinua.tremulants.speed;
-    var speedDial = common.createLiveDial(bpatcher.subpatcher(), 
-        speedPos.x, speedPos.y, speedPos.w, speedPos.h, 
+    var speedDial = common.createLiveDial(bpatcher.subpatcher(),
+        speedPos.x, speedPos.y, speedPos.w, speedPos.h,
         "speed", "speed", "speed");
 
     if (onButton && onButton.liveText) {
         addListener(new MaxobjListener(onButton.liveText, function(data) {
+            // OSC: /T ±tremulantID  (same sign convention as stops: positive=on, negative=off)
+            var active = Boolean(data.value);
+            dataLayer.sendTremulantOSC(tremulantID, active);
+            // Also update DataLayer state (no OSC re-send — skipQueue=true)
             var tremContext = createActionContext(null, null, tremulantData.divisionID);
-            dataLayer.setTremulantState(tremulantID, Boolean(data.value), null, tremContext);
+            dataLayer.setTremulantState(tremulantID, active, null, tremContext);
         }));
     }
 
     if (speedDial) {
         addListener(new MaxobjListener(speedDial, function(data) {
-            var tremContext = createActionContext(null, null, tremulantData.divisionID);
+            // OSC: /Tspeed ±tremulantID  (on) or just log speed (off stays off)
             var currentState = dataLayer.getTremulantState(tremulantID);
-            dataLayer.setTremulantState(tremulantID, 
-                currentState ? currentState.active : false, data.value, tremContext);
+            var active = currentState ? currentState.active : false;
+            dataLayer.sendTremulantSpeedOSC(tremulantID, active, data.value);
+            var tremContext = createActionContext(null, null, tremulantData.divisionID);
+            dataLayer.setTremulantState(tremulantID, active, data.value, tremContext);
         }));
     }
 
@@ -1323,8 +1348,53 @@ function executeGUIButton(type, actionContext) {
 function executeReset(){
     common.log(common.LOG_LEVEL.INFO, "RESET executed");
 
+    // 1. Suppress listener + OSC callbacks during visual clear (same pattern as cancel)
+    _suppressListeners = true;
+    dataLayer.suppressOSC(true);
+
+    // 2. Clear all stop buttons visually (pattrReset per layer)
+    if (guiObjects.manuals && guiObjects.manuals.manuals) {
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            if (manual.layers) {
+                manual.layers.forEach(function(layer) {
+                    if (layer.pattrReset) {
+                        layer.pattrReset.message(0);
+                    }
+                });
+            }
+        });
+    }
+
+    // 3. Send /panic (clears organ hardware) + reset DataLayer state
     dataLayer.executeCommand('reset');
-}; 
+
+    // 4. Restore manuals to default layer count (remove extras, add missing)
+    var DEFAULT_LAYERS = common.GEOMETRY.sinua.manuals.defaultLayersPerManual;
+    if (guiObjects.manuals && guiObjects.manuals.manuals) {
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            if (!manual.layers) return;
+            // Remove layers beyond default
+            while (manual.layers.length > DEFAULT_LAYERS) {
+                var removed = manual.layers.pop();
+                if (removed && removed.bpatcher) {
+                    try { manual.bpatcher.subpatcher().remove(removed.bpatcher); } catch(e) {}
+                }
+            }
+            // Add missing layers
+            while (manual.layers.length < DEFAULT_LAYERS) {
+                addLayerToManual(manual);
+            }
+            resizeManualForLayers(manual);
+        });
+    }
+
+    // 5. Release suppression after async callbacks settle (same 10ms window as cancel)
+    var resetTask = new Task(function() {
+        _suppressListeners = false;
+        dataLayer.suppressOSC(false);
+    });
+    resetTask.schedule(10);
+};
 
 function executePanic(actionContext) {
     common.log(common.LOG_LEVEL.INFO, "PANIC executed for " + formatContextInfo(actionContext));

@@ -11,6 +11,9 @@
 //         Old code only sent cancel for divisions with pending bundles or active DataLayer
 //         state — sent nothing when no bundles were pending (most common case)
 // 01.05 - getSinuaPath: manual=0 (Pedal) → /P instead of /M0
+// 01.06 - sendTremulantOSC / sendTremulantSpeedOSC / sendControllerOSC:
+//         direct OSC helpers; bypass queueOrganCommand (which only logged, never sent)
+//         Tremulant: scheduleOSC("/T", ±ID)  Controller: sendOSCDirect("/C", [ID, value])
 // 27.05.2026
 // Maciej Sledziecki
 
@@ -1370,6 +1373,39 @@ function createDataLayerModule(common) {
     }
     
     // ================================================================================================
+    // TREMULANT / CONTROLLER DIRECT OSC
+    // ================================================================================================
+    // These bypass queueOrganCommand (which only logged, never sent) and go directly to the
+    // OSC bundler (tremulant) or sendOSCDirect (controller — continuous value, no cooldown).
+    //
+    // Tremulant sign convention mirrors stops:  +ID = on,  -ID = off
+    //   /T  +1   → tremulant 1 on
+    //   /T  -2   → tremulant 2 off
+    //
+    // Controller:  /C <ID> <value>
+    //   /C 1 64  → controller 1 at value 64
+
+    function sendTremulantOSC(tremulantID, active) {
+        var signedID = active ? tremulantID : -tremulantID;
+        scheduleOSC("/T", "trem_" + tremulantID, signedID);
+        common.log(common.LOG_LEVEL.INFO, "Tremulant " + tremulantID + " → /T " + signedID);
+    }
+
+    function sendTremulantSpeedOSC(tremulantID, active, speed) {
+        // Only send speed when tremulant is active — mirrors stop behaviour
+        if (active) {
+            sendOSCDirect("/Tspeed", [tremulantID, Math.round(speed)]);
+            common.log(common.LOG_LEVEL.INFO, "Tremulant " + tremulantID + " speed → /Tspeed " + tremulantID + " " + speed);
+        }
+    }
+
+    function sendControllerOSC(controllerID, value) {
+        // Continuous value — bypass bundler/cooldown, send immediately
+        sendOSCDirect("/C", [controllerID, Math.round(value)]);
+        common.log(common.LOG_LEVEL.VERBOSE, "Controller " + controllerID + " → /C " + controllerID + " " + value);
+    }
+
+    // ================================================================================================
     // PUBLIC API
     // ================================================================================================
     
@@ -1386,6 +1422,9 @@ function createDataLayerModule(common) {
         setControllerState: setControllerState,
         getTremulantState: getTremulantState,
         getControllerState: getControllerState,
+        sendTremulantOSC: sendTremulantOSC,
+        sendTremulantSpeedOSC: sendTremulantSpeedOSC,
+        sendControllerOSC: sendControllerOSC,
         getDivisionState: getDivisionState,
         
         // Batch operations
