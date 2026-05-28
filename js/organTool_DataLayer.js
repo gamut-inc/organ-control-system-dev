@@ -40,6 +40,7 @@ function createDataLayerModule(common) {
         tremulants: {},
         controllers: {},
         divisions: {},
+        manuals: [],   // [{id: 0}, {id: 1}, ...] populated from organData.Manuals
         presets: {
             current: null,
             loading: false,
@@ -228,15 +229,46 @@ function createDataLayerModule(common) {
         }
     }
 
+    // ---- OSC type helpers ----
+    // V8 stores integer-valued numbers as Smi (tagged int) → Max sends OSC int.
+    // Non-integer-valued numbers are HeapNumber (tagged pointer) → Max sends OSC float.
+    // Problem: once a HeapNumber enters an array, V8 promotes it to PACKED_DOUBLE_ELEMENTS
+    // and converts ALL other entries to doubles too — so mixed int/float arrays lose types.
+    //
+    // Solution: use a plain object {_f: n} as a float marker in the vals array.
+    // sendOSCDirect detects it and builds the message args array starting with the oscPath
+    // string, keeping the array as PACKED_ELEMENTS throughout — both Smi and HeapNumber
+    // are stored as tagged values and Max receives the correct OSC types.
+    var _f64 = new Float64Array(1);
+    function floatAtom(n) { _f64[0] = n; return _f64[0]; }
+
+    // Wrap a value so sendOSCDirect sends it as OSC float and logs it with a trailing dot.
+    function oscFloat(n) { return {_f: n}; }
+
     function sendOSCDirect(oscPath, vals) {
-        common.log(common.LOG_LEVEL.INFO, "OSC → " + oscPath + " " + vals.join(" "));
+        // Build log string and message args in one pass.
+        // msgArgs starts with oscPath (string) → PACKED_ELEMENTS → Smi and HeapNumber
+        // tagged values are preserved when .push()ed.
+        var logParts = [];
+        var msgArgs  = [oscPath];  // string keeps array as PACKED_ELEMENTS
+
+        for (var i = 0; i < vals.length; i++) {
+            var v = vals[i];
+            if (v !== null && typeof v === 'object' && '_f' in v) {
+                logParts.push(String(v._f) + ".");   // "0." in log
+                msgArgs.push(floatAtom(v._f));        // HeapNumber → OSC float
+            } else {
+                logParts.push(String(v));             // "1" "2" … in log
+                msgArgs.push(v);                      // Smi → OSC int  /  HeapNumber for non-int floats
+            }
+        }
+
+        common.log(common.LOG_LEVEL.INFO, "OSC → " + oscPath + " " + logParts.join(" "));
         try {
             if (_udpsend) {
-                // udpsend.message(address, arg1, arg2, ...) sends an OSC packet over UDP
-                _udpsend.message.apply(_udpsend, [oscPath].concat(vals));
+                _udpsend.message.apply(_udpsend, msgArgs);
             } else {
-                // Fallback: output from outlet 0 → connect to udpsend in patcher
-                outlet.apply(null, [0, oscPath].concat(vals));
+                outlet.apply(null, [0].concat(msgArgs));
             }
         } catch (e) {
             post("OSC send error: " + e + "\n");
@@ -356,17 +388,32 @@ function createDataLayerModule(common) {
             }
 
             case 'panic': {
-                // /Mx/Lx/V 0. 0 1 2 … 127  — all notes off at velocity 0 for this context
-                var panicBase = getSinuaPath(context);
-                cancelAllBundlesForBase(panicBase);
-                var panicArgs = [0.0];
+                // Send /V 0. 1…128 to each manual: /P/V, /M1/V, /M2/V …
+                // Build panicArgs once — object first keeps array as PACKED_ELEMENTS
+                // so Smi integers stay Smi (not promoted to PACKED_DOUBLE_ELEMENTS).
+                var panicArgs = [oscFloat(0.0)];
                 for (var pn = 1; pn <= 128; pn++) panicArgs.push(pn);
-                sendOSCDirect(panicBase + "/V", panicArgs);
+
+                var hasManual = context && context.manual !== null && context.manual !== undefined;
+                if (hasManual) {
+                    // Layer/manual-specific panic
+                    var panicBase = getSinuaPath(context);
+                    cancelAllBundlesForBase(panicBase);
+                    sendOSCDirect(panicBase + "/V", panicArgs);
+                } else {
+                    // Global panic: send to all known manuals
+                    clearAllOSCBundles();
+                    var manualIDs = organState.manuals.length ? organState.manuals : [0, 1, 2];
+                    manualIDs.forEach(function(mid) {
+                        var mPath = (mid === 0) ? "/P" : "/M" + mid;
+                        sendOSCDirect(mPath + "/V", panicArgs);
+                    });
+                }
                 return true;
             }
 
             case 'reset': {
-                // RST button: /panic — clears everything on the console
+                // RST button: /panic — no arguments, hardware reset
                 clearAllOSCBundles();
                 initializeState();
                 sendOSCDirect("/panic", []);
@@ -456,25 +503,21 @@ function createDataLayerModule(common) {
             
             organState.tremulants[tremulantID].active = Boolean(active);
             if (speed !== null && speed !== undefined) {
-                organState.tremulants[tremulantID].speed = Math.max(0, Math.min(127, speed));
+                organState.tremulants[tremulantID].speed = Math.max(0.0, Math.min(1.0, speed));
             }
             
             recordStateChange('tremulant', tremulantID, prevState, organState.tremulants[tremulantID]);
             
             if (organState.settings.autoSend) {
-                queueOrganCommand('tremulant', tremulantID, {
-                    active: organState.tremulants[tremulantID].active,
-                    speed: organState.tremulants[tremulantID].speed
-                }, 2, {
-                    context: context,
-                    sinuaCommand: createSinuaCommand(context, 'tremulant')
-                });
+                var trem = organState.tremulants[tremulantID];
+                sendTremulantOSC(tremulantID, trem.active);
+                sendTremulantSpeedOSC(tremulantID, trem.active, trem.speed);
             }
             
             notifyStateChange('tremulant', tremulantID, organState.tremulants[tremulantID], context);
             
             var contextInfo = formatContext(context);
-            common.log(common.LOG_LEVEL.VERBOSE, "Tremulant " + tremulantID + " set to active:" + active + ", speed:" + speed + contextInfo);
+            common.log(common.LOG_LEVEL.VERBOSE, "Tremulant " + tremulantID + " set to active:" + organState.tremulants[tremulantID].active + ", speed:" + organState.tremulants[tremulantID].speed + contextInfo);
             return true;
             
         } catch (error) {
@@ -496,15 +539,12 @@ function createDataLayerModule(common) {
                 organState.controllers[controllerID] = { value: 0, type: 'volume' };
             }
             
-            organState.controllers[controllerID].value = Math.max(0, Math.min(127, value));
+            organState.controllers[controllerID].value = Math.max(0.0, Math.min(1.0, value));
             
             recordStateChange('controller', controllerID, prevState, organState.controllers[controllerID]);
             
             if (organState.settings.autoSend) {
-                queueOrganCommand('controller', controllerID, value, 3, {
-                    context: context,
-                    sinuaCommand: createSinuaCommand(context, 'controller')
-                });
+                sendControllerOSC(controllerID, value);
             }
             
             notifyStateChange('controller', controllerID, value, context);
@@ -1022,8 +1062,20 @@ function createDataLayerModule(common) {
                     };
                 });
             }
-            
-            common.log(common.LOG_LEVEL.INFO, "State populated from organ data: " + Object.keys(organState.stops).length + " stops, " + Object.keys(organState.divisions).length + " divisions");
+
+            organState.manuals = [];
+            if (organData.Manuals) {
+                organData.Manuals.forEach(function(m) {
+                    var mid = (m.ManualID !== undefined) ? m.ManualID : m.manualID;
+                    if (mid !== undefined) organState.manuals.push(mid);
+                });
+            }
+            // Fallback: deduce from stops in state (each stop has a manualID via division)
+            if (organState.manuals.length === 0) {
+                organState.manuals = [0, 1, 2];  // default P, I, II
+            }
+
+            common.log(common.LOG_LEVEL.INFO, "State populated from organ data: " + Object.keys(organState.stops).length + " stops, " + Object.keys(organState.divisions).length + " divisions, " + organState.manuals.length + " manuals");
             return true;
             
         } catch (error) {
@@ -1382,8 +1434,8 @@ function createDataLayerModule(common) {
     //   /T  +1   → tremulant 1 on
     //   /T  -2   → tremulant 2 off
     //
-    // Controller:  /C <ID> <value>
-    //   /C 1 64  → controller 1 at value 64
+    // Controller:  /SP<ID> <value>
+    //   /SP1 64  → controller 1 (Setzerpiston/Schweller) at value 64
 
     function sendTremulantOSC(tremulantID, active) {
         var signedID = active ? tremulantID : -tremulantID;
@@ -1393,16 +1445,22 @@ function createDataLayerModule(common) {
 
     function sendTremulantSpeedOSC(tremulantID, active, speed) {
         // Only send speed when tremulant is active — mirrors stop behaviour
+        // Dial already delivers 0.0–1.0; clamp for safety.
         if (active) {
-            sendOSCDirect("/Tspeed", [tremulantID, Math.round(speed)]);
-            common.log(common.LOG_LEVEL.INFO, "Tremulant " + tremulantID + " speed → /Tspeed " + tremulantID + " " + speed);
+            var floatSpeed = Math.max(0.0, Math.min(1.0, speed));
+            sendOSCDirect("/Tspeed", [tremulantID, floatSpeed]);
+            common.log(common.LOG_LEVEL.INFO, "Tremulant " + tremulantID + " speed → /Tspeed " + tremulantID + " " + floatSpeed);
         }
     }
 
     function sendControllerOSC(controllerID, value) {
-        // Continuous value — bypass bundler/cooldown, send immediately
-        sendOSCDirect("/C", [controllerID, Math.round(value)]);
-        common.log(common.LOG_LEVEL.VERBOSE, "Controller " + controllerID + " → /C " + controllerID + " " + value);
+        // Continuous value — bypass bundler/cooldown, send immediately.
+        // Path: /SP<ID>  e.g. /SP1 0.5  (Setzerpiston / Schweller)
+        // Dial already delivers 0.0–1.0; clamp for safety.
+        var path = "/SP" + controllerID;
+        var floatVal = Math.max(0.0, Math.min(1.0, value));
+        sendOSCDirect(path, [floatVal]);
+        common.log(common.LOG_LEVEL.VERBOSE, "Controller " + controllerID + " → " + path + " " + floatVal);
     }
 
     // ================================================================================================

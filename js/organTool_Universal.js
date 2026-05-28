@@ -285,6 +285,15 @@ function loadOrgan(filepath) {
                 organData.Manuals = consoleManuals;
                 system.modules.common.log(system.modules.common.LOG_LEVEL.INFO,
                     "Manuals loaded from console JSON: " + consoleManuals.length);
+            } else {
+                // Default: Pedal + I + II (3 manuals)
+                organData.Manuals = [
+                    { ManualID: 0, Name: "Pedal" },
+                    { ManualID: 1, Name: "I" },
+                    { ManualID: 2, Name: "II" }
+                ];
+                system.modules.common.log(system.modules.common.LOG_LEVEL.INFO,
+                    "Manuals: using default P/I/II (no console JSON found)");
             }
         }
 
@@ -633,7 +642,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.02 - Ready\n");
+    post("Organ Control System v01.19 - Ready\n");
     post("Commands: loadOrgan(path), selectOrganFile(), displaySystemStatus()\n");
 }
 

@@ -227,20 +227,40 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         return divisionStops;
     }
     
+    // Format a raw manual name into the display label:
+    //   ManualID 0 (Pedal/Pedal/P/…) → "P"
+    //   ManualID 1+ with name "I", "II", "III"… → "MAN I", "MAN II", …
+    //   Other names kept as-is.
+    function formatManualLabel(rawName, manualID) {
+        var n = (rawName || "").trim();
+        // Pedal heuristic: ID 0, or name starts with "P" or contains "ped" (case-insensitive)
+        if (manualID === 0 || /^p(ed|edal)?$/i.test(n)) return "P";
+        // Roman-numeral-only names get "MAN " prefix
+        if (/^[IVX]+$/i.test(n)) return "MAN " + n.toUpperCase();
+        // Anything already containing "MAN" or "MANUAL" → return as-is
+        if (/man/i.test(n)) return n;
+        // Fallback: prefix with "MAN "
+        return "MAN " + n;
+    }
+
     function parseManuals(manualData) {
         if (!manualData) {
             return [
-                {"manualID": 0, "name": "PEDAL", "keys": 30, "midiChannel": 1},
-                {"manualID": 1, "name": "MANUAL I", "keys": 68, "midiChannel": 2},
-                {"manualID": 2, "name": "MANUAL II", "keys": 68, "midiChannel": 3}
+                {"manualID": 0, "name": "P",     "keys": 30, "midiChannel": 1},
+                {"manualID": 1, "name": "MAN I",  "keys": 68, "midiChannel": 2},
+                {"manualID": 2, "name": "MAN II", "keys": 68, "midiChannel": 3}
             ];
         }
-        
+
         return manualData.map(function(manual, index) {
+            var id      = (manual.ManualID !== undefined) ? manual.ManualID
+                        : (manual.manualID !== undefined) ? manual.manualID
+                        : index;
+            var rawName = manual.Name || manual.name || ("Manual " + (index + 1));
             return {
-                manualID: manual.manualID || index,
-                name: manual.name || manual.Name || ("MANUAL " + (index + 1)),
-                keys: manual.keys || manual.Keys || 61,
+                manualID:    id,
+                name:        formatManualLabel(rawName, id),
+                keys:        manual.keys  || manual.Keys  || 61,
                 midiChannel: manual.midiChannel || manual.MidiChannel || (index + 1)
             };
         });
@@ -748,13 +768,13 @@ function createControllerSection(p, controllerData) {
             "ctrl_label_" + controllerID, controller.name, 100, 9);
 
         // Dial shortname set to " " (space) so live.dial shows no competing label.
+        // Range 0.0–1.0 (float); normalization happens in sendControllerOSC.
         var dial = common.createLiveDial(bpatcher.subpatcher(), posCtl.x, posCtl.y, posCtl.w, posCtl.h,
-            "control" + controllerID, controller.name, " ");
+            "control" + controllerID, controller.name, " ", 0.0, 1.0);
 
         if (dial) {
             addListener(new MaxobjListener(dial, function(data) {
-                // OSC: /C <controllerID> <value>  (continuous, sent directly — no bundler cooldown)
-                dataLayer.sendControllerOSC(controllerID, data.value);
+                // setControllerState handles OSC directly via sendControllerOSC (no Protocol Layer)
                 dataLayer.setControllerState(controllerID, data.value);
             }));
         }
@@ -796,26 +816,23 @@ function createTremulantBpatcher(p, x, y, w, h, tremulantData, tremulantID) {
     var speedPos = common.GEOMETRY.sinua.tremulants.speed;
     var speedDial = common.createLiveDial(bpatcher.subpatcher(),
         speedPos.x, speedPos.y, speedPos.w, speedPos.h,
-        "speed", "speed", "speed");
+        "speed", "speed", "speed", 0.0, 1.0);
 
     if (onButton && onButton.liveText) {
         addListener(new MaxobjListener(onButton.liveText, function(data) {
-            // OSC: /T ±tremulantID  (same sign convention as stops: positive=on, negative=off)
             var active = Boolean(data.value);
-            dataLayer.sendTremulantOSC(tremulantID, active);
-            // Also update DataLayer state (no OSC re-send — skipQueue=true)
             var tremContext = createActionContext(null, null, tremulantData.divisionID);
+            // setTremulantState sends OSC directly (sendTremulantOSC + sendTremulantSpeedOSC)
             dataLayer.setTremulantState(tremulantID, active, null, tremContext);
         }));
     }
 
     if (speedDial) {
         addListener(new MaxobjListener(speedDial, function(data) {
-            // OSC: /Tspeed ±tremulantID  (on) or just log speed (off stays off)
             var currentState = dataLayer.getTremulantState(tremulantID);
             var active = currentState ? currentState.active : false;
-            dataLayer.sendTremulantSpeedOSC(tremulantID, active, data.value);
             var tremContext = createActionContext(null, null, tremulantData.divisionID);
+            // setTremulantState sends OSC directly (sendTremulantOSC + sendTremulantSpeedOSC)
             dataLayer.setTremulantState(tremulantID, active, data.value, tremContext);
         }));
     }
@@ -910,6 +927,57 @@ function createGUIButton(p, pos, type, display, context, fontsize){
     return result;
 }
 
+// ── Stop colour helpers ────────────────────────────────────────────────────────
+// Must match Python generate_layer_stops.py classification so in-memory stops
+// look identical to the pre-built bpatcher buttons.
+
+var STOP_REED_KEYWORDS = [
+    "trompet", "posaune", "schalmei", "schalmey",
+    "clarin", "klarinett",   // Clarine / Klarinette
+    "tuba", "hautbois", "haubois", "regal", "krummhorn", "krumhorn",
+    "fagott", "vox humana", "oboe", "zinke", "dulzian", "dulcian",
+    "bombardon", "chamade"
+];
+
+function stopColorClass(name) {
+    if (!name) return "normal";
+    var n = name.toLowerCase();
+    for (var i = 0; i < STOP_REED_KEYWORDS.length; i++) {
+        if (n.indexOf(STOP_REED_KEYWORDS[i]) >= 0) return "reed";
+    }
+    // Aliquot: fractional pitch — a digit immediately followed by "/" then a digit
+    if (/\d\/\d/.test(name)) return "aliquot";
+    return "normal";
+}
+
+// Apply bgcolor / activebgcolor to a live.text object.
+// Max JS setattr() accepts multiple scalar args for a colour attribute (R G B A).
+function applyStopColor(liveTextObj, colorClass) {
+    try {
+        // Pattern from working organ-control code:
+        //   activebgcolor   = tinted hint when stop is OFF (low alpha)
+        //   activebgoncolor = full colour when stop is ON  (alpha 1.0)
+        //   activetextoncolor = text colour when ON
+        if (colorClass === "reed") {
+            liveTextObj.setattr("activebgcolor",    1.0, 0.0, 0.0, 0.2);  // subtle red when OFF
+            liveTextObj.setattr("activebgoncolor",  1.0, 0.0, 0.0, 1.0);  // full red when ON
+            liveTextObj.setattr("activetextoncolor",1.0, 1.0, 1.0, 1.0);  // white text when ON
+        } else if (colorClass === "aliquot") {
+            liveTextObj.setattr("activebgcolor",    0.0, 0.57, 0.57, 0.2); // subtle cyan when OFF
+            liveTextObj.setattr("activebgoncolor",  0.0, 1.0,  1.0,  1.0); // full cyan when ON
+            liveTextObj.setattr("activetextoncolor",0.0, 0.0,  0.0,  1.0); // black text when ON
+        } else if (colorClass === "div") {
+            // DIV routing buttons — gold/amber style (same as "singletone" in original code)
+            liveTextObj.setattr("activebgcolor",    0.57, 0.57, 0.57, 0.3); // subtle grey when OFF
+            liveTextObj.setattr("activebgoncolor",  0.95, 0.66, 0.0,  0.9); // gold when ON
+            liveTextObj.setattr("activetextoncolor",0.0,  0.0,  0.0,  1.0); // black text when ON
+        }
+        // "normal" → keep Max defaults, no setattr needed
+    } catch(e) {
+        post("applyStopColor: setattr failed: " + e + "\n");
+    }
+}
+
 // *** LEGACY: still used where jsbox routing is unavailable ***
 function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID) {
     if (!p || !stopData) return {};
@@ -936,11 +1004,15 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
         var x = startX + pos.x;
         var y = startY + pos.y;
 
+        // Label: "ID Name" — matches generate_layer_stops.py format
+        var stopLabel = stop.stopID + " " + stop.name;
         var stopObj = common.createLiveText(p, x, y,
             common.GEOMETRY.stops.w, common.GEOMETRY.stops.h,
-            varname, stop.name, stop.name, stop.name, 10);
+            varname, stopLabel, stopLabel, stopLabel, 10);
 
         if (stopObj && stopObj.liveText) {
+            // Apply colour coding (reed = dark red, aliquot = dark blue/cyan)
+            applyStopColor(stopObj.liveText, stopColorClass(stop.name));
             // Use varname as key — unique even when stopIDs are duplicated.
             // clearButtonMap iterates all keys, so every button gets cleared.
             buttonMap[varname] = stopObj.liveText;
@@ -987,11 +1059,13 @@ function createStopArrayRouted(p, startX, startY, stopData, manualID, layerID, d
         var x = startX + pos.x;
         var y = startY + pos.y;
 
+        var stopLabel2 = stop.stopID + " " + stop.name;
         var stopObj = common.createLiveText(p, x, y,
             common.GEOMETRY.stops.w, common.GEOMETRY.stops.h,
-            "stop" + stop.stopID, stop.name, stop.name, stop.name, 10);
+            "stop" + stop.stopID, stopLabel2, stopLabel2, stopLabel2, 10);
 
         if (stopObj && stopObj.liveText) {
+            applyStopColor(stopObj.liveText, stopColorClass(stop.name));
             buttonMap[stop.stopID] = stopObj.liveText;
             var stopPrep = p.newdefault(-500, -60 - (index * 20), "prepend", stop.stopID);
             try {
@@ -1058,16 +1132,22 @@ function resolveLayerStopFilename(organName) {
 }
 
 // Build the native (HFS or POSIX) absolute path for a file in the project root.
-// Uses context.patcher.filepath — the same path Max used to open the owning patcher —
-// so the volume name is already correct and @name resolution works even for bpatchers
-// created dynamically from a button click (where the filename-only search context is lost).
+// Uses _maxPatcher.filepath (global from Universal.js, same object as context.patcher) —
+// the same path Max used to open the owning patcher — so the volume name is already
+// correct and @name resolution works even for bpatchers created dynamically from a
+// button click (where the filename-only search context is lost).
+// NOTE: Must use _maxPatcher here because this is a top-level function (outside the
+// createSINUAModuleWithDI factory) and `context` is not in scope at top level.
 //
 // Example: patcher.filepath = "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/OrganPatch_2026.amxd"
 //          → dir            = "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/"
 //          → returns          "Macintosh HD - Data:/Users/.../organ-control-system-claudecode/layer_stops_Reinoldi.maxpat"
 function resolveStopFileNativePath(filename) {
     // Walk the patcher chain to find the outermost patcher with a filepath.
-    var p = context.patcher;
+    // NOTE: this is a TOP-LEVEL function (outside the factory), so `context` is NOT in scope.
+    // Use `_maxPatcher` which is declared as a global in Universal.js: var _maxPatcher = this.patcher;
+    // _maxPatcher is the same object as context.patcher but accessible from any scope.
+    var p = (typeof _maxPatcher !== 'undefined') ? _maxPatcher : null;
     for (var i = 0; i < 8 && p; i++) {
         var fp = p.filepath;
         if (fp) {

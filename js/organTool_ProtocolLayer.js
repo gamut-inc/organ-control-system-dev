@@ -491,24 +491,9 @@ function createProtocolLayerModule(common, dataLayer) {
                     };
                     break;
                     
-                case 'tremulant':
-                    command = {
-                        type: 'tremulant',
-                        id: id,
-                        value: value,
-                        priority: 2
-                    };
-                    break;
-                    
-                case 'controller':
-                    command = {
-                        type: 'controller',
-                        id: id,
-                        value: value,
-                        priority: 3
-                    };
-                    break;
-                    
+                // 'tremulant' intentionally omitted — handled directly via sendTremulantOSC in DataLayer
+                // 'controller' intentionally omitted — handled directly via sendControllerOSC in DataLayer
+
                 case 'preset':
                     command = {
                         type: 'preset',
@@ -523,7 +508,7 @@ function createProtocolLayerModule(common, dataLayer) {
                 queueCommand(command);
             }
             
-        }, ['stop', 'tremulant', 'controller', 'preset']);
+        }, ['stop', 'preset']);
         
         common.log(common.LOG_LEVEL.INFO, "Protocol Layer initialized with state listener");
     }

@@ -202,8 +202,8 @@ function createCommonModule() {
     }
 }
 
-function createLiveDial(p, x, y, w, h, varname, longname, shortname) {
-    if (!p || typeof x !== 'number' || typeof y !== 'number' || 
+function createLiveDial(p, x, y, w, h, varname, longname, shortname, min, max) {
+    if (!p || typeof x !== 'number' || typeof y !== 'number' ||
         typeof w !== 'number' || typeof h !== 'number' || !varname) {
         log(LOG_LEVEL.ERROR, "createLiveDial(): Invalid parameters");
     return null;
@@ -212,9 +212,9 @@ function createLiveDial(p, x, y, w, h, varname, longname, shortname) {
 try {
     var dial = p.newdefault(x, y, "live.dial",
         "@varname", varname,
-        "@patching_rect", x, y, w, h, 
-        "@presentation_rect", x, y, w, h, 
-        "@presentation", 1, 
+        "@patching_rect", x, y, w, h,
+        "@presentation_rect", x, y, w, h,
+        "@presentation", 1,
         "@appearance", 1
         );
 
@@ -227,6 +227,10 @@ try {
         dial.setattr("_parameter_longname", longname || varname);
         dial.setattr("_parameter_shortname", shortname || varname.slice(0, 5));
         dial.setattr("_parameter_invisible", 0);
+        if (typeof min === 'number' && typeof max === 'number') {
+            dial.setattr("_parameter_range", min, max);
+            dial.setattr("_parameter_unitstyle", 1);  // 1 = Float
+        }
     } catch (attrError) {
         log(LOG_LEVEL.WARN, "createLiveDial(): Failed to set parameter attributes: " + attrError.message);
     }

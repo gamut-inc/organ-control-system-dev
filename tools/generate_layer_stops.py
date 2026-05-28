@@ -26,6 +26,72 @@ import os
 import re
 import sys
 
+# ── Stop color classification ───────────────────────────────────────────────────
+#
+# Reed stops  → dark maroon when off, bright red when on.
+# Aliquot/mutation stops (fractional pitch, e.g. "2/3'", "10 2/3'") → dark blue
+# when off, bright cyan when on.
+# All other stops → default Max live.text colours (no extra attrs written).
+
+REED_KEYWORDS = [
+    "trompet",    # Trompete, Trompett, Basstrompete, Choraltrompete …
+    "posaune",    # Posaune, Bassposaune …
+    "schalmei",
+    "schalmey",
+    "clarin",     # Clarine, Clarino, Clarinette (French/Latin spelling)
+    "klarinett",  # Klarinette (German spelling)
+    "tuba",       # Tuba, Tuba Magna, Tubabass …
+    "hautbois",
+    "haubois",
+    "regal",      # Regal, Principalregal …
+    "krummhorn",
+    "krumhorn",
+    "fagott",
+    "vox humana",
+    "oboe",
+    "zinke",
+    "dulzian",
+    "dulcian",
+    "bombardon",
+    "chamade",
+]
+
+# RGBA lists (0.0–1.0) stored directly into the Max JSON
+STOP_COLORS = {
+    # Pattern from working organ-control code:
+    #   activebgcolor    = tinted hint when stop is OFF (low alpha)
+    #   activebgoncolor  = full colour when stop is ON  (alpha 1.0)
+    #   activetextoncolor = text colour when stop is ON
+    "reed": {
+        "activebgcolor":    [1.0, 0.0, 0.0, 0.2],   # subtle red hint when OFF
+        "activebgoncolor":  [1.0, 0.0, 0.0, 1.0],   # full red when ON
+        "activetextoncolor":[1.0, 1.0, 1.0, 1.0],   # white text when ON
+    },
+    "aliquot": {
+        "activebgcolor":    [0.0, 0.57, 0.57, 0.2],  # subtle cyan hint when OFF
+        "activebgoncolor":  [0.0, 1.0,  1.0,  1.0],  # full cyan when ON
+        "activetextoncolor":[0.0, 0.0,  0.0,  1.0],  # black text when ON
+    },
+    # DIV routing buttons — gold/amber style (same as "singletone" in original code)
+    "div": {
+        "activebgcolor":    [0.57, 0.57, 0.57, 0.3], # subtle grey hint when OFF
+        "activebgoncolor":  [0.95, 0.66, 0.0,  0.9], # gold when ON
+        "activetextoncolor":[0.0,  0.0,  0.0,  1.0], # black text when ON
+    },
+}
+
+
+def stop_color_class(stop_name: str) -> str:
+    """Return 'reed', 'aliquot', or 'normal' for a stop name."""
+    n = stop_name.lower()
+    for kw in REED_KEYWORDS:
+        if kw in n:
+            return "reed"
+    # Aliquot: pitch contains a fraction  (digit '/' digit)
+    if re.search(r"\d/\d", stop_name):
+        return "aliquot"
+    return "normal"
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -136,21 +202,30 @@ def generate_maxpat(
 
     # ── Helper: add one live.text + prepend <id> pair ─────────────────────────
 
-    def add_button(i: int, stop_id, stop_name: str, varname: str, col: int, row: int):
+    def add_button(i: int, stop_id, label: str, varname: str, col: int, row: int,
+                   color_class: str = "normal"):
+        """
+        label       — the full display string written to text/texton (already includes ID prefix)
+        color_class — 'reed', 'aliquot', or 'normal'
+        """
         x = float(col * (COL_W + COL_MARGIN))
         y = float(row * STOP_H)
         s_id = f"obj-s{i}"
         p_id = f"obj-p{i}"
 
-        boxes.append({"box": {
+        box = {
             "id": s_id, "maxclass": "live.text",
             "numinlets": 1, "numoutlets": 2, "outlettype": ["", ""],
             "patching_rect":     [x, y, float(STOP_W), float(STOP_H)],
             "presentation_rect": [x, y, float(STOP_W), float(STOP_H)],
             "presentation": 1,
-            "text": stop_name, "texton": stop_name,
+            "text": label, "texton": label,
             "varname": varname, "fontsize": 10.0,
-        }})
+        }
+        # Inject colour attributes for reed and aliquot stops
+        if color_class in STOP_COLORS:
+            box.update(STOP_COLORS[color_class])
+        boxes.append({"box": box})
         boxes.append({"box": {
             "id": p_id, "maxclass": "newobj",
             "text": f"prepend {stop_id}",
@@ -174,7 +249,10 @@ def generate_maxpat(
         else:
             varname = f"stop{stop_id}_{i}"
 
-        add_button(i, stop_id, stop_name, varname, col, row)
+        # Label = "ID Name"  e.g. "12 Posaune 16'"
+        label       = f"{stop_id} {stop_name}"
+        color_class = stop_color_class(stop_name)
+        add_button(i, stop_id, label, varname, col, row, color_class)
 
         row += 1
         if row >= MAX_PER_COL:
@@ -194,10 +272,11 @@ def generate_maxpat(
             stop_id_str = f"division{div_id}"          # matches JS stopID
             varname     = f"stopdivision{div_id}"       # matches JS "stop" + stopID
 
+            # Division routing buttons: gold/amber style, label stays as-is (e.g. "DIV1")
             add_button(
                 len(movable_stops) + j,
                 stop_id_str, div_name, varname,
-                col, row,
+                col, row, "div",
             )
 
             row += 1
