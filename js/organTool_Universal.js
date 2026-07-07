@@ -331,7 +331,8 @@ function loadOrgan(filepath) {
 
         // Inject Manuals from console JSON if not already in organ JSON.
         // Try "console <OrganName>.json" first, then "console.json" in same dir.
-        if (!organData.Manuals) {
+        // Skip for MIDI organs (lowercase "manuals") — they define manuals inline.
+        if (!organData.Manuals && !organData.manuals) {
             var consoleManuals = loadConsoleManuals(filepath);
             if (consoleManuals) {
                 organData.Manuals = consoleManuals;

@@ -1,0 +1,26 @@
+{
+  "name": "MIDI Example",
+  "midi": { "stopMethod": "note" },
+  "manuals": [
+    { "manualID": 0, "name": "Pedal",     "midiChannel": 1 },
+    { "manualID": 1, "name": "Hauptwerk", "midiChannel": 2 },
+    { "manualID": 2, "name": "Schwellwerk", "midiChannel": 3 }
+  ],
+  "stops": [
+    { "stopID": 1,  "name": "Subbass 16'",    "manualID": 0, "midiNote": 36 },
+    { "stopID": 2,  "name": "Octavbass 8'",   "manualID": 0, "midiNote": 37 },
+    { "stopID": 3,  "name": "Choralbass 4'",  "manualID": 0, "midiNote": 38 },
+
+    { "stopID": 10, "name": "Principal 8'",   "manualID": 1, "midiNote": 48 },
+    { "stopID": 11, "name": "Gedackt 8'",     "manualID": 1, "midiNote": 49 },
+    { "stopID": 12, "name": "Octave 4'",      "manualID": 1, "midiNote": 50 },
+    { "stopID": 13, "name": "Mixtur IV",      "manualID": 1, "midiNote": 51 },
+    { "stopID": 14, "name": "Trompete 8'",    "manualID": 1, "midiNote": 52 },
+
+    { "stopID": 20, "name": "Rohrfloete 8'",  "manualID": 2, "midiNote": 60 },
+    { "stopID": 21, "name": "Salicional 8'",  "manualID": 2, "midiNote": 61 },
+    { "stopID": 22, "name": "Principal 4'",   "manualID": 2, "midiNote": 62 },
+    { "stopID": 23, "name": "Oboe 8'",        "manualID": 2, "midiNote": 63 },
+    { "stopID": 24, "name": "Tremulant",      "manualID": 2, "midiNote": 64 }
+  ]
+}
