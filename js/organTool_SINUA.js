@@ -18,7 +18,38 @@
 //         Controller: /C <ID> <value> via sendOSCDirect (continuous, bypasses cooldown)
 //         +Layer deferred probe: 200ms Task retry if bpatcher loads async
 //         Reset: restore all manuals to default 4 layers + suppress OSC during visual clear
-// 27.05.2026
+// 01.16 - capturePreset / recallPreset exposed in public API; fixed smart-quote SyntaxError
+// 01.17 - Fix preset_menu deleted: add "preset_menu" to clearGUIObjects keepObjects
+//         Fix recall suppress timing: Task-deferred reset (same 10ms window as cancel)
+//         Root cause: applyLayerStateToGUI fires MaxobjListener callbacks ASYNCHRONOUSLY;
+//         synchronous _suppressListeners=false let them through as real stop events.
+// 01.18 - Add _suppressListeners guard to controller + tremulant MaxobjListeners.
+//         Root cause: sendControllerOSC uses sendOSCDirect (bypasses _oscSuppressed);
+//         controller dial callbacks fired OSC during recall GUI-update phase (double-send).
+//         Same guard added to tremulant on-button + speed-dial (eliminates duplicate logs).
+// 01.19 - capturePreset: replace getattr("_parameter_value") with DataLayer + stopDivState cache.
+//         getattr is unreliable for live.text inside nested bpatchers → all stops read as OFF.
+//         Movable stops now read from DataLayer.organState.stops[id].state (authoritative).
+//         Div-routing buttons read from stopDivState {divKey→bool} updated by MaxobjListeners.
+//         applyLayerStateToGUI also writes back to stopDivState so next capture is consistent.
+// 01.20 - Fix capturePreset all-layers-same-stops: DataLayer.stops is flat (no per-layer info).
+//         Add per-layer stopState {varname→bool} cache alongside stopDivState.
+//         Movable stop listeners update stopState after _suppressListeners check.
+//         applyLayerStateToGUI writes both stopState and stopDivState synchronously.
+//         preset_menu: reuse existing or create+connect to presetMenuSelect in createMainHeader.
+//         SINUA exports getPresetMenu() → Universal.js passes direct MaxObj ref to organStorage.
+//         gamut_storage_organ v00.05: init(patcher, mod, menuRef) uses direct ref in findPresetMenu.
+// 01.21 - buildRecallQueue: always send /D 0 per layer (remove "only if activeDivs>0" guard)
+//         so empty-div presets correctly CLEAR existing routing (mirrors /S 0 stop-clear).
+//         applyLayerStateToGUI: add diagnostic post() for div keys/IDs (temporary, for testing).
+// 01.22 - Division stops fully captured and recalled:
+//         createStopArray: optional stateCache param → {varname→bool} updated by listeners.
+//         createDivisionBpatcher: creates stopState={}, passes to createStopArray, returns it.
+//         capturePreset: iterates guiObjects.divisions → preset.divStops {divID: [stopIDs]}.
+//         buildRecallQueue: new section 2b sends /D2/S 0 id… for each division.
+//         recallPreset: calls applyDivisionStateToGUI for each division (visual + cache update).
+//         applyDivisionStateToGUI: new function mirrors applyLayerStateToGUI for divisions.
+// 29.05.2026
 
 autowatch = 1;
 
@@ -282,7 +313,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         }
 
         if (context.patcher) {
-            common.clearGUIObjects(context.patcher, ["organ_name_display"]);
+            common.clearGUIObjects(context.patcher, ["organ_name_display", "preset_menu"]);
         }
 
         cleanupAllListeners();
@@ -450,17 +481,61 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 // *** MAIN HEADER ***
 
     function createMainHeader(p, organName) {
-        var label = common.createLiveComment(p, common.GEOMETRY.margin.x, common.GEOMETRY.rows.mainControls, 
+        var label = common.createLiveComment(p, common.GEOMETRY.margin.x, common.GEOMETRY.rows.mainControls,
             200, 20, "organNameLabel", organName);
-        
+
         var context = createActionContext(null, null, null); // Organ-level context
 
         var fs = common.GEOMETRY.button.fontsize;
         var reset  = createGUIButton(p, common.GEOMETRY.button.pos(0, 1), "reset",  "RST",    context, fs.larger); // 20 — 3 chars, prominent
         var panic  = createGUIButton(p, common.GEOMETRY.button.pos(0, 3), "panic",  "PANIC",  context, fs.large);  // 11 — 5 chars, readable
         var cancel = createGUIButton(p, common.GEOMETRY.button.pos(0, 5), "cancel", "CANCEL", context, fs.small);  //  8 — 6 chars
-        
-        return { label: label, reset: reset, panic: panic, cancel: cancel };
+
+        // Preset selector menu.
+        // clearGUIObjects keeps "preset_menu" in its keepObjects list, so any user-placed
+        // live.menu with scripting name "preset_menu" survives across organ reloads.
+        // If no such menu exists (first load or wrong scripting name), we create one here
+        // and wire it programmatically to the "presetMenuSelect" object.
+        // If one already exists, we reuse it (preserving the user's manual wiring).
+        var pmX = common.GEOMETRY.margin.x + 220;   // right of the 200px organ name label
+        var pmY = common.GEOMETRY.rows.mainControls; // same row as label
+        var pmW = 220;
+        var pmH = common.GEOMETRY.stops.h;          // one stop-height (20px)
+        var presetMenu = p.getnamed("preset_menu");  // reuse if already in this patcher
+        if (!presetMenu) {
+            try {
+                presetMenu = p.newdefault(pmX, pmY, "live.menu",
+                    "@varname",           "preset_menu",
+                    "@patching_rect",     pmX, pmY, pmW, pmH,
+                    "@presentation_rect", pmX, pmY, pmW, pmH,
+                    "@presentation", 1
+                );
+                if (presetMenu) {
+                    presetMenu.setattr("_parameter_longname",  "Preset");
+                    presetMenu.setattr("_parameter_shortname", "Prst");
+                    presetMenu.setattr("_parameter_invisible", 1);
+                    presetMenu.setattr("_parameter_range", ["--", "--"]);
+                    // Wire to presetMenuSelect (prepend/route that feeds js inlet 0)
+                    var presetMenuSelectObj = p.getnamed("presetMenuSelect");
+                    if (presetMenuSelectObj) {
+                        try {
+                            p.connect(presetMenu, 0, presetMenuSelectObj, 0);
+                            post("createMainHeader: preset_menu created and connected to presetMenuSelect\n");
+                        } catch(ce) {
+                            post("createMainHeader: preset_menu created; connect to presetMenuSelect failed: " + ce.message + "\n");
+                        }
+                    } else {
+                        post("createMainHeader: preset_menu created; presetMenuSelect not found — wire manually\n");
+                    }
+                }
+            } catch(e) {
+                post("createMainHeader: preset_menu creation failed: " + e.message + "\n");
+            }
+        } else {
+            post("createMainHeader: reusing existing preset_menu\n");
+        }
+
+        return { label: label, presetMenu: presetMenu, reset: reset, panic: panic, cancel: cancel };
     }
 
 // *** DIVISION SECTION ***
@@ -509,14 +584,18 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
             common.GEOMETRY.sinua.divisions.stopArray.x() :
             common.GEOMETRY.sinua.divisions.stopArray.x;
 
+        // stopState: {varname → bool} — per-division stop ON/OFF cache for preset capture.
+        // Updated by MaxobjListener callbacks (via stateCache arg to createStopArray) when
+        // _suppressListeners is false; written directly by applyDivisionStateToGUI during recall.
+        var stopState = {};
         var stopButtonMap = createStopArray(sp, stopArrayX, common.GEOMETRY.stops.h,
-            divisionData.stops, divisionData.divisionID, null, null);
+            divisionData.stops, divisionData.divisionID, null, null, stopState);
 
         // stopButtonMap holds direct newdefault() refs — message("set", 0) works reliably
         // on direct refs regardless of nesting depth.  No pattr/pattrforward/sp.connect
         // needed here; those create visible patch cables in the embedded patcher.
         return { bpatcher: bpatcher, label: label, context: context,
-                 stopButtonMap: stopButtonMap };
+                 stopButtonMap: stopButtonMap, stopState: stopState };
     }
 
 // *** MANUAL SECTION ***
@@ -591,7 +670,14 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
 // Attach MaxobjListeners to all stop and division buttons in a loaded layer_stops bpatcher.
 // Called immediately after a successful probe, OR from the 200ms deferred Task for +Layer.
 // Mirrors Python generator's duplicate-ID suffix logic exactly.
-function connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID) {
+//
+// stopStateCache (optional) — {varname → bool} updated by each movable stop listener.
+//   Lets capturePreset() read per-layer ON/OFF state without relying on getattr() or the flat
+//   DataLayer (which has no per-layer resolution).
+//
+// divStateCache (optional) — {divKey → bool} updated by each div-routing listener.
+//   applyLayerStateToGUI also writes both caches synchronously during recall.
+function connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID, stopStateCache, divStateCache) {
     var seenStopIDs = {};
     stopData.movable.forEach(function(stop, index) {
         var sid = stop.stopID;
@@ -603,21 +689,27 @@ function connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manual
             stopButtonMap[varname] = liveText;
             var stopCtx = createStopContext(stop.stopID, stop.divisionID, manualID, layerID);
             addListener(new MaxobjListener(liveText, function(data) {
+                if (_suppressListeners) return;   // during recall: applyLayerStateToGUI handles cache
+                if (stopStateCache) stopStateCache[varname] = Boolean(data.value);
                 executeStopAction(stop.stopID, Boolean(data.value), stopCtx);
             }));
         }
     });
-    // Division buttons — varname "stopdivision<N>" → /Mx/Lx/D ±divID
+    // Division routing buttons — varname "stopdivision<N>" → /Mx/Lx/D ±divID
     stopData.divisions.forEach(function(div) {
         var divVarname = "stop" + div.stopID;  // e.g. "stopdivision1"
+        var divKey    = div.stopID;            // e.g. "division1"  (key in stopButtonMap)
         var divBtn = innerPatcher.getnamed(divVarname);
         if (divBtn) {
-            stopButtonMap[div.stopID] = divBtn;
+            stopButtonMap[divKey] = divBtn;
             var numDivID = (div.divisionID !== undefined && div.divisionID !== null)
                 ? div.divisionID
                 : parseInt(div.stopID.replace("division", ""), 10);
             var divCtx = createStopContext(div.stopID, numDivID, manualID, layerID);
             addListener(new MaxobjListener(divBtn, function(data) {
+                // Cache div-routing state so capturePreset() doesn't need getattr()
+                if (divStateCache) divStateCache[divKey] = Boolean(data.value);
+                if (_suppressListeners) return;
                 executeDivisionAction(numDivID, Boolean(data.value), divCtx);
             }));
         }
@@ -644,6 +736,11 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
 
     // *** MOVABLE STOPS: load from pre-built file (avoids N × newdefault calls) ***
     var stopButtonMap = {};
+    // stopState:    {varname → bool} — per-layer movable stop ON/OFF, updated by MaxobjListener.
+    //   DataLayer.stops is flat (no per-layer resolution), so this is the authoritative source.
+    var stopState    = {};
+    // stopDivState: {divKey  → bool} — div-routing button state, updated by MaxobjListener.
+    var stopDivState = {};
     var sx = common.GEOMETRY.sinua.layers.stopArray.x();
     var G  = common.GEOMETRY;
 
@@ -696,26 +793,26 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
                            (innerPatcher.getnamed("stop" + probeStop.stopID) !== null);
 
         if (fileLoadedOK) {
-            connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID);
+            connectLayerStopListeners(innerPatcher, stopData, stopButtonMap, manualID, layerID, stopState, stopDivState);
             post("      L" + layerID + ": file OK — " +
                 stopData.movable.length + " stops + " + stopData.divisions.length + " divs\n");
         } else if (stopsBp) {
             // Probe failed: file not yet loaded (shouldn't happen with absolute path, but guard).
             // Schedule a single 200ms retry. If that also fails the file is genuinely missing.
             post("      L" + layerID + ": probe failed — scheduling deferred listener attach (200ms)\n");
-            (function(bp, sd, sbm, mID, lID) {
+            (function(bp, sd, sbm, mID, lID, ss, sds) {
                 var retryTask = new Task(function() {
                     var inner = bp.subpatcher();
                     var ps = sd.movable.length > 0 ? sd.movable[0] : null;
                     if (inner && ps && inner.getnamed("stop" + ps.stopID) !== null) {
-                        connectLayerStopListeners(inner, sd, sbm, mID, lID);
+                        connectLayerStopListeners(inner, sd, sbm, mID, lID, ss, sds);
                         post("      L" + lID + ": deferred probe OK — listeners connected\n");
                     } else {
                         post("      L" + lID + ": deferred probe ALSO failed — check file path\n");
                     }
                 });
                 retryTask.schedule(200);
-            })(stopsBp, stopData, stopButtonMap, manualID, layerID);
+            })(stopsBp, stopData, stopButtonMap, manualID, layerID, stopState, stopDivState);
         } else {
             // stopsBp is null = file not found — no overlap risk, safe to use createStopArray
             common.log(common.LOG_LEVEL.WARN,
@@ -739,7 +836,9 @@ function createLayerBpatcher(p, layerID, stopData, manualID) {
         cancel: cancel,
         context: actionCtx,
         pattrReset: pattrReset || null,  // pattrforward ::stops_<id>::set — clears all buttons in bpatcher
-        stopButtonMap: stopButtonMap     // listener references (movable stops + divs via getnamed)
+        stopButtonMap: stopButtonMap,    // listener references (movable stops + divs via getnamed)
+        stopState:     stopState,        // {varname → bool} per-layer movable stop ON/OFF cache
+        stopDivState:  stopDivState      // {divKey  → bool} div-routing button state cache
     };
 }
 
@@ -774,6 +873,7 @@ function createControllerSection(p, controllerData) {
 
         if (dial) {
             addListener(new MaxobjListener(dial, function(data) {
+                if (_suppressListeners) return;  // silent GUI update during recall — no OSC
                 // setControllerState handles OSC directly via sendControllerOSC (no Protocol Layer)
                 dataLayer.setControllerState(controllerID, data.value);
             }));
@@ -820,6 +920,7 @@ function createTremulantBpatcher(p, x, y, w, h, tremulantData, tremulantID) {
 
     if (onButton && onButton.liveText) {
         addListener(new MaxobjListener(onButton.liveText, function(data) {
+            if (_suppressListeners) return;  // silent GUI update during recall — no OSC
             var active = Boolean(data.value);
             var tremContext = createActionContext(null, null, tremulantData.divisionID);
             // setTremulantState sends OSC directly (sendTremulantOSC + sendTremulantSpeedOSC)
@@ -829,6 +930,7 @@ function createTremulantBpatcher(p, x, y, w, h, tremulantData, tremulantID) {
 
     if (speedDial) {
         addListener(new MaxobjListener(speedDial, function(data) {
+            if (_suppressListeners) return;  // silent GUI update during recall — no OSC
             var currentState = dataLayer.getTremulantState(tremulantID);
             var active = currentState ? currentState.active : false;
             var tremContext = createActionContext(null, null, tremulantData.divisionID);
@@ -979,7 +1081,9 @@ function applyStopColor(liveTextObj, colorClass) {
 }
 
 // *** LEGACY: still used where jsbox routing is unavailable ***
-function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID) {
+// stateCache (optional) — {varname → bool} object that receives live ON/OFF state.
+// Pass a plain {} from the calling context (division bpatcher) to enable preset capture.
+function createStopArray(p, startX, startY, stopData, divisionID, manualID, layerID, stateCache) {
     if (!p || !stopData) return {};
 
     var currentColumn = 0;
@@ -1017,6 +1121,9 @@ function createStopArray(p, startX, startY, stopData, divisionID, manualID, laye
             // clearButtonMap iterates all keys, so every button gets cleared.
             buttonMap[varname] = stopObj.liveText;
             addListener(new MaxobjListener(stopObj.liveText, function(data) {
+                // Update stateCache while not suppressed (during recall applyDivisionStateToGUI
+                // writes the cache directly, listener writes are ignored during suppression).
+                if (!_suppressListeners && stateCache) stateCache[varname] = Boolean(data.value);
                 executeStopAction(stop.stopID, Boolean(data.value), stopContext);
             }));
         }
@@ -1214,14 +1321,20 @@ function executeCreateLayer(manual) {
         common.log(common.LOG_LEVEL.ERROR, "Invalid manual object for createLayer");
         return false;
     }
-    
+
     common.log(common.LOG_LEVEL.INFO, "Creating new layer for: " + manual.manualData.name);
-    
+
     if (manual.layers.length >= 8) {
         common.log(common.LOG_LEVEL.WARN, "Maximum layers reached");
         return false;
     }
-    
+
+    // Notify organ hardware that a new layer is being created.
+    // Path: /P/createLayer (Pedal) or /M<id>/createLayer (manuals 1+)
+    var mid = manual.manualData.manualID;
+    var mPath = (mid === 0) ? "/P" : "/M" + mid;
+    dataLayer.sendOSCDirect(mPath + "/createLayer", []);
+
     return addLayerToManual(manual);
 }
 
@@ -1456,6 +1569,379 @@ function executeGUIButton(type, actionContext) {
     }
 }
 
+// ================================================================================================
+// PRESET CAPTURE / RECALL
+// ================================================================================================
+
+// Read the current state of the entire organ GUI into a plain JSON-serialisable object.
+// Keys: layerCount, stops, divRouting, controllers, tremulants.
+//
+// stops / divRouting are keyed by "<manualID>_<layerID>".
+// stops[key]      = [stopID, ...]   — numeric IDs that are currently ON
+// divRouting[key] = [divID, ...]    — division IDs that are currently routed to this layer
+//
+// Returns the preset object, or null on failure.
+function capturePreset(name) {
+    if (!guiObjects || !guiObjects.manuals) {
+        common.log(common.LOG_LEVEL.ERROR, "capturePreset: no GUI loaded");
+        return null;
+    }
+
+    var preset = {
+        name:       name || ("Preset " + new Date().toISOString().slice(0,19).replace("T"," ")),
+        layerCount: {},   // {manualID: n}
+        stops:      {},   // {"manualID_layerID": [stopID, ...]}
+        divRouting: {},   // {"manualID_layerID": [divID, ...]}
+        divStops:   {},   // {divisionID: [stopID, ...]}   — stops in the divisions section
+        controllers: {},  // {controllerID: floatValue}
+        tremulants:  {}   // {tremulantID: {active, speed}}
+    };
+
+    // ---- Layer structure + stop/div states ----
+    // Both movable stops and div-routing are read from per-layer listener caches:
+    //   layer.stopState    {varname → bool}  updated by movable stop MaxobjListener callbacks
+    //   layer.stopDivState {divKey  → bool}  updated by div-routing MaxobjListener callbacks
+    // These avoid both getattr() (unreliable in nested bpatchers) and the flat DataLayer
+    // (which has no per-layer resolution — a stop ON in layer 1 would appear ON in all layers).
+    guiObjects.manuals.manuals.forEach(function(manual) {
+        var mid = manual.manualData.manualID;
+        preset.layerCount[mid] = manual.layers.length;
+
+        manual.layers.forEach(function(layer) {
+            var lid  = layer.layerID;
+            var key  = mid + "_" + lid;
+            var activeStops = [];
+            var activeDivs  = [];
+
+            var stopSt = layer.stopState    || {};   // per-layer movable stop cache
+            var divSt  = layer.stopDivState || {};   // per-layer div-routing cache
+
+            Object.keys(layer.stopButtonMap).forEach(function(btnKey) {
+                if (String(btnKey).indexOf("division") !== -1) {
+                    // DIV routing — use per-layer listener cache
+                    if (divSt[btnKey]) {
+                        var divID = parseInt(String(btnKey).replace("division", ""), 10);
+                        if (!isNaN(divID)) activeDivs.push(divID);
+                    }
+                } else {
+                    // Movable stop — use per-layer listener cache
+                    if (stopSt[btnKey]) {
+                        var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+                        var stopID = parseInt(numStr, 10);
+                        if (!isNaN(stopID)) activeStops.push(stopID);
+                    }
+                }
+            });
+
+            preset.stops[key]      = activeStops;
+            preset.divRouting[key] = activeDivs;
+        });
+    });
+
+    // ---- Division stops — read from per-division stopState cache ----
+    if (guiObjects.divisions && guiObjects.divisions.divisions) {
+        guiObjects.divisions.divisions.forEach(function(div) {
+            if (!div || !div.context) return;
+            var dID     = div.context.divisionID;
+            var stopSt  = div.stopState || {};
+            var activeStops = [];
+            Object.keys(div.stopButtonMap || {}).forEach(function(btnKey) {
+                if (stopSt[btnKey]) {
+                    var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+                    var stopID = parseInt(numStr, 10);
+                    if (!isNaN(stopID)) activeStops.push(stopID);
+                }
+            });
+            preset.divStops[dID] = activeStops;
+        });
+    }
+
+    // ---- Controllers + Tremulants — read from DataLayer (flat, global — correct for these) ----
+    var state = dataLayer.getOrganState() || {};
+    Object.keys(state.controllers || {}).forEach(function(id) {
+        preset.controllers[id] = state.controllers[id].value;
+    });
+
+    // ---- Tremulants ----
+    Object.keys(state.tremulants || {}).forEach(function(id) {
+        preset.tremulants[id] = {
+            active: state.tremulants[id].active,
+            speed:  state.tremulants[id].speed
+        };
+    });
+
+    common.log(common.LOG_LEVEL.INFO,
+        "Preset captured: \"" + preset.name + "\" - " +
+        Object.keys(preset.stops).length + " layers, " +
+        Object.keys(preset.controllers).length + " controllers, " +
+        Object.keys(preset.tremulants).length + " tremulants");
+
+    return preset;
+}
+
+// Expose to Max (callable via js message)
+exports.capturePreset = function(name) {
+    var p = capturePreset(name ? String(name) : undefined);
+    if (p) {
+        outlet(0, "preset", JSON.stringify(p));
+    }
+};
+
+// ------------------------------------------------------------------------------------------------
+// RECALL
+// ------------------------------------------------------------------------------------------------
+
+var RECALL_INTERVAL_MS = 2;  // ms between consecutive OSC bundles
+
+// Ensure a manual has at least `needed` layers, adding synchronously if short.
+// Returns true when ready (layers may still be loading their bpatchers).
+function ensureLayerCount(manual, needed) {
+    while (manual.layers.length < needed) {
+        var ok = addLayerToManual(manual);
+        if (!ok) break;
+    }
+    return manual.layers.length >= needed;
+}
+
+// Set all stop/div buttons in a layer silently (no OSC callbacks).
+// activeStopIDs: array of numeric stopIDs to set ON; everything else → OFF.
+// activeDivIDs:  array of numeric divIDs   to set ON; everything else → OFF.
+function applyLayerStateToGUI(layer, activeStopIDs, activeDivIDs) {
+    var stopSet = {};
+    (activeStopIDs || []).forEach(function(id) { stopSet[id] = true; });
+    var divSet = {};
+    (activeDivIDs  || []).forEach(function(id) { divSet[id]  = true; });
+
+    // Diagnostic: log div state being applied (remove once UI updates are confirmed)
+    var divKeys = Object.keys(layer.stopButtonMap).filter(function(k) { return String(k).indexOf("division") !== -1; });
+    if (divKeys.length > 0) {
+        post("applyLayerStateToGUI: L" + layer.layerID +
+             " divBtns=[" + divKeys.join(",") + "]" +
+             " activeDivIDs=[" + (activeDivIDs || []).join(",") + "]\n");
+    }
+
+    Object.keys(layer.stopButtonMap).forEach(function(btnKey) {
+        var btn = layer.stopButtonMap[btnKey];
+        if (!btn) return;
+        var isDiv   = String(btnKey).indexOf("division") !== -1;
+        var numStr  = isDiv
+            ? String(btnKey).replace("division", "")
+            : String(btnKey).replace(/^stop/, "").split("_")[0];
+        var numID   = parseInt(numStr, 10);
+        var target  = isNaN(numID) ? 0 : (isDiv ? (divSet[numID] ? 1 : 0) : (stopSet[numID] ? 1 : 0));
+
+        // Keep per-layer caches in sync so the next capturePreset() reads the recalled state.
+        // Listener callbacks during recall are suppressed (_suppressListeners=true), so only
+        // this synchronous write keeps the caches current.
+        if (isDiv) {
+            if (layer.stopDivState !== undefined) layer.stopDivState[btnKey] = Boolean(target);
+        } else {
+            if (layer.stopState    !== undefined) layer.stopState[btnKey]    = Boolean(target);
+        }
+
+        btn.message("set", target);
+    });
+}
+
+// Set all stop buttons in a division section silently (no OSC callbacks).
+// Mirrors applyLayerStateToGUI but for guiObjects.divisions.divisions[i].
+function applyDivisionStateToGUI(div, activeStopIDs) {
+    var stopSet = {};
+    (activeStopIDs || []).forEach(function(id) { stopSet[id] = true; });
+
+    post("applyDivisionStateToGUI: D" + (div.context ? div.context.divisionID : "?") +
+         " activeStopIDs=[" + (activeStopIDs || []).join(",") + "]\n");
+
+    Object.keys(div.stopButtonMap || {}).forEach(function(btnKey) {
+        var btn = div.stopButtonMap[btnKey];
+        if (!btn) return;
+        var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+        var numID  = parseInt(numStr, 10);
+        var target = isNaN(numID) ? 0 : (stopSet[numID] ? 1 : 0);
+        // Keep cache in sync so next capturePreset() reads the recalled state
+        if (div.stopState !== undefined) div.stopState[btnKey] = Boolean(target);
+        btn.message("set", target);
+    });
+}
+
+// Build the ordered list of OSC messages for one preset.
+// Each entry: {path, args}
+// args may contain oscFloat() wrappers (handled by sendOSCDirect).
+function buildRecallQueue(preset) {
+    var queue = [];
+
+    if (!guiObjects || !guiObjects.manuals) return queue;
+
+    // 1. Stops per layer: /P/L1/S 0 id id … or /M1/L1/S 0 id id …
+    //    Leading 0 (int) resets the layer, then active stopIDs follow.
+    guiObjects.manuals.manuals.forEach(function(manual) {
+        var mid   = manual.manualData.manualID;
+        var mPath = (mid === 0) ? "/P" : "/M" + mid;
+        manual.layers.forEach(function(layer) {
+            var key         = mid + "_" + layer.layerID;
+            var activeStops = (preset.stops && preset.stops[key]) || [];
+            var args = [0].concat(activeStops);          // leading int 0
+            queue.push({ path: mPath + "/L" + layer.layerID + "/S", args: args });
+        });
+    });
+
+    // 2. DIV routing per layer: /M1/L1/D 0 divID …  (same leading-0 convention)
+    //    Always send even when activeDivs is empty so "/D 0" clears existing routing
+    //    (mirrors the leading-0 behaviour of /S which always resets stops first).
+    guiObjects.manuals.manuals.forEach(function(manual) {
+        var mid   = manual.manualData.manualID;
+        var mPath = (mid === 0) ? "/P" : "/M" + mid;
+        manual.layers.forEach(function(layer) {
+            var key        = mid + "_" + layer.layerID;
+            var activeDivs = (preset.divRouting && preset.divRouting[key]) || [];
+            queue.push({ path: mPath + "/L" + layer.layerID + "/D", args: [0].concat(activeDivs) });
+        });
+    });
+
+    // 2b. Division stops: /D2/S 0 id id … (leading 0 resets division, then sets active IDs)
+    //     Iterate all divisions known to guiObjects so divisions with no stored stops still
+    //     receive "/D2/S 0" (clears any stops left from a previous preset).
+    if (guiObjects.divisions && guiObjects.divisions.divisions) {
+        guiObjects.divisions.divisions.forEach(function(div) {
+            if (!div || !div.context) return;
+            var dID        = div.context.divisionID;
+            var activeStops = (preset.divStops && preset.divStops[dID]) || [];
+            queue.push({ path: "/D" + dID + "/S", args: [0].concat(activeStops) });
+        });
+    }
+
+    // 3. Controllers: /SP<id> float
+    if (preset.controllers) {
+        Object.keys(preset.controllers).forEach(function(id) {
+            queue.push({ path: "/SP" + id, args: [preset.controllers[id]] });
+        });
+    }
+
+    // 4. Tremulants: /T ±id  then /Tspeed id float (only when active)
+    if (preset.tremulants) {
+        Object.keys(preset.tremulants).forEach(function(id) {
+            var trem     = preset.tremulants[id];
+            var numID    = Number(id);
+            var signedID = trem.active ? numID : -numID;
+            queue.push({ path: "/T",      args: [signedID] });
+            if (trem.active && trem.speed !== undefined) {
+                queue.push({ path: "/Tspeed", args: [numID, trem.speed] });
+            }
+        });
+    }
+
+    return queue;
+}
+
+function recallPreset(presetJson) {
+    var preset = (typeof presetJson === 'string') ? JSON.parse(presetJson) : presetJson;
+    if (!preset) {
+        common.log(common.LOG_LEVEL.ERROR, "recallPreset: no preset data");
+        return;
+    }
+
+    common.log(common.LOG_LEVEL.INFO, "Recalling preset: " + preset.name);
+
+    // ---- 1. Ensure correct layer count per manual ----
+    if (preset.layerCount && guiObjects && guiObjects.manuals) {
+        _suppressListeners = true;
+        dataLayer.suppressOSC(true);
+
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            var mid    = manual.manualData.manualID;
+            var needed = preset.layerCount[mid] || 1;
+            ensureLayerCount(manual, needed);
+        });
+    }
+
+    // ---- 2. Update GUI silently to match preset ----
+    if (guiObjects && guiObjects.manuals) {
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            var mid = manual.manualData.manualID;
+            manual.layers.forEach(function(layer) {
+                var key       = mid + "_" + layer.layerID;
+                var stops     = (preset.stops     && preset.stops[key])     || [];
+                var divs      = (preset.divRouting && preset.divRouting[key]) || [];
+                applyLayerStateToGUI(layer, stops, divs);
+            });
+        });
+
+        // Update controller dials
+        if (preset.controllers && guiObjects.controllers) {
+            // dial varnames are "control1", "control2" etc.
+            var ctrlBp = guiObjects.controllers.bpatcher;
+            if (ctrlBp) {
+                Object.keys(preset.controllers).forEach(function(id) {
+                    var dial = ctrlBp.subpatcher().getnamed("control" + id);
+                    if (dial) dial.message("set", preset.controllers[id]);
+                });
+            }
+        }
+
+        // Update division stop buttons
+        if (guiObjects.divisions && guiObjects.divisions.divisions) {
+            guiObjects.divisions.divisions.forEach(function(div) {
+                if (!div || !div.context) return;
+                var dID   = div.context.divisionID;
+                var stops = (preset.divStops && preset.divStops[dID]) || [];
+                applyDivisionStateToGUI(div, stops);
+            });
+        }
+
+        // Update tremulant buttons + speed dials
+        if (preset.tremulants && guiObjects.tremulants) {
+            // tremulant bpatcher contains sub-bpatchers "tremulant1", "tremulant2" etc.
+            var tremBp = guiObjects.tremulants.bpatcher;
+            if (tremBp) {
+                Object.keys(preset.tremulants).forEach(function(id) {
+                    var trem   = preset.tremulants[id];
+                    var subBp  = tremBp.subpatcher().getnamed("tremulant" + id);
+                    if (subBp) {
+                        var sp    = subBp.subpatcher ? subBp.subpatcher() : null;
+                        if (sp) {
+                            var onBtn  = sp.getnamed("on");
+                            var spdDial = sp.getnamed("speed");
+                            if (onBtn)   onBtn.message("set",   trem.active ? 1 : 0);
+                            if (spdDial) spdDial.message("set", trem.speed !== undefined ? trem.speed : 0.5);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    // Release GUI suppression after async callbacks settle.
+    // applyLayerStateToGUI calls btn.message("set", ...) which fires MaxobjListener
+    // callbacks ASYNCHRONOUSLY — same issue as executeCancel.  If we reset the flags
+    // synchronously here they are already false when the callbacks arrive, causing
+    // spurious stop/div OSC events.  10ms Task keeps both flags true until all
+    // async callbacks have fired.
+    var recallSuppressReset = new Task(function() {
+        _suppressListeners = false;
+        dataLayer.suppressOSC(false);
+    });
+    recallSuppressReset.schedule(10);
+
+    // ---- 3. Build and send timed OSC queue (2ms between bundles) ----
+    var queue = buildRecallQueue(preset);
+    var idx   = 0;
+
+    common.log(common.LOG_LEVEL.INFO,
+        "Recall queue: " + queue.length + " bundles × " + RECALL_INTERVAL_MS + "ms");
+
+    var recallTask = new Task(function() {
+        if (idx >= queue.length) return;
+        var msg = queue[idx++];
+        dataLayer.sendOSCDirect(msg.path, msg.args);
+        if (idx < queue.length) recallTask.schedule(RECALL_INTERVAL_MS);
+    });
+    recallTask.schedule(0);
+}
+
+exports.recallPreset = function(presetJson) {
+    recallPreset(presetJson ? String(presetJson) : null);
+};
+
 function executeReset(){
     common.log(common.LOG_LEVEL.INFO, "RESET executed");
 
@@ -1664,6 +2150,16 @@ return {
     executeCancel: executeCancel,
     handleStopEvent: handleStopEvent,   // called from Universal.js inlet 1 / anything()
         //executeReset: executeReset
+
+        // Preset system — called from gamut_storage_organ.js
+    capturePreset: capturePreset,    // (name?) → preset object  (or null)
+    recallPreset:  recallPreset,     // (presetJsonOrObj) → starts timed OSC queue
+
+    // Returns the live.menu Max object created by createMainHeader, so Universal.js can
+    // pass it directly to organStorage.init() (avoids unreliable getnamed search).
+    getPresetMenu: function() {
+        return guiObjects && guiObjects.header ? guiObjects.header.presetMenu : null;
+    }
 };
 }
 
@@ -1675,4 +2171,4 @@ if (typeof global !== 'undefined') {
     global.createSINUAModuleWithDI = createSINUAModuleWithDI;
 }
 
-post("organTool_SINUA_ContextAware.js v01.14 - Organ cancel iterates manuals; divisionsAll label fixed\n");
+post("organTool_SINUA_ContextAware.js v01.22 - division stops captured/recalled via /Dx/S\n");

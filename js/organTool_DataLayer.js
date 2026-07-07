@@ -1480,6 +1480,7 @@ function createDataLayerModule(common) {
         setControllerState: setControllerState,
         getTremulantState: getTremulantState,
         getControllerState: getControllerState,
+        sendOSCDirect: sendOSCDirect,
         sendTremulantOSC: sendTremulantOSC,
         sendTremulantSpeedOSC: sendTremulantSpeedOSC,
         sendControllerOSC: sendControllerOSC,
