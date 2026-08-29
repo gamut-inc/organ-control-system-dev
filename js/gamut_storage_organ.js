@@ -18,6 +18,12 @@
 //         "which organ" and "which presets" together.
 //         initStorage(patcher, scriptDir) — call at system init, before any organ
 //         is loaded; init(patcher, organMod, menuRef) — call after each organ load.
+// 00.09 - Silence first-run noise: probe the backup file with File before
+//         Dict.import_json (a missing file prints "dictwrap: file not found"
+//         straight to the Max console — not a JS exception, so try/catch missed it).
+//         recallFromMenuIndex stays quiet on an empty bank (live.menu emits index 0
+//         when the device is inserted).  initStorage warns once if no pattrstorage
+//         named "storage" exists, and persist() reports what actually got written.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -174,10 +180,11 @@ function persist() {
             try { ps.message("store", PERSIST_SLOT, "GAMUT_BANK"); } catch(e) {}
         }
 
-        writeBackupFile(bank);
+        var fileOK = writeBackupFile(bank);
 
-        post("gamut_storage_organ: persisted " + bank.index.length + " preset(s)" +
-             (ps ? " → pattrstorage slot " + PERSIST_SLOT : " (no pattrstorage)") + " + backup file\n");
+        post("gamut_storage_organ: persisted " + describeBank(bank) +
+             (ps ? " → pattrstorage slot " + PERSIST_SLOT : " (NO pattrstorage found)") +
+             (fileOK ? " + backup file" : " (backup file FAILED)") + "\n");
     } catch(e) {
         post("gamut_storage_organ: persist error: " + e.message + "\n");
     }
@@ -214,18 +221,35 @@ function backupPath() {
     return _scriptDir ? (_scriptDir + BACKUP_FILE) : BACKUP_FILE;
 }
 
+// Dict.import_json on a missing file prints "dictwrap: file not found" straight to
+// the Max console — that is not a JS exception, so try/catch cannot swallow it.
+// Probe with File first; on the very first run the file legitimately does not exist.
+function backupFileExists() {
+    try {
+        var f = new File(backupPath(), "read");
+        var ok = f.isopen;
+        if (ok) f.close();
+        return ok;
+    } catch(e) {
+        return false;
+    }
+}
+
 function writeBackupFile(bank) {
     try {
         var d = new Dict();                       // temporary — freed below
         d.replace("bank", JSON.stringify(bank));
         d.export_json(backupPath());
         d.freepeer();
+        return true;
     } catch(e) {
         post("gamut_storage_organ: backup write failed: " + e.message + "\n");
+        return false;
     }
 }
 
 function readBackupFile() {
+    if (!backupFileExists()) return null;   // first run — stay silent
     try {
         var d = new Dict();
         d.import_json(backupPath());
@@ -234,7 +258,7 @@ function readBackupFile() {
         if (!raw) return null;
         return JSON.parse(raw);
     } catch(e) {
-        return null;   // file absent on first run — not an error
+        return null;   // unreadable / malformed — fall through to "no presets"
     }
 }
 
@@ -273,19 +297,30 @@ exports.initStorage = function(patcher, scriptDir) {
     _scriptDir = scriptDir || "";
     _loaded    = false;
 
+    // One-time setup diagnosis — the two things persistence depends on
+    var hasPS   = !!findPattrstorage();
+    var hasFile = backupFileExists();
+    if (!hasPS) {
+        post("gamut_storage_organ: WARNING — no pattrstorage named \"storage\" found; " +
+             "Live project persistence is off (backup file still works)\n");
+    }
+
     // Immediate attempt: Live may already have recalled the slot for us
     if (tryRestore("immediate")) return;
 
     // Otherwise ask pattrstorage to refill the dict, then retry from a Task
     // (pattrstorage recall is asynchronous — reading synchronously returns stale data).
-    if (requestPattrstorageRecall()) {
+    if (hasPS && requestPattrstorageRecall()) {
         var retry = new Task(function() {
-            if (!_loaded) tryRestore("after pattrstorage recall");
-            if (!_loaded) post("gamut_storage_organ: no stored presets found (first run?)\n");
+            if (_loaded) return;
+            if (tryRestore("after pattrstorage recall")) return;
+            post("gamut_storage_organ: nothing stored yet — " +
+                 "pattrstorage slot " + PERSIST_SLOT + " empty, backup file " +
+                 (hasFile ? "unreadable" : "not created yet") + " (first run)\n");
         });
         retry.schedule(150);
     } else {
-        post("gamut_storage_organ: no stored presets found (no pattrstorage, no backup)\n");
+        post("gamut_storage_organ: nothing stored yet (first run)\n");
     }
 };
 
@@ -377,6 +412,9 @@ exports.recall = function(presetNr) {
 exports.recallFromMenuIndex = function(idx) {
     idx = Number(idx);
     var slots = readIndex();
+    // An empty bank is the normal state right after the device is inserted — the
+    // live.menu emits index 0 on load.  Nothing to recall, nothing worth reporting.
+    if (slots.length === 0) return;
     if (isNaN(idx) || idx < 0 || idx >= slots.length) {
         post("gamut_storage_organ.recallFromMenuIndex: idx " + idx + " out of range\n"); return;
     }
@@ -492,4 +530,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.08 loaded\n");
+post("gamut_storage_organ.js v00.09 loaded\n");
