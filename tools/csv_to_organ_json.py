@@ -60,6 +60,8 @@ ALIASES = {
     "name":      ["name", "stopname", "register", "bezeichnung"],
     "feet":      ["feet", "foot", "footage", "fuss", "fuß", "pitch", "lage"],
     "manualID":  ["manualid", "manual", "man", "werk", "division"],
+    "stopType":  ["type", "stoptype", "kind", "art"],
+    "default":   ["default", "defaultvalue", "init", "initial", "standard"],
     "channel":   ["channel", "ch", "stopchannel", "kanal"],
     "onMsg":     ["onmsg", "msgon", "ontype", "typeon", "onmessage", "oncontrolmsg"],
     "onNr":      ["onnr", "nron", "onnumber", "onvalue1", "oncontrolnr", "oncc", "onnote"],
@@ -220,6 +222,12 @@ def build(csv_dir):
             "manualID": mid,
         }
 
+        # "coupler" moves the stop into a separate, greyed column at the end of the
+        # manual — couplers are not registers and should not read as ones.
+        stop_type = pick(row, "stopType").lower()
+        if stop_type:
+            stop["type"] = stop_type
+
         # Explicit on/off addresses win: they describe any console exactly.
         default_channel = manual_stop_channel.get(mid)
         on = build_address(row, "on", default_channel)
@@ -258,7 +266,7 @@ def build(csv_dir):
         cid = as_int(row, "controlID")
         if cid is None:
             continue
-        controls.append({
+        control = {
             "controlID": cid,
             "name":      row.get("controlName") or row.get("name") or ("Control %d" % cid),
             "type":      (row.get("type") or "wheel").lower(),
@@ -266,7 +274,12 @@ def build(csv_dir):
             "channel":   as_int(row, "channel", 1),
             "msg":       (row.get("controlMsg") or row.get("msg") or "CC").upper(),
             "nr":        as_int(row, "controlNr", as_int(row, "nr", 0)),
-        })
+        }
+        # Resting position CANCEL returns this control to. Usually 0, but a wind
+        # throttle sits open at 127 — cancelling a registration must not close it.
+        default = pick(row, "default")
+        control["default"] = int(float(default)) if default else 0
+        controls.append(control)
     if controls:
         organ["controls"] = controls
 

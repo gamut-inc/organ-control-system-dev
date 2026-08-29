@@ -34,6 +34,14 @@
 //           it, so the wrapped channel no longer collides with the buttons
 //         * manual name trimmed to labelMax so only "(chN)" wraps to line 2
 //         * controller dials pitched 38px apart (was 22) — names no longer overlap
+// 00.06 - Manual label reads "M4 Schwellwe (ch4)" ("P …" for the pedal) — the ID
+//         prefix names the manual, the name is trimmed to 9 so only "(chN)" wraps.
+//         Stop type "coupler": laid out as a separate block 4px past the registers'
+//         right edge and greyed, since couplers borrow ranks rather than speak.
+//         Stops whose name contains "tremulant" are darkened orange.
+//         CANCEL spelled out on the manual buttons.
+//         Controls carry a "default" (0, or e.g. 127 for a wind throttle): sent at
+//         load, and CANCEL returns the controls in its scope to it.
 // 29.08.2026
 //
 // TARGET: traditional pipe organs with MIDI interface — every stop belongs to
@@ -154,7 +162,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
         // column reserves both before PANIC starts.
         labelH:      28,
-        labelMax:    12,    // trim the name so only the channel lands on line 2
+        labelMax:     9,    // name budget after the "M4 " prefix, so only "(chN)" wraps
+        titleInset:   4,    // comment widgets inset their text; pull the title back
+        // Couplers sit apart from the registers, in their own trailing column
+        couplerGap:   4,
         stopPadTop:   4,    // small breathing room above the first stop …
         stopPadBottom: 4,   // … and the same below the last one
         // Controller dials get their OWN column, always — even for a manual that has
@@ -219,9 +230,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         "bombardon", "chamade"
     ];
 
-    function stopColorClass(name) {
+    function stopColorClass(name, type) {
+        if (type === "coupler") return "coupler";
         if (!name) return "normal";
         var n = name.toLowerCase();
+        // Tremulants read before reeds: "Clairon Tremulant" is a tremulant control
+        if (n.indexOf("tremulant") >= 0) return "tremulant";
         for (var i = 0; i < STOP_REED_KEYWORDS.length; i++) {
             if (n.indexOf(STOP_REED_KEYWORDS[i]) >= 0) return "reed";
         }
@@ -240,6 +254,18 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 liveTextObj.setattr("activebgcolor",     0.0, 0.57, 0.57, 0.2);
                 liveTextObj.setattr("activebgoncolor",   0.0, 1.0,  1.0,  1.0);
                 liveTextObj.setattr("activetextoncolor", 0.0, 0.0,  0.0,  1.0);
+            } else if (colorClass === "tremulant") {
+                // Darkened orange — a movement control, not a rank
+                liveTextObj.setattr("activebgcolor",     0.75, 0.42, 0.0,  0.2);
+                liveTextObj.setattr("activebgoncolor",   0.75, 0.42, 0.0,  1.0);
+                liveTextObj.setattr("activetextoncolor", 1.0,  1.0,  1.0,  1.0);
+            } else if (colorClass === "coupler") {
+                // Greyed: couplers borrow other manuals, they do not speak themselves
+                liveTextObj.setattr("bgcolor",           0.35, 0.35, 0.35, 1.0);
+                liveTextObj.setattr("textcolor",         0.72, 0.72, 0.72, 1.0);
+                liveTextObj.setattr("activebgcolor",     0.45, 0.45, 0.45, 0.35);
+                liveTextObj.setattr("activebgoncolor",   0.62, 0.62, 0.62, 1.0);
+                liveTextObj.setattr("activetextoncolor", 0.1,  0.1,  0.1,  1.0);
             }
             // "normal" → Max defaults
         } catch(e) {
@@ -552,6 +578,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 name:        s.name || ("Stop " + s.stopID),
                 manualID:    (s.manualID !== undefined) ? s.manualID : 0,
                 stopChannel: s.stopChannel || null,
+                type:        s.type || null,    // "coupler" → own greyed column at the end
                 on:          s.on  || null,     // explicit wiring, when the table gives it
                 off:         s.off || null
             };
@@ -609,7 +636,11 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 // "every key-action channel") and `c.channel || 1` would swallow it.
                 channel:   (c.channel === undefined || c.channel === null) ? 1 : Number(c.channel),
                 msg:       String(c.msg || c.controlMsg || "CC").toUpperCase(),
-                nr:        Number((c.nr !== undefined) ? c.nr : c.controlNr)
+                nr:        Number((c.nr !== undefined) ? c.nr : c.controlNr),
+                // Resting position CANCEL returns to.  Usually 0, but a wind throttle
+                // sits open at 127 — cancelling a registration must not close it.
+                def:       (c["default"] === undefined || c["default"] === null)
+                               ? 0 : Number(c["default"])
             };
 
             // A button whose name mentions panic drives the existing PANIC control
@@ -705,8 +736,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Global buttons share the x of the per-manual buttons (manual bpatcher x + inner offset)
         var gx = LAYOUT.manualX + LAYOUT.btnX;
 
-        var label = common.createLiveComment(p, G.margin.x, LAYOUT.headerY, 200, 20,
-            "organNameLabel", organName, 30, 14);
+        // Title starts at the controller column.  A comment insets its text, so pull
+        // the box back by that much to make the glyphs line up with the dials below.
+        var label = common.createLiveComment(p, G.margin.x - LAYOUT.titleInset, LAYOUT.headerY,
+            220, 22, "organNameLabel", organName, 30, 14);
 
         var panic = createActionButton(p, gx, LAYOUT.globalPanicY, "panic_all", "PANIC",
             fs.large, true, function() { executePanic(null); });
@@ -801,9 +834,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Remember the object and its value so presets can capture and restore it
         guiObjects.dialsByID = guiObjects.dialsByID || {};
         guiObjects.dialsByID[ctl.controlID] = dial;
-        if (organState.controlValues[ctl.controlID] === undefined) {
-            organState.controlValues[ctl.controlID] = 0;
-        }
+        // Start at the control's resting position, and send it so the organ agrees
+        organState.controlValues[ctl.controlID] = ctl.def;
+        try { dial.message("set", ctl.def); } catch(e) {}
+        emitControl(ctl, ctl.def);
 
         addListener(new MaxobjListener(dial, function(data) {
             if (_suppressListeners) return;
@@ -817,10 +851,13 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         return dial;
     }
 
-    // Keep the manual name to one line so the wrapped second line carries only "(chN)"
-    function trimManualName(name) {
-        var n = String(name || "");
-        return n.length > LAYOUT.labelMax ? n.substring(0, LAYOUT.labelMax) : n;
+    // "M4 Schwellwe" / "(ch4)" — prefix names the manual by its ID (pedal keeps "P"),
+    // and the name is trimmed so the wrapped second line carries only the channel.
+    function manualLabelText(manual) {
+        var prefix = isPedal(manual) ? "P" : ("M" + manual.manualID);
+        var n = String(manual.name || "");
+        if (n.length > LAYOUT.labelMax) n = n.substring(0, LAYOUT.labelMax);
+        return prefix + " " + n + " (ch" + manual.midiChannel + ")";
     }
 
     // The tiny dial shows the shortname beside the slider — crop at the length of
@@ -880,10 +917,25 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var currentY = startY;
 
         organState.displayOrder.forEach(function(manualData) {
-            var cols   = G.grid.columnsNeeded(manualData.stops.length);
-            var rows   = Math.min(manualData.stops.length, common.MAX_STOPS_PER_COLUMN);
+            // Couplers are laid out separately, in their own trailing column
+            var registers = manualData.stops.filter(function(s) { return s.type !== "coupler"; });
+            var couplers  = manualData.stops.filter(function(s) { return s.type === "coupler"; });
+
             var margin = (typeof G.columns.margin === 'function') ? G.columns.margin() : G.columns.margin;
-            var gridW  = cols * (G.columns.w() + margin);
+            var colW   = G.columns.w() + margin;
+            var regCols = G.grid.columnsNeeded(registers.length);
+            var cplCols = couplers.length ? G.grid.columnsNeeded(couplers.length) : 0;
+
+            // Columns are pitched narrower than a button is wide (96 vs 100), so the
+            // coupler block must start from the last register's real right edge —
+            // adding the gap to the pitch alone would leave no visible gap at all.
+            var blockW  = function(n) { return n ? ((n - 1) * colW) + G.stops.w : 0; };
+            var cplXoff = blockW(regCols) + LAYOUT.couplerGap;
+            var gridW   = cplCols ? (cplXoff + blockW(cplCols)) : blockW(regCols);
+
+            var rows = Math.max(
+                Math.min(registers.length, common.MAX_STOPS_PER_COLUMN),
+                Math.min(couplers.length,  common.MAX_STOPS_PER_COLUMN));
 
             // Rows are pitched stops.h + margin apart, NOT stops.h: createStopGrid
             // passes the column margin (-3) to grid.pos as the row margin too.  Sizing
@@ -905,7 +957,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             var w      = startX + gridW + 10;
 
             var manual = createManualBpatcher(p, LAYOUT.manualX, currentY, w, plan.height,
-                                              manualData, startX, wheels, plan);
+                                              manualData, startX, wheels, plan,
+                                              registers, couplers, cplXoff);
             if (manual) {
                 manual.width = w;          // remembered so the window resize is exact
                 manuals.push(manual);
@@ -916,7 +969,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         return { manuals: manuals, totalHeight: currentY };
     }
 
-    function createManualBpatcher(p, x, y, w, h, manualData, stopStartX, wheels, plan) {
+    function createManualBpatcher(p, x, y, w, h, manualData, stopStartX, wheels, plan,
+                                  registers, couplers, cplXoff) {
         var fs = common.GEOMETRY.button.fontsize;
         var bpatcher = common.createBpatcher(p, x, y, w, h, "manual" + manualData.manualID);
         if (!bpatcher) return null;
@@ -926,12 +980,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // Left column: name, PANIC, CANC — kept inside the column so it never
         // overlaps the controller column or the stops.
-        // Name trimmed to labelMax so it fills line 1 and only "(chN)" wraps to line 2
         var label = common.createLiveComment(sp, LAYOUT.btnX, 0,
             common.GEOMETRY.margin.x - 4, LAYOUT.labelH,
             "manual_label_" + manualData.manualID,
-            trimManualName(manualData.name) + " (ch" + manualData.midiChannel + ")",
-            LAYOUT.labelMax + 8, 9);
+            manualLabelText(manualData), 40, 9);
 
         // PANIC above CANC, both 2px in from the left edge
         var panicBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualPanicY,
@@ -939,7 +991,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             function() { executePanic(manualData.manualID); });
 
         var cancelBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualCancelY,
-            "cancel_m" + manualData.manualID, "CANC", fs.small, false,
+            "cancel_m" + manualData.manualID, "CANCEL", fs.small, false,
             function() { executeCancel(manualData.manualID); });
 
         // Controller dials in their own column(s), starting at the top edge like the
@@ -954,9 +1006,14 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             if (d) dials.push(d);
         });
 
-        // Fixed stop grid + per-manual listener cache
+        // Registers first, then the couplers in their own column a small gap further right
         var stopState     = {};   // {varname → bool} — updated by listeners, read by capturePreset
-        var stopButtonMap = createStopGrid(sp, stopStartX, LAYOUT.stopPadTop, manualData, stopState);
+        var stopButtonMap = createStopGrid(sp, stopStartX, LAYOUT.stopPadTop, registers, stopState);
+        if (couplers && couplers.length) {
+            var cplMap = createStopGrid(sp, stopStartX + cplXoff, LAYOUT.stopPadTop,
+                                        couplers, stopState);
+            Object.keys(cplMap).forEach(function(k) { stopButtonMap[k] = cplMap[k]; });
+        }
 
         return {
             bpatcher:      bpatcher,
@@ -969,14 +1026,16 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         };
     }
 
-    function createStopGrid(p, startX, startY, manualData, stateCache) {
+    // stopList is an explicit array (registers or couplers) so the two can be laid
+    // out as separate blocks while sharing one button map and state cache.
+    function createStopGrid(p, startX, startY, stopList, stateCache) {
         var G = common.GEOMETRY;
         var buttonMap = {};
         var currentColumn = 0;
         var currentRow = 0;
         var seenIDs = {};
 
-        manualData.stops.forEach(function(stop, index) {
+        stopList.forEach(function(stop, index) {
             var sid     = stop.stopID;
             var varname = seenIDs[sid] ? ("stop" + sid + "_" + index) : ("stop" + sid);
             seenIDs[sid] = true;
@@ -990,7 +1049,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 G.stops.w, G.stops.h, varname, stopLabel, stopLabel, stopLabel, 10);
 
             if (stopObj && stopObj.liveText) {
-                applyStopColor(stopObj.liveText, stopColorClass(stop.name));
+                applyStopColor(stopObj.liveText, stopColorClass(stop.name, stop.type));
                 buttonMap[varname] = stopObj.liveText;
                 addListener(new MaxobjListener(stopObj.liveText, function(data) {
                     if (_suppressListeners) return;
@@ -1064,10 +1123,34 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             });
         });
         if (organState.stopSystem === "sysex") sendSysExState();
+
+        // A cancel clears the registration, and the controllers are part of it —
+        // back to their resting positions (0, or 127 for something like a wind throttle).
+        var resetControls = (manualID === null || manualID === undefined)
+            ? allControls()
+            : (organState.wheelsByManual[manualID] || []);
+        resetControls.forEach(function(ctl) { resetControlToDefault(ctl); });
+
         releaseSuppression();
 
         common.log(common.LOG_LEVEL.INFO, "Cancel executed" +
-            ((manualID !== null && manualID !== undefined) ? " for manual " + manualID : " (all)"));
+            ((manualID !== null && manualID !== undefined) ? " for manual " + manualID : " (all)") +
+            ", " + resetControls.length + " control(s) reset");
+    }
+
+    function allControls() {
+        var list = organState.globalWheels.slice();
+        Object.keys(organState.wheelsByManual).forEach(function(m) {
+            list = list.concat(organState.wheelsByManual[m]);
+        });
+        return list;
+    }
+
+    function resetControlToDefault(ctl) {
+        organState.controlValues[ctl.controlID] = ctl.def;
+        var dial = guiObjects.dialsByID ? guiObjects.dialsByID[ctl.controlID] : null;
+        if (dial) dial.message("set", ctl.def);
+        emitControl(ctl, ctl.def);
     }
 
     // manualID null → every manual, plus any global panic definitions
@@ -1285,4 +1368,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.05 - tighter layout; two-line manual label; taller dials\n");
+post("organTool_MIDI.js v00.06 - couplers, tremulant colour, control defaults, CANCEL reset\n");

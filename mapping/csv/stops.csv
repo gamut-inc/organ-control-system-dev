@@ -1,101 +1,101 @@
-stopID,name,manualID,midiNote
-1,Super IV-IV,4,0
-2,Lieblich Gedackt 16',4,1
-3,Zartgeige 16',4,2
-4,Flötenprinzipal 8',4,3
-5,Querflöte 8',4,4
-6,Salizional 8',4,5
-7,Schwebung 8',4,6
-8,Oktave 4',4,7
-9,Dulzflöte 4',4,8
-10,Schweizer Pfeife 2',4,9
-11,Sub IV-IV,4,10
-12,Rep. Septime ⁴⁄₇ – ⅐‘,4,11
-13,Sesquialtera 2 f.,4,12
-14,Plein jeu 5-6 f.,4,13
-15,Terzzimbel 3 f.,4,14
-16,Cor anglais 16',4,15
-17,Trompet harmonique 8',4,16
-18,Hautbois 8',4,17
-19,Clairon Tremulant 4',4,18
-20,Tremulant,4,19
-21,Super IV-III,3,20
-22,Quintade 16',3,21
-23,Prinzipal 8',3,22
-24,Weitgedackt 8',3,23
-25,Oktave 4',3,24
-26,Blockflöte 4',3,25
-27,Nasat 2⅔‘,3,26
-28,Oktave 2',3,27
-29,Terz 1⅗‘,3,28
-30,Quinte 1⅓‘,3,29
-31,Sub IV-III,3,30
-32,Sifflöte 1',3,31
-33,Tonus fabri 2',3,32
-34,Scharfzimbel 5 f.,3,33
-35,Holzdulzian 16',3,34
-36,Cromorne 8',3,35
-37,Rohrschalmey 4',3,36
-38,IV-III,3,37
-39,Tremulant,3,38
-40,Glockenspiel,3,39
-41,Super IV-II,2,40
-42,Super II-II,2,41
-43,Prinzipal 16',2,42
-44,Oktave 8',2,43
-45,Koppelflöte 8',2,44
-46,Viola di Gamba 8',2,45
-47,Oktave 4',2,46
-48,Spitzflöte 4',2,47
-49,Quinte 2⅔‘,2,48
-50,Oktave 2',2,49
-51,Waldflöte 2',2,50
-52,Sub IV-II,2,51
-53,Sub II-II,2,52
-54,Mixtur 5-6 f.,2,53
-55,Scharf 4 f.,2,54
-56,Cornett 5 f.,2,55
-57,Trompete 16',2,56
-58,Trompete 8',2,57
-59,Span. Regal 8',2,58
-60,IV-II,2,59
-61,III-II,2,60
-62,I-II,2,61
-63,Zimbelstern 1,1,62
-64,Zimbelstern 2,1,63
-65,Kuckuck,1,64
-66,Vogelschrei,1,65
-67,Holzgedackt 8',1,66
-68,Quintatön 8',1,67
-69,Praestant 4',1,68
-70,Rohrflöte 4',1,69
-71,Oktave 2',1,70
-72,Blockflöte 2',1,71
-73,Oktave 1',1,72
-74,Terzian 2 f.,1,73
-75,Zimbel 3 f.,1,74
-76,Vox humanav 8',1,75
-77,Tremulant 8',1,76
-78,Prinzipal 16',8,77
-79,Subbaß 16',8,78
-80,Zartbaß 16',8,79
-81,Quinte 10 ⅔‘,8,80
-82,Oktavbaß 8',8,81
-83,Holzflöte 8',8,82
-84,Choralbaß 4',8,83
-85,Koppelflöte 4',8,84
-86,Nachthorn 2',8,85
-87,Hintersatz 4 f.,8,86
-88,Pedalmixtur 6 f.,8,87
-89,Super IV-P,8,88
-90,Kontrafagott 32',8,89
-91,Posaune 16',8,90
-92,Dulzian 16',8,91
-93,Trompete 8',8,92
-94,Feldtrompete 4',8,93
-95,Singend Kornett 2',8,94
-96,IV-P,8,95
-97,III-P,8,96
-98,II-P,8,97
-99,I-P,8,98
-100,Tremulant Kleinpedal,8,99
+stopID,name,type,manualID,midiNote
+1,Super IV-IV,coupler,4,1
+2,Lieblich Gedackt 16',,4,2
+3,Zartgeige 16',,4,3
+4,Flötenprinzipal 8',,4,4
+5,Querflöte 8',,4,5
+6,Salizional 8',,4,6
+7,Schwebung 8',,4,7
+8,Oktave 4',,4,8
+9,Dulzflöte 4',,4,9
+10,Schweizer Pfeife 2',,4,10
+11,Sub IV-IV,coupler,4,11
+12,Rep. Septime ⁴⁄₇ – ⅐‘,,4,12
+13,Sesquialtera 2 f.,,4,13
+14,Plein jeu 5-6 f.,,4,14
+15,Terzzimbel 3 f.,,4,15
+16,Cor anglais 16',,4,16
+17,Trompet harmonique 8',,4,17
+18,Hautbois 8',,4,18
+19,Clairon Tremulant 4',,4,19
+20,Tremulant,,4,20
+21,Super IV-III,coupler,3,21
+22,Quintade 16',,3,22
+23,Prinzipal 8',,3,23
+24,Weitgedackt 8',,3,24
+25,Oktave 4',,3,25
+26,Blockflöte 4',,3,26
+27,Nasat 2⅔‘,,3,27
+28,Oktave 2',,3,28
+29,Terz 1⅗‘,,3,29
+30,Quinte 1⅓‘,,3,30
+31,Sub IV-III,coupler,3,31
+32,Sifflöte 1',,3,32
+33,Tonus fabri 2',,3,33
+34,Scharfzimbel 5 f.,,3,34
+35,Holzdulzian 16',,3,35
+36,Cromorne 8',,3,36
+37,Rohrschalmey 4',,3,37
+38,IV-III,,3,38
+39,Tremulant,,3,39
+40,Glockenspiel,,3,40
+41,Super IV-II,coupler,2,41
+42,Super II-II,coupler,2,42
+43,Prinzipal 16',,2,43
+44,Oktave 8',,2,44
+45,Koppelflöte 8',,2,45
+46,Viola di Gamba 8',,2,46
+47,Oktave 4',,2,47
+48,Spitzflöte 4',,2,48
+49,Quinte 2⅔‘,,2,49
+50,Oktave 2',,2,50
+51,Waldflöte 2',,2,51
+52,Sub IV-II,,2,52
+53,Sub II-II,,2,53
+54,Mixtur 5-6 f.,,2,54
+55,Scharf 4 f.,,2,55
+56,Cornett 5 f.,,2,56
+57,Trompete 16',,2,57
+58,Trompete 8',,2,58
+59,Span. Regal 8',,2,59
+60,IV-II,coupler,2,60
+61,III-II,coupler,2,61
+62,I-II,coupler,2,62
+63,Zimbelstern 1,,1,63
+64,Zimbelstern 2,,1,64
+65,Kuckuck,,1,65
+66,Vogelschrei,,1,66
+67,Holzgedackt 8',,1,67
+68,Quintatön 8',,1,68
+69,Praestant 4',,1,69
+70,Rohrflöte 4',,1,70
+71,Oktave 2',,1,71
+72,Blockflöte 2',,1,72
+73,Oktave 1',,1,73
+74,Terzian 2 f.,,1,74
+75,Zimbel 3 f.,,1,75
+76,Vox humanav 8',,1,76
+77,Tremulant 8',,1,77
+78,Prinzipal 16',,8,78
+79,Subbaß 16',,8,79
+80,Zartbaß 16',,8,80
+81,Quinte 10 ⅔‘,,8,81
+82,Oktavbaß 8',,8,82
+83,Holzflöte 8',,8,83
+84,Choralbaß 4',,8,84
+85,Koppelflöte 4',,8,85
+86,Nachthorn 2',,8,86
+87,Hintersatz 4 f.,,8,87
+88,Pedalmixtur 6 f.,,8,88
+89,Super IV-P,coupler,8,89
+90,Kontrafagott 32',,8,90
+91,Posaune 16',,8,91
+92,Dulzian 16',,8,92
+93,Trompete 8',,8,93
+94,Feldtrompete 4',,8,94
+95,Singend Kornett 2',,8,95
+96,IV-P,coupler,8,96
+97,III-P,coupler,8,97
+98,II-P,coupler,8,98
+99,I-P,coupler,8,99
+100,Tremulant Kleinpedal,,8,100
