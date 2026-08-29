@@ -818,10 +818,19 @@ function presetStorePrompt(presetNr) {
 }
 
 // The [dialog] object's answer on its way back — wired automatically when the
-// dialog is created, or by hand as [dialog] → [prepend FromDialog] → this object.
-function FromDialog() {
-    if (!organStorage) return;
+// dialog is created, or by hand as [dialog] → [prepend fromDialog] → this object.
+// Max dispatches on the exact symbol, so both spellings are accepted: a patch built
+// by hand and one built by the script must not depend on the capital letter.
+function fromDialog() {
+    if (!organStorage) {
+        post("fromDialog: organStorage not initialized\n");
+        return;
+    }
     organStorage.fromDialog.apply(null, Array.prototype.slice.call(arguments));
+}
+
+function FromDialog() {
+    fromDialog.apply(null, Array.prototype.slice.call(arguments));
 }
 
 function presetRecall(presetNr) {

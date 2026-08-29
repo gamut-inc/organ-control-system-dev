@@ -29,6 +29,13 @@
 //         name, driven by a [dialog] object created on demand and wired back to the
 //         js box.  Max has no blocking dialog in JS, so the flow is a small state
 //         machine; fromDialog() receives the answer.
+// 00.12 - The dialog answer arrives as "fromDialog" (lower case) — Universal.js now
+//         accepts both spellings, since Max dispatches on the exact symbol and a
+//         hand-built [prepend fromDialog] must work as well as a generated one.
+//         A confirm dialog opens with a bang: "symbol" with an empty argument is
+//         not a valid Max message, so the OK/Cancel box never appeared.
+//         highlightMenu(): store and recall move the live.menu to the preset in
+//         play, so the display always names what is actually sounding.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -404,6 +411,7 @@ exports.store = function(presetNr, presetName) {
     writeIndex(sortedSlots(slots));
 
     updateMenu();     // before persist() so pattrstorage captures the correct menu range
+    highlightMenu(presetNr);          // and select what was just stored
     persist();
     renameChain(presetNr, presetName);
 
@@ -422,6 +430,7 @@ exports.recall = function(presetNr) {
         post("gamut_storage_organ.recall: no preset at slot " + presetNr + "\n"); return;
     }
     _organMod.recallPreset(jsonStr);
+    highlightMenu(presetNr);          // the menu shows what is actually sounding
     say("gamut_storage_organ: recalled preset " + presetNr + "\n");
 };
 
@@ -503,7 +512,7 @@ function findDialogObject() {
     try {
         _dialogObj = _patcher.newdefault(20, 400, "dialog", "@varname", "organ_dialog");
         if (!_dialogObj) return null;
-        var fwd = _patcher.newdefault(20, 430, "prepend", "FromDialog");
+        var fwd = _patcher.newdefault(20, 430, "prepend", "fromDialog");
         if (fwd) {
             _patcher.connect(_dialogObj, 0, fwd, 0);
             if (_jsBox) _patcher.connect(fwd, 0, _jsBox, 0);
@@ -520,11 +529,18 @@ function findDialogObject() {
 
 function openDialog(mode, label, defaultText) {
     var d = findDialogObject();
-    if (!d) return false;
+    if (!d) {
+        post("gamut_storage_organ: no [dialog organ_dialog] in the patcher\n");
+        return false;
+    }
     try {
         d.setattr("mode", mode);
         d.setattr("label", label);
-        d.message("symbol", defaultText || "");
+        // "symbol" with an empty argument is not a valid Max message — a confirm
+        // dialog carries no default text, so open it with a bang instead.
+        if (defaultText) d.message("symbol", defaultText);
+        else             d.message("bang");
+        say("gamut_storage_organ: dialog opened (mode " + mode + ")\n");
         return true;
     } catch(e) {
         post("gamut_storage_organ: dialog failed: " + e.message + "\n");
@@ -641,6 +657,20 @@ function updateMenu() {
     say("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
 }
 
+// Show which preset is live.  "set" moves the menu without making it fire, so this
+// is safe even when the menu itself started the recall.
+function highlightMenu(presetNr) {
+    var menu = findPresetMenu();
+    if (!menu) return;
+    var slots = readIndex();
+    for (var i = 0; i < slots.length; i++) {
+        if (slots[i].nr === presetNr) {
+            try { menu.message("set", i); } catch(e) {}
+            return;
+        }
+    }
+}
+
 // ---- MIDI Effect Rack chain renaming (optional — silent when no rack is present) ----
 
 function getLiveAPI() {
@@ -677,4 +707,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.11 loaded\n");
+post("gamut_storage_organ.js v00.12 loaded\n");
