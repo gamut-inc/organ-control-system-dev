@@ -24,6 +24,11 @@
 //         recallFromMenuIndex stays quiet on an empty bank (live.menu emits index 0
 //         when the device is inserted).  initStorage warns once if no pattrstorage
 //         named "storage" exists, and persist() reports what actually got written.
+// 00.10 - "debug 0" quiet mode: routine progress lines go through say().
+// 00.11 - Guided store — storePrompt(nr) confirms an overwrite, then asks for the
+//         name, driven by a [dialog] object created on demand and wired back to the
+//         js box.  Max has no blocking dialog in JS, so the flow is a small state
+//         machine; fromDialog() receives the answer.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -52,6 +57,7 @@ var _organMod   = null;
 var _api        = null;
 var _presetMenu = null;   // direct MaxObj ref to live.menu "preset_menu"
 var _scriptDir  = "";     // set by initStorage — where the backup file lives
+var _jsBox      = null;   // the hosting js/v8 box, so a created dialog can be wired to it
 var _loaded     = false;  // true once a load attempt has restored (or confirmed empty)
 var _quiet      = false;  // "debug 0" in Universal.js — keep the console clean live
 
@@ -301,9 +307,10 @@ function tryRestore(sourceLabel) {
  * patcher   : this.patcher of Universal.js
  * scriptDir : directory holding the js files (backup file goes there)
  */
-exports.initStorage = function(patcher, scriptDir) {
+exports.initStorage = function(patcher, scriptDir, jsBox) {
     _patcher   = patcher;
     _scriptDir = scriptDir || "";
+    _jsBox     = jsBox || null;
     _loaded    = false;
 
     // One-time setup diagnosis — the two things persistence depends on
@@ -459,6 +466,137 @@ exports.deleteAll = function() {
 exports.updateMenu  = updateMenu;
 exports.getSlotList = function() { return readIndex(); };
 
+// ================================================================================================
+// GUIDED STORE — confirm an overwrite, then ask for the name
+// ================================================================================================
+// Max has no blocking dialog in JS, so the flow is a small state machine driven by
+// a [dialog] object in the patcher.  Its answer comes back through fromDialog():
+//
+//   pressing slot N  →  storePrompt(N)
+//        slot taken  →  mode 2, "Preset N: <name> überschreiben?"
+//                       CANCEL → done      OK → name prompt
+//        slot free   →  straight to the name prompt
+//   name prompt      →  mode 0, text entry pre-filled with the existing name
+//                       CANCEL → done      OK → store(N, text)
+//
+// PATCHER SETUP (created automatically if absent, like preset_menu):
+//   [dialog @varname organ_dialog] → [prepend FromDialog] → the v8/js object
+//
+// [dialog] modes: 0 = text entry, 1 = message only, 2 = OK / Cancel.
+// It answers with the entered text, or the symbol CANCEL when dismissed.
+
+var _dialogObj = null;
+var _pending   = null;   // {stage: "confirm"|"name", nr: N, name: "..."}
+
+function findDialogObject() {
+    if (_dialogObj) return _dialogObj;
+    if (!_patcher) return null;
+
+    var p = _patcher;
+    while (p) {
+        var d = p.getnamed("organ_dialog");
+        if (d) { _dialogObj = d; return d; }
+        p = p.parentpatcher;
+    }
+
+    // Not there yet — build it and wire its answer back into the js object
+    try {
+        _dialogObj = _patcher.newdefault(20, 400, "dialog", "@varname", "organ_dialog");
+        if (!_dialogObj) return null;
+        var fwd = _patcher.newdefault(20, 430, "prepend", "FromDialog");
+        if (fwd) {
+            _patcher.connect(_dialogObj, 0, fwd, 0);
+            if (_jsBox) _patcher.connect(fwd, 0, _jsBox, 0);
+            else say("gamut_storage_organ: [dialog] built; connect [prepend FromDialog] " +
+                     "to the js object by hand\n");
+        }
+        say("gamut_storage_organ: created [dialog organ_dialog]\n");
+        return _dialogObj;
+    } catch(e) {
+        post("gamut_storage_organ: could not create the dialog object: " + e.message + "\n");
+        return null;
+    }
+}
+
+function openDialog(mode, label, defaultText) {
+    var d = findDialogObject();
+    if (!d) return false;
+    try {
+        d.setattr("mode", mode);
+        d.setattr("label", label);
+        d.message("symbol", defaultText || "");
+        return true;
+    } catch(e) {
+        post("gamut_storage_organ: dialog failed: " + e.message + "\n");
+        return false;
+    }
+}
+
+/**
+ * storePrompt — the interactive counterpart to store(): confirm, name, save.
+ * Falls back to storing straight away when no dialog object can be made.
+ */
+exports.storePrompt = function(presetNr) {
+    presetNr = Number(presetNr);
+    if (isNaN(presetNr) || presetNr < 0) {
+        post("gamut_storage_organ.storePrompt: invalid presetNr\n"); return;
+    }
+    if (presetNr === PERSIST_SLOT) {
+        post("gamut_storage_organ.storePrompt: slot " + PERSIST_SLOT + " is reserved\n"); return;
+    }
+
+    var existing = null;
+    readIndex().forEach(function(s) { if (s.nr === presetNr) existing = s.name; });
+
+    if (existing) {
+        _pending = { stage: "confirm", nr: presetNr, name: existing };
+        if (!openDialog(2, "Preset " + presetNr + ": \"" + existing + "\"\nüberschreiben?", "")) {
+            _pending = null;
+            exports.store(presetNr, existing);   // no dialog available — just overwrite
+        }
+        return;
+    }
+
+    askForName(presetNr, "Preset " + presetNr);
+};
+
+function askForName(presetNr, defaultName) {
+    _pending = { stage: "name", nr: presetNr, name: defaultName };
+    if (!openDialog(0, "Name für Preset " + presetNr, defaultName)) {
+        _pending = null;
+        exports.store(presetNr, defaultName);    // no dialog available — store unnamed
+    }
+}
+
+/**
+ * fromDialog — the [dialog] object's answer. Anything that is not CANCEL counts as
+ * confirmation, which is also how the older gamut_storage.js read it.
+ */
+exports.fromDialog = function() {
+    var args  = Array.prototype.slice.call(arguments);
+    var first = (args.length ? String(args[0]) : "");
+
+    if (!_pending) return;                       // an answer we did not ask for
+
+    if (first === "CANCEL") {
+        say("gamut_storage_organ: store cancelled\n");
+        _pending = null;
+        return;
+    }
+
+    if (_pending.stage === "confirm") {
+        askForName(_pending.nr, _pending.name);
+        return;
+    }
+
+    if (_pending.stage === "name") {
+        var nr   = _pending.nr;
+        var text = args.join(" ").trim();
+        _pending = null;
+        exports.store(nr, text || ("Preset " + nr));
+    }
+};
+
 // ---- Menu update ----
 
 function findPresetMenu() {
@@ -539,4 +677,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.10 loaded\n");
+post("gamut_storage_organ.js v00.11 loaded\n");

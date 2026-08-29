@@ -90,6 +90,8 @@ if (scriptDir) {
 // ================================================================================================
 // Captured at load time so included modules can call this.patcher.newdefault() etc.
 var _maxPatcher = this.patcher;
+// The js box itself, so programmatically created objects can be wired back into it
+var _maxBox = this.box;
 
 // ================================================================================================
 // SYSTEM STATE
@@ -145,7 +147,7 @@ function initializeSystem() {
         
         // Restore the preset bank + last organ path BEFORE any organ loads, so the
         // auto-reload below has a path to work with.
-        if (organStorage) organStorage.initStorage(_maxPatcher, scriptDir);
+        if (organStorage) organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
 
         system.initialized = true;
         system.modules.common.log(system.modules.common.LOG_LEVEL.INFO, "System initialized successfully");
@@ -746,6 +748,46 @@ function watchTrackOutput() {
 }
 
 // ================================================================================================
+// NOTE CONTROL — drive presets and stops from incoming MIDI notes
+// ================================================================================================
+//   note 0            → recall preset, the VELOCITY carries the preset number
+//   any other note    → stop (note + offset), velocity > 0 = on, 0 = off
+//
+// Note 0 is always the preset selector and never a stop, which is why an organ with
+// more than 127 stops needs the offset: a second track sends the same notes 1..127
+// with offset 127, addressing stops 128..254, and so on.  The offset is a trailing
+// argument, so one handler serves every track:
+//
+//   [notein] → [pack i i] → [prepend organNote]              → [v8]     stops 1..127
+//   [notein] → [pack i i] → [append 127] → [prepend organNote] → [v8]   stops 128..254
+//
+// Sending it as an argument rather than as module state keeps the tracks independent:
+// two tracks can address different ranges at the same time without racing each other.
+
+function organNote(note, velocity, offset) {
+    note     = Number(note);
+    velocity = Number(velocity);
+    offset   = Number(offset) || 0;
+
+    if (isNaN(note) || isNaN(velocity)) return;
+
+    if (note === 0) {
+        // Preset selector. A note-off arrives as velocity 0, which would read as
+        // "preset 0" — ignore it and act on the note-on only.
+        if (velocity > 0) {
+            if (organStorage) organStorage.recall(velocity);
+            else post("organNote: preset " + velocity + " — organStorage not loaded\n");
+        }
+        return;
+    }
+
+    var stopID = note + offset;
+    if (system.organModule && typeof system.organModule.handleStopEvent === "function") {
+        system.organModule.handleStopEvent(stopID, null, null, null, velocity > 0);
+    }
+}
+
+// ================================================================================================
 // PRESET SYSTEM — message handlers callable from Max patch
 // ================================================================================================
 // Wire in Max:
@@ -766,6 +808,20 @@ function presetStore(presetNr, presetName) {
     var name  = args.length > 1 ? args.slice(1).join(" ") : undefined;
     if (organStorage) organStorage.store(nr, name);
     else post("presetStore: organStorage not initialized\n");
+}
+
+// Guided store: confirms an overwrite, then asks for the name.
+//   [message presetStorePrompt 3]  or  a preset button → [prepend presetStorePrompt]
+function presetStorePrompt(presetNr) {
+    if (organStorage) organStorage.storePrompt(Number(presetNr));
+    else post("presetStorePrompt: organStorage not initialized\n");
+}
+
+// The [dialog] object's answer on its way back — wired automatically when the
+// dialog is created, or by hand as [dialog] → [prepend FromDialog] → this object.
+function FromDialog() {
+    if (!organStorage) return;
+    organStorage.fromDialog.apply(null, Array.prototype.slice.call(arguments));
 }
 
 function presetRecall(presetNr) {

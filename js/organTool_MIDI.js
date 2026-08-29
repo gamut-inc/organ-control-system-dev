@@ -191,11 +191,14 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Controller dials get their OWN column, always — even for a manual that has
         // none.  That keeps every manual (pedal included) indented identically, and
         // the stop grid starts past the reserved columns.
-        ctrlW:       78,    // fits a standard name like "Tremulant" beside a tiny dial
+        // Wide enough for a full "Winddrossel" / "Tremulant" above the tiny dial —
+        // Max clips the name to the widget, so the widget has to carry the longest
+        // standard designation.
+        ctrlW:       96,
         ctrlH:       38,    // tiny dial + its name label, with room to breathe
-        ctrlColW:    82,
+        ctrlColW:   100,
         ctrlMaxCols:  2,    // beyond this the manual grows taller instead of wider
-        ctrlNameMax:  9,    // crop at the length of "Tremulant"
+        ctrlNameMax: 12,    // "Winddrossel" (11) must survive whole
         stopLabelMax: 18    // characters that fit a stop button at fontsize 10
     };
     // Header rows, all of column 2 starting at the same x: title, preset menu, dials
@@ -1444,4 +1447,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.08 - wider columns; preset menu in column 2; quiet mode\n");
+post("organTool_MIDI.js v00.09 - wider controller dials; note control via organNote\n");
