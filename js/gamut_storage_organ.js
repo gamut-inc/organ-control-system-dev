@@ -36,6 +36,13 @@
 //         not a valid Max message, so the OK/Cancel box never appeared.
 //         highlightMenu(): store and recall move the live.menu to the preset in
 //         play, so the display always names what is actually sounding.
+// 00.13 - [dialog] answers as a "symbol <text>" message, so [prepend fromDialog]
+//         delivers the selector as the first argument.  Left in place it landed
+//         inside the preset name ("symbol dodo") and hid the CANCEL reply behind
+//         it — stripped now before anything else is read.
+//         movePreset(from, to): moves a preset to another slot keeping its name,
+//         asking first when the target is taken.
+//         clearAllPrompt(): wipes the bank after a confirm that names the count.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -589,27 +596,126 @@ function askForName(presetNr, defaultName) {
  * confirmation, which is also how the older gamut_storage.js read it.
  */
 exports.fromDialog = function() {
-    var args  = Array.prototype.slice.call(arguments);
+    var args = Array.prototype.slice.call(arguments);
+
+    // [dialog] answers with a "symbol <text>" message, so [prepend fromDialog]
+    // hands us the selector as the first argument.  Left in place it ends up inside
+    // the preset name ("symbol dodo") and hides the CANCEL reply behind it.
+    if (args.length && String(args[0]) === "symbol") args = args.slice(1);
+
     var first = (args.length ? String(args[0]) : "");
 
     if (!_pending) return;                       // an answer we did not ask for
 
-    if (first === "CANCEL") {
-        say("gamut_storage_organ: store cancelled\n");
+    if (first.toUpperCase() === "CANCEL") {
+        say("gamut_storage_organ: cancelled\n");
         _pending = null;
         return;
     }
 
-    if (_pending.stage === "confirm") {
+    var stage = _pending.stage;
+
+    if (stage === "confirm") {                   // overwrite confirmed → ask the name
         askForName(_pending.nr, _pending.name);
         return;
     }
 
-    if (_pending.stage === "name") {
+    if (stage === "name") {
         var nr   = _pending.nr;
         var text = args.join(" ").trim();
         _pending = null;
         exports.store(nr, text || ("Preset " + nr));
+        return;
+    }
+
+    if (stage === "move") {                      // target overwrite confirmed
+        var from = _pending.from, to = _pending.nr;
+        _pending = null;
+        doMove(from, to);
+        return;
+    }
+
+    if (stage === "clearall") {
+        _pending = null;
+        exports.deleteAll();
+        return;
+    }
+};
+
+// ================================================================================================
+// MOVE AND CLEAR — both ask first, both go through the same dialog machinery
+// ================================================================================================
+
+/**
+ * movePreset — move slot <fromNr> to slot <toNr>, asking before overwriting.
+ * The preset keeps its name; only its number changes.
+ */
+exports.movePreset = function(fromNr, toNr) {
+    fromNr = Number(fromNr);
+    toNr   = Number(toNr);
+    if (isNaN(fromNr) || isNaN(toNr)) {
+        post("gamut_storage_organ.movePreset: needs two slot numbers\n"); return;
+    }
+    if (fromNr === toNr) return;
+    if (toNr === PERSIST_SLOT || fromNr === PERSIST_SLOT) {
+        post("gamut_storage_organ.movePreset: slot " + PERSIST_SLOT + " is reserved\n"); return;
+    }
+    if (!loadSlotJson(fromNr)) {
+        post("gamut_storage_organ.movePreset: no preset at slot " + fromNr + "\n"); return;
+    }
+
+    var occupant = null;
+    readIndex().forEach(function(s) { if (s.nr === toNr) occupant = s.name; });
+
+    if (occupant) {
+        _pending = { stage: "move", from: fromNr, nr: toNr };
+        if (!openDialog(2, "Preset " + toNr + ": \"" + occupant + "\"\nüberschreiben?", "")) {
+            _pending = null;
+            doMove(fromNr, toNr);                // no dialog available — just move
+        }
+        return;
+    }
+    doMove(fromNr, toNr);
+};
+
+function doMove(fromNr, toNr) {
+    var json = loadSlotJson(fromNr);
+    if (!json) return;
+
+    var name = dictStr(_dataDict, "slot_" + fromNr + "_name") || ("Preset " + fromNr);
+
+    _dataDict.replace("slot_" + toNr + "_json", json);
+    _dataDict.replace("slot_" + toNr + "_name", name);
+    removeSlot(fromNr);
+
+    var slots = readIndex().filter(function(s) {
+        return s.nr !== fromNr && s.nr !== toNr;
+    });
+    slots.push({ nr: toNr, name: name });
+    writeIndex(sortedSlots(slots));
+
+    updateMenu();
+    highlightMenu(toNr);
+    persist();
+    clearChain(fromNr);
+    renameChain(toNr, name);
+
+    say("gamut_storage_organ: moved preset " + fromNr + " → " + toNr + " (\"" + name + "\")\n");
+}
+
+/**
+ * clearAllPrompt — wipe the whole bank, but say how much is at stake first.
+ */
+exports.clearAllPrompt = function() {
+    var n = readIndex().length;
+    if (n === 0) {
+        say("gamut_storage_organ: nothing to clear\n");
+        return;
+    }
+    _pending = { stage: "clearall" };
+    if (!openDialog(2, "Alle " + n + " Presets löschen?\nDas lässt sich nicht rückgängig machen.", "")) {
+        _pending = null;
+        post("gamut_storage_organ: clearAll needs the dialog object — not cleared\n");
     }
 };
 
@@ -707,4 +813,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.12 loaded\n");
+post("gamut_storage_organ.js v00.13 loaded\n");

@@ -817,6 +817,20 @@ function presetStorePrompt(presetNr) {
     else post("presetStorePrompt: organStorage not initialized\n");
 }
 
+// Move a preset to another slot, keeping its name.  Asks before overwriting.
+//   [message presetMove 3 7]
+function presetMove(fromNr, toNr) {
+    if (organStorage) organStorage.movePreset(Number(fromNr), Number(toNr));
+    else post("presetMove: organStorage not initialized\n");
+}
+
+// Wipe the whole bank after confirming.
+//   [message presetClearAll]
+function presetClearAll() {
+    if (organStorage) organStorage.clearAllPrompt();
+    else post("presetClearAll: organStorage not initialized\n");
+}
+
 // The [dialog] object's answer on its way back — wired automatically when the
 // dialog is created, or by hand as [dialog] → [prepend fromDialog] → this object.
 // Max dispatches on the exact symbol, so both spellings are accepted: a patch built
