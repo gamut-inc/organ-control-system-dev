@@ -55,7 +55,11 @@
 //         clearAllPrompt() asks twice — the first prompt can be dismissed by reflex.
 //         After a delete, "current" takes the place of what was removed instead of
 //         collapsing to nothing, so next/previous carry on from the same spot.
-// 29.08.2026
+// 00.17 - renameCurrentPrompt(): renames the preset in play, pre-filled with its
+//         current name; the name inside the stored blob is updated too, so the
+//         index and the preset cannot drift apart.
+//         Rack chain naming is OFF by default — presetChainNaming 1 turns it back on.
+// 30.08.2026
 //
 // PATCHER SETUP (add once):
 //   [dict @name gamut_preset_bank @varname gamut_preset_bank]
@@ -736,6 +740,14 @@ exports.fromDialog = function() {
         return;
     }
 
+    if (stage === "rename") {
+        var renameNr = _pending.nr;
+        var newName  = args.join(" ").trim();
+        _pending = null;
+        doRename(renameNr, newName);
+        return;
+    }
+
     if (stage === "clearone") {
         var victim = _pending.nr;
         _pending = null;
@@ -836,6 +848,49 @@ function doMove(fromNr, toNr) {
     renameChain(toNr, name);
 
     say("gamut_storage_organ: moved preset " + fromNr + " → " + toNr + " (\"" + name + "\")\n");
+}
+
+/**
+ * renameCurrentPrompt — rename the preset in play, pre-filled with its name.
+ */
+exports.renameCurrentPrompt = function() {
+    if (_current === null) {
+        say("gamut_storage_organ: no current preset to rename\n");
+        return;
+    }
+    var name = dictStr(_dataDict, "slot_" + _current + "_name") || ("Preset " + _current);
+    _pending = { stage: "rename", nr: _current };
+    if (!openDialog(0, "Preset " + _current + " umbenennen:", name)) {
+        _pending = null;
+    }
+};
+
+function doRename(presetNr, newName) {
+    if (!loadSlotJson(presetNr)) {
+        post("gamut_storage_organ: no preset at slot " + presetNr + "\n");
+        return;
+    }
+    newName = String(newName || "").trim() || ("Preset " + presetNr);
+
+    _dataDict.replace("slot_" + presetNr + "_name", newName);
+
+    // The stored preset carries its own name field; keep the two from drifting apart
+    try {
+        var preset = JSON.parse(loadSlotJson(presetNr));
+        preset.name = newName;
+        _dataDict.replace("slot_" + presetNr + "_json", JSON.stringify(preset));
+    } catch(e) { /* unparseable blob — the index name is what the UI shows anyway */ }
+
+    var slots = readIndex();
+    slots.forEach(function(s) { if (s.nr === presetNr) s.name = newName; });
+    writeIndex(slots);
+
+    updateMenu();
+    highlightMenu(presetNr);
+    persist();
+    renameChain(presetNr, newName);
+
+    say("gamut_storage_organ: renamed preset " + presetNr + " to \"" + newName + "\"\n");
 }
 
 /**
@@ -998,7 +1053,18 @@ function chainExists(nr) {
     } catch(e) { return false; }
 }
 
+// Renaming the rack chains after presets is switched OFF for now — turn it back on
+// with [message presetChainNaming 1] once the rack layout is settled.
+var _chainRenaming = false;
+
+/** setChainRenaming — 1 makes stores/renames relabel the MIDI rack chains. */
+exports.setChainRenaming = function(on) {
+    _chainRenaming = Boolean(Number(on));
+    say("gamut_storage_organ: rack chain naming " + (_chainRenaming ? "on" : "off") + "\n");
+};
+
 function renameChain(nr, name) {
+    if (!_chainRenaming) return;
     if (!chainExists(nr)) return;
     try {
         _api.set("name", "p " + nr + ": " + name);
@@ -1007,6 +1073,7 @@ function renameChain(nr, name) {
 }
 
 function clearChain(nr) {
+    if (!_chainRenaming) return;
     if (!chainExists(nr)) return;
     try {
         _api.set("name", "--");

@@ -857,11 +857,45 @@ function clipLoopSelection() {
     };
 }
 
-function registrationClip(where, modeArg) {
+// Arrangement clips on this track that overlap [start, start+length).
+// Returns [{clip, start, end}], earliest first.
+function clipsOverlapping(start, length) {
+    var end = start + length;
+    var out = [];
+    try {
+        var track = new LiveAPI(null, "this_device canonical_parent");
+        var ids   = track.get("arrangement_clips") || [];
+        for (var i = 0; i < ids.length; i++) {
+            if (String(ids[i]) === "id") continue;          // the list interleaves "id" markers
+            var clip = new LiveAPI(null, "id " + ids[i]);
+            if (!clip.id || String(clip.id) === "0") continue;
+            var cs = parseFloat(clip.get("start_time"));
+            var ce = parseFloat(clip.get("end_time"));
+            if (isNaN(cs) || isNaN(ce)) continue;
+            if (cs < end && ce > start) out.push({ clip: clip, start: cs, end: ce });
+        }
+        out.sort(function(a, b) { return a.start - b.start; });
+    } catch (e) {
+        post("registrationClip: could not list the track's clips (" + e.message + ")\n");
+    }
+    return out;
+}
+
+function registrationClip() {
     if (!system.organModule || typeof system.organModule.getRegistrationNotes !== "function") {
         post("registrationClip: the loaded organ cannot describe its registration\n");
         return;
     }
+
+    // Keywords in any order: session | arrangement, output | device, merge | new
+    var where = "arrangement", modeArg = null, merge = true;
+    Array.prototype.slice.call(arguments).forEach(function(a) {
+        a = String(a).toLowerCase();
+        if      (a === "session" || a === "arrangement") where   = a;
+        else if (a === "output"  || a === "device")      modeArg = a;
+        else if (a === "merge")                          merge   = true;
+        else if (a === "new")                            merge   = false;
+    });
 
     // Which reading of "the notes" is available for this organ
     var system_ = (typeof system.organModule.getStopSystem === "function")
@@ -893,13 +927,40 @@ function registrationClip(where, modeArg) {
     }
 
     try {
-        var sel  = clipLoopSelection();
-        var clip = (String(where) === "session")
-            ? createSessionClip(sel.length)
-            : createArrangementClip(sel.start, sel.length);
+        var sel   = clipLoopSelection();
+        var clip  = null;
+        var into  = "a new clip";
+        var noteStart = 0;              // where inside the clip the notes belong
+
+        // Merging keeps what is already recorded there and adds the registration to
+        // it, instead of leaving a second clip stacked on the same bars.
+        if (merge && where === "arrangement") {
+            var found = clipsOverlapping(sel.start, sel.length);
+            if (found.length) {
+                if (found.length > 1) {
+                    post("registrationClip: " + found.length + " clips overlap the loop — " +
+                         "merging into the earliest one, at " + found[0].start + "\n");
+                }
+                clip      = found[0].clip;
+                noteStart = Math.max(0, sel.start - found[0].start);
+                into      = "the clip at " + found[0].start;
+            }
+        } else if (merge && where === "session") {
+            var slot = new LiveAPI(null, "live_set view highlighted_clip_slot");
+            if (parseInt(slot.get("has_clip"), 10)) {
+                clip = new LiveAPI(null, "live_set view highlighted_clip_slot clip");
+                into = "the clip in the selected slot";
+            }
+        }
+
+        if (!clip) {
+            clip = (where === "session")
+                ? createSessionClip(sel.length)
+                : createArrangementClip(sel.start, sel.length);
+        }
         if (!clip) return;
 
-        var result = fillClipWithNotes(clip, notes, sel.length);
+        var result = fillClipWithNotes(clip, notes, sel.length, noteStart);
 
         if (result.count === 0) {
             post("registrationClip: the clip was created but stayed EMPTY — neither " +
@@ -909,9 +970,10 @@ function registrationClip(where, modeArg) {
                  " (length " + sel.length + " beats); the clip could not be read back " +
                  "to confirm\n");
         } else {
-            post("registrationClip: " + result.count + " note(s) in the clip via " +
-                 result.how + " — " + notes.length + " stop(s) as " + mode +
-                 " notes, length " + sel.length + " beats\n");
+            post("registrationClip: " + notes.length + " stop(s) as " + mode +
+                 " notes into " + into + " via " + result.how +
+                 " — " + result.count + " note(s) in it now, length " +
+                 sel.length + " beats\n");
         }
     } catch (e) {
         post("registrationClip failed: " + e.message + "\n");
@@ -974,24 +1036,25 @@ function createSessionClip(length) {
 //
 // Notes are held for the whole selection, so the stops draw at its start and
 // release at its end.
-function fillClipWithNotes(clip, notes, length) {
+function fillClipWithNotes(clip, notes, length, startAt) {
+    startAt = startAt || 0;
     // 0 means the call itself failed; -1 means it went through but the clip could
     // not be read back.  Only a hard 0 justifies the fallback — retrying after an
     // unverifiable success would write every note twice.
-    var wrote = writeViaAddNewNotes(clip, notes, length);
+    var wrote = writeViaAddNewNotes(clip, notes, length, startAt);
     if (wrote !== 0) return { count: wrote, how: "add_new_notes" };
 
-    wrote = writeViaSetNotes(clip, notes, length);
+    wrote = writeViaSetNotes(clip, notes, length, startAt);
     return { count: wrote, how: (wrote !== 0 ? "set_notes" : "nothing worked") };
 }
 
-function writeViaAddNewNotes(clip, notes, length) {
+function writeViaAddNewNotes(clip, notes, length, startAt) {
     try {
         var spec = { notes: [] };
         notes.forEach(function(n) {
             spec.notes.push({
                 pitch:      n.pitch,
-                start_time: 0,
+                start_time: startAt,
                 duration:   length,
                 velocity:   127,
                 mute:       0
@@ -1010,13 +1073,13 @@ function writeViaAddNewNotes(clip, notes, length) {
     }
 }
 
-function writeViaSetNotes(clip, notes, length) {
+function writeViaSetNotes(clip, notes, length, startAt) {
     try {
         clip.call("set_notes");
         clip.call("notes", notes.length);
         notes.forEach(function(n) {
             // pitch, time, duration, velocity, muted
-            clip.call("note", n.pitch, 0, length, 127, 0);
+            clip.call("note", n.pitch, startAt, length, 127, 0);
         });
         clip.call("done");
         return countClipNotes(clip, length);
@@ -1030,7 +1093,7 @@ function writeViaSetNotes(clip, notes, length) {
 // failed count is never mistaken for an empty clip.
 function countClipNotes(clip, length) {
     try {
-        var raw = clip.call("get_notes_extended", 0, 128, 0, length + 1);
+        var raw = clip.call("get_notes_extended", 0, 128, 0, 100000);
         var s   = (raw && raw.join) ? raw.join("") : String(raw);
         var obj = JSON.parse(s);
         return (obj && obj.notes) ? obj.notes.length : 0;
@@ -1104,6 +1167,21 @@ function presetPrevious() {
     if (bootGuardBlocks("presetPrevious")) return;
     if (organStorage) organStorage.recallPrevious();
     else post("presetPrevious: organStorage not initialized\n");
+}
+
+// Rename the preset in play; the dialog opens pre-filled with its current name.
+//   [message presetRename]
+function presetRename() {
+    if (bootGuardBlocks("presetRename")) return;
+    if (organStorage) organStorage.renameCurrentPrompt();
+    else post("presetRename: organStorage not initialized\n");
+}
+
+// Turn the MIDI rack chain naming back on (off by default).
+//   [message presetChainNaming 1]
+function presetChainNaming(on) {
+    if (organStorage) organStorage.setChainRenaming(on);
+    else post("presetChainNaming: organStorage not initialized\n");
 }
 
 // Delete the preset in play, after naming it in the prompt.
