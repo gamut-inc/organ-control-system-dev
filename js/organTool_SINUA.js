@@ -501,7 +501,10 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         var pmY = common.GEOMETRY.rows.mainControls; // same row as label
         var pmW = 220;
         var pmH = common.GEOMETRY.stops.h;          // one stop-height (20px)
-        var presetMenu = p.getnamed("preset_menu");  // reuse if already in this patcher
+        // Search below and above p: the menu may have been moved into a
+        // presetControl bpatcher, where a plain getnamed cannot see it —
+        // and building a second one there would leave two menus fighting.
+        var presetMenu = common.findNamedAround(p, "preset_menu");  // reuse if already in this patcher
         if (!presetMenu) {
             try {
                 presetMenu = p.newdefault(pmX, pmY, "live.menu",
@@ -516,7 +519,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
                     presetMenu.setattr("_parameter_invisible", 1);
                     presetMenu.setattr("_parameter_range", ["--", "--"]);
                     // Wire to presetMenuSelect (prepend/route that feeds js inlet 0)
-                    var presetMenuSelectObj = p.getnamed("presetMenuSelect");
+                    var presetMenuSelectObj = common.findNamedAround(p, "presetMenuSelect");
                     if (presetMenuSelectObj) {
                         try {
                             p.connect(presetMenu, 0, presetMenuSelectObj, 0);

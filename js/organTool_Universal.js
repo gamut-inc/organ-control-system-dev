@@ -18,7 +18,8 @@
 
 autowatch = 1;
 inlets  = 2;  // inlet 0: control messages; inlet 1: stop events from organ_stops receive
-outlets = 1;  // outlet 0: OSC messages → connect to udpsend in patcher  (address, arg1, arg2, ...)
+outlets = 2;  // outlet 0: MIDI / OSC → multichanmidiout or udpsend
+              // outlet 1: status → "preset <nr> <name>", for number boxes and displays
 
 // ================================================================================================
 // MODULE LOADING SYSTEM - FIXED PATH DETECTION
@@ -147,7 +148,13 @@ function initializeSystem() {
         
         // Restore the preset bank + last organ path BEFORE any organ loads, so the
         // auto-reload below has a path to work with.
-        if (organStorage) organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
+        if (organStorage) {
+            organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
+            // Status outlet: "preset <nr> <name>" whenever the current preset changes
+            organStorage.setStatusHandler(function(nr, name) {
+                outlet(1, "preset", nr, name || "");
+            });
+        }
 
         system.initialized = true;
         system.modules.common.log(system.modules.common.LOG_LEVEL.INFO, "System initialized successfully");
@@ -748,6 +755,35 @@ function watchTrackOutput() {
 }
 
 // ================================================================================================
+// LOAD GUARD — nothing fires while Live is restoring the set
+// ================================================================================================
+// Opening a set makes Live push every stored parameter value back into its widget,
+// and a live.numbox or a button restoring its value OUTPUTS it.  A store button
+// coming back as 1 would overwrite a preset before the organist has touched
+// anything.  So preset commands are ignored for a moment after the script loads.
+//
+// The guard is a safety net, not the whole answer: turn OFF "Parameter Mode Enable"
+// on the trigger buttons (store / recall / clear / move).  Their value means nothing
+// between sessions, and a non-parameter object neither stores nor restores.  Keep
+// parameter mode only where the value itself matters — the two number boxes.
+
+var BOOT_GUARD_MS = 2000;
+var _bootUntil    = Date.now() + BOOT_GUARD_MS;
+
+function bootGuardBlocks(what) {
+    if (Date.now() >= _bootUntil) return false;
+    post("ignored \"" + what + "\" — still loading (" +
+         Math.max(0, _bootUntil - Date.now()) + "ms left)\n");
+    return true;
+}
+
+/** presetGuard 0 — lift the guard by hand; presetGuard 1 — re-arm it. */
+function presetGuard(on) {
+    _bootUntil = Number(on) ? (Date.now() + BOOT_GUARD_MS) : 0;
+    post("Preset load guard " + (Number(on) ? "armed" : "lifted") + "\n");
+}
+
+// ================================================================================================
 // NOTE CONTROL — drive presets and stops from incoming MIDI notes
 // ================================================================================================
 //   note 0            → recall preset, the VELOCITY carries the preset number
@@ -800,6 +836,7 @@ function organNote(note, velocity, offset) {
 //   live.menu    named "preset_menu" — dropdown selector in the UI
 
 function presetStore(presetNr, presetName) {
+    if (bootGuardBlocks("presetStore")) return;
     // presetNr  : integer slot number (0–127)
     // presetName: string (rest of message). Max passes multi-word args as separate arguments,
     //             so we join them.
@@ -813,6 +850,7 @@ function presetStore(presetNr, presetName) {
 // Guided store: confirms an overwrite, then asks for the name.
 //   [message presetStorePrompt 3]  or  a preset button → [prepend presetStorePrompt]
 function presetStorePrompt(presetNr) {
+    if (bootGuardBlocks("presetStorePrompt")) return;
     if (organStorage) organStorage.storePrompt(Number(presetNr));
     else post("presetStorePrompt: organStorage not initialized\n");
 }
@@ -835,16 +873,19 @@ function presetMovePrompt() {
 //   [message presetRecallCurrent]   load the current preset again
 //   [message presetNext] / [message presetPrevious]
 function presetRecallCurrent() {
+    if (bootGuardBlocks("presetRecallCurrent")) return;
     if (organStorage) organStorage.recallCurrent();
     else post("presetRecallCurrent: organStorage not initialized\n");
 }
 
 function presetNext() {
+    if (bootGuardBlocks("presetNext")) return;
     if (organStorage) organStorage.recallNext();
     else post("presetNext: organStorage not initialized\n");
 }
 
 function presetPrevious() {
+    if (bootGuardBlocks("presetPrevious")) return;
     if (organStorage) organStorage.recallPrevious();
     else post("presetPrevious: organStorage not initialized\n");
 }
@@ -852,6 +893,7 @@ function presetPrevious() {
 // Delete the preset in play, after naming it in the prompt.
 //   [message presetClearCurrent]
 function presetClearCurrent() {
+    if (bootGuardBlocks("presetClearCurrent")) return;
     if (organStorage) organStorage.clearCurrentPrompt();
     else post("presetClearCurrent: organStorage not initialized\n");
 }
@@ -859,6 +901,7 @@ function presetClearCurrent() {
 // Wipe the whole bank.  Asks twice — the first prompt can be dismissed by reflex.
 //   [message presetClearAll]
 function presetClearAll() {
+    if (bootGuardBlocks("presetClearAll")) return;
     if (organStorage) organStorage.clearAllPrompt();
     else post("presetClearAll: organStorage not initialized\n");
 }
@@ -880,11 +923,13 @@ function FromDialog() {
 }
 
 function presetRecall(presetNr) {
+    if (bootGuardBlocks("presetRecall")) return;
     if (organStorage) organStorage.recall(Number(presetNr));
     else post("presetRecall: organStorage not initialized\n");
 }
 
 function presetDelete(presetNr) {
+    if (bootGuardBlocks("presetDelete")) return;
     if (organStorage) organStorage.deletePreset(Number(presetNr));
     else post("presetDelete: organStorage not initialized\n");
 }
@@ -896,6 +941,7 @@ function presetDeleteAll() {
 
 // Called when the live.menu "preset_menu" fires (outputs 0-based menu index).
 function presetMenuSelect(menuIdx) {
+    if (bootGuardBlocks("presetMenuSelect")) return;
     if (organStorage) organStorage.recallFromMenuIndex(Number(menuIdx));
     else post("presetMenuSelect: organStorage not initialized\n");
 }

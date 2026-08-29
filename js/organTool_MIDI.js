@@ -798,7 +798,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // (same pattern as SINUA createMainHeader).  Sits in column 2, under the title.
         var pmX = LAYOUT.col1W, pmY = LAYOUT.presetMenuY,
             pmW = LAYOUT.presetMenuW, pmH = LAYOUT.btnH;
-        var presetMenu = p.getnamed("preset_menu");
+        // Search below and above p: the menu may have been moved into a
+        // presetControl bpatcher, where a plain getnamed cannot see it —
+        // and building a second one there would leave two menus fighting.
+        var presetMenu = common.findNamedAround(p, "preset_menu");
         if (!presetMenu) {
             try {
                 presetMenu = p.newdefault(pmX, pmY, "live.menu",
@@ -812,7 +815,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                     presetMenu.setattr("_parameter_shortname", "Prst");
                     presetMenu.setattr("_parameter_invisible", 1);
                     presetMenu.setattr("_parameter_range", ["--", "--"]);
-                    var presetMenuSelectObj = p.getnamed("presetMenuSelect");
+                    var presetMenuSelectObj = common.findNamedAround(p, "presetMenuSelect");
                     if (presetMenuSelectObj) {
                         try {
                             p.connect(presetMenu, 0, presetMenuSelectObj, 0);

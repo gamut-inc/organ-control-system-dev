@@ -87,6 +87,7 @@ var _jsBox      = null;   // the hosting js/v8 box, so a created dialog can be w
 var _loaded     = false;  // true once a load attempt has restored (or confirmed empty)
 var _quiet      = false;  // "debug 0" in Universal.js — keep the console clean live
 var _current    = null;   // slot last stored or recalled — the anchor for next/prev
+var _statusOut  = null;   // set by Universal.js: reports the current preset to the patch
 
 // Routine progress reports; warnings and errors always get through.
 function say(text) {
@@ -585,12 +586,8 @@ function findDialogObject() {
     if (_dialogObj) return _dialogObj;
     if (!_patcher) return null;
 
-    var p = _patcher;
-    while (p) {
-        var d = p.getnamed("organ_dialog");
-        if (d) { _dialogObj = d; return d; }
-        p = p.parentpatcher;
-    }
+    var found = findNamed("organ_dialog");
+    if (found) { _dialogObj = found; return found; }
 
     // Not there yet — build it and wire its answer back into the js object
     try {
@@ -876,27 +873,57 @@ exports.clearAllPrompt = function() {
 
 // ---- Menu update ----
 
-function findPresetMenu() {
-    if (_presetMenu) return _presetMenu;
-    if (!_patcher) return null;
+// Find an object by scripting name at, below, or above _patcher.
+//
+// getnamed() only sees its own level, so once the menu is moved into a bpatcher —
+// a presetControl panel, say — a plain lookup stops finding it.  This descends into
+// bpatchers and subpatchers too, then tries each parent level in turn.
+// (Mirrors common.findNamedDeep; kept local so this module stays self-contained.)
+function findNamedDeep(patcher, varname, depth) {
+    if (!patcher || !varname) return null;
+    depth = depth || 0;
+    if (depth > 6) return null;                  // bounded: patchers can nest by reference
+
+    try {
+        var direct = patcher.getnamed(varname);
+        if (direct) return direct;
+    } catch(e) { return null; }
+
+    var obj = patcher.firstobject;
+    while (obj) {
+        var sub = null;
+        try { sub = (typeof obj.subpatcher === "function") ? obj.subpatcher() : null; }
+        catch(e) { sub = null; }
+        if (sub) {
+            var found = findNamedDeep(sub, varname, depth + 1);
+            if (found) return found;
+        }
+        obj = obj.nextobject;
+    }
+    return null;
+}
+
+function findNamed(varname) {
     var p = _patcher;
     while (p) {
-        var m = p.getnamed("preset_menu");
-        if (m) return m;
+        var found = findNamedDeep(p, varname, 0);
+        if (found) return found;
         p = p.parentpatcher;
     }
     return null;
 }
 
+function findPresetMenu() {
+    if (_presetMenu) return _presetMenu;
+    if (!_patcher) return null;
+    var m = findNamed("preset_menu");
+    if (m) _presetMenu = m;                      // cache it; the search is not free
+    return m;
+}
+
 function findPattrstorage() {
     if (!_patcher) return null;
-    var p = _patcher;
-    while (p) {
-        var ps = p.getnamed("storage");
-        if (ps) return ps;
-        p = p.parentpatcher;
-    }
-    return null;
+    return findNamed("storage");
 }
 
 function updateMenu() {
@@ -918,19 +945,38 @@ function updateMenu() {
     say("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
 }
 
-// Show which preset is live.  "set" moves the menu without making it fire, so this
-// is safe even when the menu itself started the recall.
+// Show which preset is live, everywhere it is displayed.
+//
+// "set" moves a widget WITHOUT making it output, which is the whole point here:
+// the menu may itself have started this recall, and a number box that fired back
+// would recall again.  Any of these that exist are updated; none is required.
+//
+//   preset_menu       live.menu listing the bank
+//   preset_recall_nr  number box holding the recall slot
+//   preset_store_nr   number box holding the store slot
 function highlightMenu(presetNr) {
-    var menu = findPresetMenu();
-    if (!menu) return;
     var slots = readIndex();
+    var idx   = -1;
     for (var i = 0; i < slots.length; i++) {
-        if (slots[i].nr === presetNr) {
-            try { menu.message("set", i); } catch(e) {}
-            return;
-        }
+        if (slots[i].nr === presetNr) { idx = i; break; }
     }
+
+    var menu = findPresetMenu();
+    if (menu && idx >= 0) {
+        try { menu.message("set", idx); } catch(e) {}
+    }
+
+    ["preset_recall_nr", "preset_store_nr"].forEach(function(vn) {
+        var box = findNamed(vn);
+        if (box) { try { box.message("set", presetNr); } catch(e) {} }
+    });
+
+    // And out of the status outlet, for anything wired by hand
+    if (_statusOut) _statusOut(presetNr, slots[idx] ? slots[idx].name : "");
 }
+
+/** setStatusHandler — Universal.js passes a function that reports the current preset. */
+exports.setStatusHandler = function(fn) { _statusOut = fn; };
 
 // ---- MIDI Effect Rack chain renaming (optional — silent when no rack is present) ----
 

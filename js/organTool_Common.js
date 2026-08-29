@@ -404,6 +404,50 @@ function validateOrganData(organDict) {
     // CLEANUP FUNCTIONS
     // ================================================================================================
 
+// Find an object by scripting name anywhere at or below `patcher`.
+//
+// patcher.getnamed() only sees the level it is called on, so an object the user
+// moved into a bpatcher (a presetControl panel, say) becomes invisible — and code
+// that reacts by creating its own copy ends up with two of them.  This descends
+// into bpatchers and subpatchers as well.  depth is bounded: a patcher can contain
+// itself by reference, and an unbounded walk would never return.
+function findNamedDeep(patcher, varname, depth) {
+    if (!patcher || !varname) return null;
+    depth = depth || 0;
+    if (depth > 6) return null;
+
+    try {
+        var direct = patcher.getnamed(varname);
+        if (direct) return direct;
+    } catch (e) { return null; }
+
+    var obj = patcher.firstobject;
+    while (obj) {
+        var sub = null;
+        try { sub = (typeof obj.subpatcher === "function") ? obj.subpatcher() : null; }
+        catch (e) { sub = null; }
+
+        if (sub) {
+            var found = findNamedDeep(sub, varname, depth + 1);
+            if (found) return found;
+        }
+        obj = obj.nextobject;
+    }
+    return null;
+}
+
+// Same, but starting at `patcher` and then trying each parent in turn — covers a
+// name that sits above the calling patcher as well as below it.
+function findNamedAround(patcher, varname) {
+    var p = patcher;
+    while (p) {
+        var found = findNamedDeep(p, varname, 0);
+        if (found) return found;
+        p = p.parentpatcher;
+    }
+    return null;
+}
+
 function clearGUIObjects(patcher, keepObjects) {
     keepObjects = keepObjects || [];
 
@@ -500,7 +544,9 @@ return {
     validateOrganData: validateOrganData,
 
         // Cleanup
-    clearGUIObjects: clearGUIObjects
+    clearGUIObjects: clearGUIObjects,
+    findNamedDeep: findNamedDeep,
+    findNamedAround: findNamedAround
 };
 }
 
