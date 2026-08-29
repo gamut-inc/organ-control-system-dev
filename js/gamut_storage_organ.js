@@ -43,6 +43,14 @@
 //         movePreset(from, to): moves a preset to another slot keeping its name,
 //         asking first when the target is taken.
 //         clearAllPrompt(): wipes the bank after a confirm that names the count.
+// 00.14 - The dialog's text field keeps whatever the last dialog left in it, so a
+//         confirm prompt showed a stale name underneath it.  The field is always
+//         set now: the entry dialog gets its default, a confirm gets a blank.
+//         movePrompt(): asks which preset to move, then where to, then confirms
+//         an overwrite — no more remembering two numbers for one message.
+//         recallCurrent / recallNext / recallPrevious walk the STORED slots, so
+//         gaps in the numbering do not matter.  They stop at the ends rather than
+//         wrapping: a stage button should run out, not jump back to the opening.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -74,6 +82,7 @@ var _scriptDir  = "";     // set by initStorage — where the backup file lives
 var _jsBox      = null;   // the hosting js/v8 box, so a created dialog can be wired to it
 var _loaded     = false;  // true once a load attempt has restored (or confirmed empty)
 var _quiet      = false;  // "debug 0" in Universal.js — keep the console clean live
+var _current    = null;   // slot last stored or recalled — the anchor for next/prev
 
 // Routine progress reports; warnings and errors always get through.
 function say(text) {
@@ -417,6 +426,7 @@ exports.store = function(presetNr, presetName) {
     if (!updated) slots.push({ nr: presetNr, name: presetName });
     writeIndex(sortedSlots(slots));
 
+    _current = presetNr;              // what you just stored is what you are on
     updateMenu();     // before persist() so pattrstorage captures the correct menu range
     highlightMenu(presetNr);          // and select what was just stored
     persist();
@@ -437,6 +447,7 @@ exports.recall = function(presetNr) {
         post("gamut_storage_organ.recall: no preset at slot " + presetNr + "\n"); return;
     }
     _organMod.recallPreset(jsonStr);
+    _current = presetNr;              // anchor for recallCurrent / next / previous
     highlightMenu(presetNr);          // the menu shows what is actually sounding
     say("gamut_storage_organ: recalled preset " + presetNr + "\n");
 };
@@ -481,6 +492,51 @@ exports.deleteAll = function() {
 
 exports.updateMenu  = updateMenu;
 exports.getSlotList = function() { return readIndex(); };
+
+// ---- Stepping through the bank ----
+// "Current" is whatever was last stored or recalled.  next/previous walk the STORED
+// slots in order, not the raw numbers, so gaps in the numbering do not matter.
+// They stop at the ends rather than wrapping: on stage you want a button that runs
+// out, not one that silently jumps from the finale back to the opening.
+
+/** getCurrent — the slot in play, or null when nothing has been recalled yet. */
+exports.getCurrent = function() { return _current; };
+
+/** recallCurrent — load the current preset again, undoing manual changes since. */
+exports.recallCurrent = function() {
+    if (_current === null) {
+        say("gamut_storage_organ: no current preset\n");
+        return;
+    }
+    exports.recall(_current);
+};
+
+exports.recallNext     = function() { stepPreset(+1); };
+exports.recallPrevious = function() { stepPreset(-1); };
+
+function stepPreset(direction) {
+    var slots = readIndex();
+    if (!slots.length) {
+        say("gamut_storage_organ: bank is empty\n");
+        return;
+    }
+
+    var idx = -1;
+    for (var i = 0; i < slots.length; i++) {
+        if (slots[i].nr === _current) { idx = i; break; }
+    }
+    // Nothing recalled yet: start just outside the bank so the first step lands on
+    // the first slot going forwards, the last one going backwards.
+    if (idx < 0) idx = (direction > 0) ? -1 : slots.length;
+
+    var target = idx + direction;
+    if (target < 0 || target >= slots.length) {
+        say("gamut_storage_organ: already at the " +
+            (direction > 0 ? "last" : "first") + " preset\n");
+        return;
+    }
+    exports.recall(slots[target].nr);
+}
 
 // ================================================================================================
 // GUIDED STORE — confirm an overwrite, then ask for the name
@@ -543,10 +599,11 @@ function openDialog(mode, label, defaultText) {
     try {
         d.setattr("mode", mode);
         d.setattr("label", label);
-        // "symbol" with an empty argument is not a valid Max message — a confirm
-        // dialog carries no default text, so open it with a bang instead.
-        if (defaultText) d.message("symbol", defaultText);
-        else             d.message("bang");
+        // The text field keeps whatever the last dialog left in it, which shows up
+        // under a confirm prompt as a stray leftover name.  Always set it: the entry
+        // dialog gets its default, a confirm gets a blank.  A lone space rather than
+        // "" because "symbol" with an empty argument is not a valid Max message.
+        d.message("symbol", defaultText || " ");
         say("gamut_storage_organ: dialog opened (mode " + mode + ")\n");
         return true;
     } catch(e) {
@@ -628,6 +685,32 @@ exports.fromDialog = function() {
         return;
     }
 
+    if (stage === "movefrom") {                  // which preset to move
+        var src = parseInt(args.join(" ").trim(), 10);
+        _pending = null;
+        if (isNaN(src) || !loadSlotJson(src)) {
+            post("gamut_storage_organ: no preset at slot " + args.join(" ") + "\n");
+            return;
+        }
+        _pending = { stage: "moveto", from: src };
+        if (!openDialog(0, "Preset " + src + " verschieben nach Nummer?", String(src))) {
+            _pending = null;
+        }
+        return;
+    }
+
+    if (stage === "moveto") {                    // and where to
+        var srcNr = _pending.from;
+        var dst   = parseInt(args.join(" ").trim(), 10);
+        _pending  = null;
+        if (isNaN(dst)) {
+            post("gamut_storage_organ: \"" + args.join(" ") + "\" is not a slot number\n");
+            return;
+        }
+        exports.movePreset(srcNr, dst);          // re-uses the overwrite confirmation
+        return;
+    }
+
     if (stage === "move") {                      // target overwrite confirmed
         var from = _pending.from, to = _pending.nr;
         _pending = null;
@@ -645,6 +728,23 @@ exports.fromDialog = function() {
 // ================================================================================================
 // MOVE AND CLEAR — both ask first, both go through the same dialog machinery
 // ================================================================================================
+
+/**
+ * movePrompt — ask which preset to move, then where to.
+ * Falls back to nothing when no dialog is available; use movePreset(from, to) then.
+ */
+exports.movePrompt = function() {
+    var slots = readIndex();
+    if (!slots.length) {
+        say("gamut_storage_organ: no presets to move\n");
+        return;
+    }
+    var suggestion = (_current !== null) ? _current : slots[0].nr;
+    _pending = { stage: "movefrom" };
+    if (!openDialog(0, "Preset verschieben — welche Nummer?", String(suggestion))) {
+        _pending = null;
+    }
+};
 
 /**
  * movePreset — move slot <fromNr> to slot <toNr>, asking before overwriting.
@@ -813,4 +913,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.13 loaded\n");
+post("gamut_storage_organ.js v00.14 loaded\n");

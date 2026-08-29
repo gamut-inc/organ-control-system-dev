@@ -818,10 +818,34 @@ function presetStorePrompt(presetNr) {
 }
 
 // Move a preset to another slot, keeping its name.  Asks before overwriting.
-//   [message presetMove 3 7]
+//   [message presetMove 3 7]      both slots given
+//   [message presetMovePrompt]    asks which preset, then where to
 function presetMove(fromNr, toNr) {
     if (organStorage) organStorage.movePreset(Number(fromNr), Number(toNr));
     else post("presetMove: organStorage not initialized\n");
+}
+
+function presetMovePrompt() {
+    if (organStorage) organStorage.movePrompt();
+    else post("presetMovePrompt: organStorage not initialized\n");
+}
+
+// Stepping through the bank — for footswitches and page-turner pedals.
+//   [message presetRecallCurrent]   load the current preset again
+//   [message presetNext] / [message presetPrevious]
+function presetRecallCurrent() {
+    if (organStorage) organStorage.recallCurrent();
+    else post("presetRecallCurrent: organStorage not initialized\n");
+}
+
+function presetNext() {
+    if (organStorage) organStorage.recallNext();
+    else post("presetNext: organStorage not initialized\n");
+}
+
+function presetPrevious() {
+    if (organStorage) organStorage.recallPrevious();
+    else post("presetPrevious: organStorage not initialized\n");
 }
 
 // Wipe the whole bank after confirming.
