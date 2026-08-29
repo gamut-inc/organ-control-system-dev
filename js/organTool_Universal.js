@@ -824,6 +824,134 @@ function organNote(note, velocity, offset) {
 }
 
 // ================================================================================================
+// WRITE THE CURRENT REGISTRATION INTO A MIDI CLIP
+// ================================================================================================
+//   [message registrationClip]           into the arrangement, over the loop brace
+//   [message registrationClip session]   into the selected session slot instead
+//   [message registrationClip arrangement device]   force the device-facing notes
+//
+// The loop brace is the selection: set it over the bars the registration should
+// hold for, then press the button.  The notes run the full length, so the stops
+// come on at the start and release at the end.
+//
+// WHICH NOTES GO IN — two readings, and the organ decides which one is possible:
+//
+//   "output" — the addresses this device sends (stop.midiNote on its stop channel).
+//              Put that clip on a track routed straight at the organ and the device
+//              is not needed to play it back.  Only available when the organ is
+//              driven by NOTES.
+//   "device" — the stopID as the pitch, which organNote() translates on the way out.
+//              Works for every console — cc, two-CC, Laukhuff program changes, sysex —
+//              but the clip has to run through this device.
+//
+// A cc / program / sysex organ gets "device" automatically, and the reason is
+// printed: a MIDI clip holds notes, and Live's LOM has no route for writing MIDI CC
+// envelopes into one.  A CC-driven registration therefore cannot be expressed as a
+// clip that speaks directly to the organ — only as one that speaks to this device.
+
+function clipLoopSelection() {
+    var song = new LiveAPI(null, "live_set");
+    return {
+        start:  parseFloat(song.get("loop_start")),
+        length: parseFloat(song.get("loop_length"))
+    };
+}
+
+function registrationClip(where, modeArg) {
+    if (!system.organModule || typeof system.organModule.getRegistrationNotes !== "function") {
+        post("registrationClip: the loaded organ cannot describe its registration\n");
+        return;
+    }
+
+    // Which reading of "the notes" is available for this organ
+    var system_ = (typeof system.organModule.getStopSystem === "function")
+        ? system.organModule.getStopSystem() : "note";
+    var mode = modeArg || ((system_ === "note") ? "output" : "device");
+    if (mode === "output" && system_ !== "note") {
+        post("registrationClip: this organ drives stops by \"" + system_ + "\", which a MIDI " +
+             "clip cannot carry — writing device-facing notes instead\n");
+        mode = "device";
+    }
+
+    var notes = system.organModule.getRegistrationNotes(mode);
+    if (!notes.length) {
+        post("registrationClip: no stops are drawn — nothing to write\n");
+        return;
+    }
+
+    // A MIDI clip carries no per-note channel; the channel comes from the track's
+    // routing.  Say so plainly rather than writing a clip that is quietly wrong.
+    if (mode === "output") {
+        var channels = [];
+        notes.forEach(function(n) {
+            if (n.channel !== null && channels.indexOf(n.channel) === -1) channels.push(n.channel);
+        });
+        if (channels.length > 1) {
+            post("registrationClip: this registration spans channels " + channels.join(", ") +
+                 " — one clip can only carry one, set the track routing to the right channel\n");
+        }
+    }
+
+    try {
+        var sel  = clipLoopSelection();
+        var clip = (String(where) === "session")
+            ? createSessionClip(sel.length)
+            : createArrangementClip(sel.start, sel.length);
+        if (!clip) return;
+
+        fillClipWithNotes(clip, notes, sel.length);
+        post("registrationClip: wrote " + notes.length + " stop(s) as " + mode +
+             " notes, length " + sel.length + " beats\n");
+    } catch (e) {
+        post("registrationClip failed: " + e.message + "\n");
+    }
+}
+
+function createArrangementClip(startTime, length) {
+    var track = new LiveAPI(null, "this_device canonical_parent");
+    try {
+        var id = track.call("create_midi_clip", startTime, length);
+        var clip = new LiveAPI(null, "id " + id);
+        if (!clip.id || String(clip.id) === "0") throw new Error("no clip returned");
+        return clip;
+    } catch (e) {
+        post("registrationClip: could not create an arrangement clip (" + e.message + ").\n" +
+             "  Try [message registrationClip session] to write into a session slot instead.\n");
+        return null;
+    }
+}
+
+function createSessionClip(length) {
+    var slot = new LiveAPI(null, "live_set view highlighted_clip_slot");
+    try {
+        if (parseInt(slot.get("has_clip"), 10)) {
+            post("registrationClip: the selected session slot already holds a clip — " +
+                 "pick an empty one\n");
+            return null;
+        }
+        slot.call("create_clip", length);
+        return new LiveAPI(null, "live_set view highlighted_clip_slot clip");
+    } catch (e) {
+        post("registrationClip: could not create a session clip (" + e.message + ")\n");
+        return null;
+    }
+}
+
+// The classic set_notes / note / done sequence.  Deprecated in favour of
+// add_new_notes, which takes a Dictionary — awkward to hand over from JS, while
+// this sequence still works and needs no dict marshalling.
+function fillClipWithNotes(clip, notes, length) {
+    clip.call("set_notes");
+    clip.call("notes", notes.length);
+    notes.forEach(function(n) {
+        // pitch, start, duration, velocity, muted — held for the whole selection,
+        // so the stops draw at the start and release at the end of it
+        clip.call("note", n.pitch, 0, length, 127, 0);
+    });
+    clip.call("done");
+}
+
+// ================================================================================================
 // PRESET SYSTEM — message handlers callable from Max patch
 // ================================================================================================
 // Wire in Max:

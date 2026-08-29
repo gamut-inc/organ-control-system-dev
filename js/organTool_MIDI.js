@@ -1303,6 +1303,47 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         releaseSuppression();
     }
 
+    // ================================================================================================
+    // REGISTRATION AS CLIP DATA
+    // ================================================================================================
+    // The notes that would express the current registration inside a MIDI clip.
+    //
+    // mode "output" — the organ's own note addresses, i.e. what this device sends.
+    //                 Only meaningful when the organ is driven by notes: a clip
+    //                 cannot hold MIDI CC or program changes (Live's LOM offers no
+    //                 way to write CC envelopes), so a cc / cc2 / program / sysex
+    //                 organ has no note representation of its own.
+    // mode "device" — the stopID as the pitch, which organNote() turns back into
+    //                 whatever this organ needs.  Works for EVERY stop system, at
+    //                 the cost of the clip having to run through this device.
+    //
+    // Each entry: {pitch, channel, stopID, name}.  channel is null in device mode.
+    function getRegistrationNotes(mode) {
+        var out = [];
+        if (!guiObjects.manuals) return out;
+
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            Object.keys(manual.stopButtonMap).forEach(function(btnKey) {
+                if (!manual.stopState[btnKey]) return;
+                var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+                var stopID = parseInt(numStr, 10);
+                if (isNaN(stopID)) return;
+                var stop = organState.stopsByID[stopID];
+                if (!stop) return;
+
+                if (mode === "device") {
+                    out.push({ pitch: stopID, channel: null, stopID: stopID, name: stop.name });
+                } else {
+                    out.push({ pitch:   stop.midiNote,
+                               channel: stopChannelFor(stop),
+                               stopID:  stopID,
+                               name:    stop.name });
+                }
+            });
+        });
+        return out;
+    }
+
     function findControlByID(controlID) {
         var found = null;
         var cid = String(controlID);
@@ -1438,6 +1479,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Preset system — called from gamut_storage_organ.js
         capturePreset: capturePreset,
         recallPreset:  recallPreset,
+
+        // Clip writing — called from Universal.js createRegistrationClip()
+        getRegistrationNotes: getRegistrationNotes,
+        getStopSystem: function() { return organState.stopSystem; },
 
         getPresetMenu: function() {
             return guiObjects && guiObjects.header ? guiObjects.header.presetMenu : null;
