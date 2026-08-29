@@ -51,6 +51,13 @@
 //         Abbreviated names end in an ellipsis.  Stop labels are shortened with ".."
 //         but KEEP their pitch: "17 Trompet harmonique 8'" → "17 Trompet ha.. 8'".
 //         The foot mark occurs as ' ’ and ‘ in the tables; all three are recognised.
+// 00.08 - Column 1 widened to 90 (own constant, no longer GEOMETRY.margin.x which
+//         SINUA shares) so "Schwellwerk II" fits; column 2 to 82 so "Tremulant"
+//         fits beside a tiny dial.  RESET CTL dropped again — CANCEL already
+//         returns the controls to their defaults.  preset_menu moved into column 2,
+//         under the title, with the global dials below it: title, menu and dials
+//         now all start on the same x.  Chatty post() calls moved to common.log so
+//         the "debug 0" switch in Universal.js can silence them for live use.
 // 29.08.2026
 //
 // TARGET: traditional pipe organs with MIDI interface — every stop belongs to
@@ -170,8 +177,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         manualGap:    8,
         // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
         // column reserves both before PANIC starts.
+        // Column 1 holds the manual name and the buttons.  Its own constant rather
+        // than GEOMETRY.margin.x, which SINUA shares — widened so a standard German
+        // designation like "Schwellwerk II" fits on one line.
+        col1W:       90,
         labelH:      28,
-        labelMax:     9,    // name budget after the "M4 " prefix, so only "(chN)" wraps
+        labelMax:    14,    // name budget after the "M4 " prefix, so only "(chN)" wraps
         titleInset:   4,    // comment widgets inset their text; pull the title back
         // Couplers sit apart from the registers, in their own trailing column
         couplerGap:   4,
@@ -180,25 +191,24 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Controller dials get their OWN column, always — even for a manual that has
         // none.  That keeps every manual (pedal included) indented identically, and
         // the stop grid starts past the reserved columns.
-        ctrlW:       62,    // wide enough to read a name next to a tiny dial
+        ctrlW:       78,    // fits a standard name like "Tremulant" beside a tiny dial
         ctrlH:       38,    // tiny dial + its name label, with room to breathe
-        ctrlColW:    66,
+        ctrlColW:    82,
         ctrlMaxCols:  2,    // beyond this the manual grows taller instead of wider
         ctrlNameMax:  9,    // crop at the length of "Tremulant"
         stopLabelMax: 18    // characters that fit a stop button at fontsize 10
     };
-    // Global buttons stack under one another; dials go below the title
-    LAYOUT.globalCancelY = LAYOUT.globalPanicY  + LAYOUT.btnH + LAYOUT.btnGap;
-    LAYOUT.globalResetY  = LAYOUT.globalCancelY + LAYOUT.btnH + LAYOUT.btnGap;
-    LAYOUT.globalDialY   = LAYOUT.headerY + 24;
+    // Header rows, all of column 2 starting at the same x: title, preset menu, dials
+    LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
+    LAYOUT.presetMenuY   = LAYOUT.headerY + 24;
+    LAYOUT.presetMenuW   = 170;
+    LAYOUT.globalDialY   = LAYOUT.presetMenuY + LAYOUT.btnH + LAYOUT.btnGap;
     // Inside a manual the buttons line up with the SECOND controller row, so the
     // left column reads as one row grid with the dials beside it.
     LAYOUT.manualPanicY   = LAYOUT.stopPadTop + LAYOUT.ctrlH;
-    LAYOUT.manualCancelY  = LAYOUT.manualPanicY  + LAYOUT.btnH + LAYOUT.btnGap;
-    LAYOUT.manualResetY   = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.btnGap;
-    // Height the left column needs on its own, with and without the RESET CTL button
+    LAYOUT.manualCancelY  = LAYOUT.manualPanicY + LAYOUT.btnH + LAYOUT.btnGap;
+    // Height the left column needs on its own
     LAYOUT.manualMinH     = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.stopPadBottom;
-    LAYOUT.manualMinHCtl  = LAYOUT.manualResetY  + LAYOUT.btnH + LAYOUT.stopPadBottom;
 
     // ================================================================================================
     // STATE
@@ -753,7 +763,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // Title starts at the controller column.  A comment insets its text, so pull
         // the box back by that much to make the glyphs line up with the dials below.
-        var label = common.createLiveComment(p, G.margin.x - LAYOUT.titleInset, LAYOUT.headerY,
+        var label = common.createLiveComment(p, LAYOUT.col1W - LAYOUT.titleInset, LAYOUT.headerY,
             220, 22, "organNameLabel", organName, 30, 14);
 
         var panic = createActionButton(p, gx, LAYOUT.globalPanicY, "panic_all", "PANIC",
@@ -764,18 +774,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
 
-        // Global RESET CTL only when the organ has controls at all
-        var resetCtl = null;
-        if (allControls().length) {
-            resetCtl = createActionButton(p, gx, LAYOUT.globalResetY, "resetctl_all",
-                "RESET CTL", fs.small, false, function() { executeResetControls(null); });
-            bottomY = LAYOUT.globalResetY + LAYOUT.btnH;
-        }
-
-        // Global controls (manual 0) run along the header below the title —
+        // Global controls (manual 0) run along the header below the preset menu —
         // same x as the manuals' controller column, so the two line up.
         var globalDials = [];
-        var gdx = G.margin.x;
+        var gdx = LAYOUT.col1W;
         organState.globalWheels.forEach(function(ctl) {
             var d = createControlDial(p, gdx, LAYOUT.globalDialY, ctl, "ctrl_global_");
             if (d) globalDials.push(d);
@@ -787,8 +789,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         guiObjects.dialsByID = guiObjects.dialsByID || {};
 
         // preset_menu: reuse the user's existing menu; create + connect only if missing
-        // (same pattern as SINUA createMainHeader).
-        var pmX = G.margin.x + 320, pmY = LAYOUT.headerY, pmW = 160, pmH = 20;
+        // (same pattern as SINUA createMainHeader).  Sits in column 2, under the title.
+        var pmX = LAYOUT.col1W, pmY = LAYOUT.presetMenuY,
+            pmW = LAYOUT.presetMenuW, pmH = LAYOUT.btnH;
         var presetMenu = p.getnamed("preset_menu");
         if (!presetMenu) {
             try {
@@ -807,22 +810,26 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                     if (presetMenuSelectObj) {
                         try {
                             p.connect(presetMenu, 0, presetMenuSelectObj, 0);
-                            post("createMainHeader: preset_menu created and connected to presetMenuSelect\n");
+                            common.log(common.LOG_LEVEL.DEBUG,
+                                "preset_menu created and connected to presetMenuSelect");
                         } catch(ce) {
-                            post("createMainHeader: preset_menu connect failed: " + ce.message + "\n");
+                            common.log(common.LOG_LEVEL.WARN,
+                                "preset_menu connect failed: " + ce.message);
                         }
                     } else {
-                        post("createMainHeader: presetMenuSelect not found — wire manually\n");
+                        common.log(common.LOG_LEVEL.WARN,
+                            "presetMenuSelect not found — wire preset_menu manually");
                     }
                 }
             } catch(e) {
-                post("createMainHeader: preset_menu creation failed: " + e.message + "\n");
+                common.log(common.LOG_LEVEL.ERROR, "preset_menu creation failed: " + e.message);
             }
         } else {
-            post("createMainHeader: reusing existing preset_menu\n");
+            common.log(common.LOG_LEVEL.DEBUG, "reusing existing preset_menu");
         }
+        bottomY = Math.max(bottomY, pmY + pmH);
 
-        return { label: label, panic: panic, cancel: cancel, resetCtl: resetCtl,
+        return { label: label, panic: panic, cancel: cancel,
                  presetMenu: presetMenu, globalDials: globalDials, bottomY: bottomY };
     }
 
@@ -992,12 +999,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             // last row.  Measure to the bottom edge of the last button instead.
             var rowPitch = G.stops.h + margin;
             var gridH    = ((rows - 1) * rowPitch) + G.stops.h;
-            // Stops hug the top and bottom edge — only stopPad on either side.
-            // A manual with controls carries a third button (RESET CTL) and so needs
-            // a taller left column.
-            var hasCtl = (organState.wheelsByManual[manualData.manualID] || []).length > 0;
-            var minH   = hasCtl ? LAYOUT.manualMinHCtl : LAYOUT.manualMinH;
-            var baseH  = Math.max(LAYOUT.stopPadTop + gridH + LAYOUT.stopPadBottom, minH);
+            // Stops hug the top and bottom edge — only stopPad on either side
+            var baseH  = Math.max(LAYOUT.stopPadTop + gridH + LAYOUT.stopPadBottom,
+                                  LAYOUT.manualMinH);
 
             // Controller columns sit between the button column and the stop grid,
             // so the stops shift right by exactly the space the dials occupy.
@@ -1005,7 +1009,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             // (the pedal included) indented the same amount.
             var wheels = organState.wheelsByManual[manualData.manualID] || [];
             var plan   = planControlColumns(wheels.length, baseH);
-            var startX = G.margin.x + (plan.cols * LAYOUT.ctrlColW);
+            var startX = LAYOUT.col1W + (plan.cols * LAYOUT.ctrlColW);
             var w      = startX + gridW + 10;
 
             var manual = createManualBpatcher(p, LAYOUT.manualX, currentY, w, plan.height,
@@ -1033,7 +1037,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Left column: name, PANIC, CANC — kept inside the column so it never
         // overlaps the controller column or the stops.
         var label = common.createLiveComment(sp, LAYOUT.btnX, 0,
-            common.GEOMETRY.margin.x - 4, LAYOUT.labelH,
+            LAYOUT.col1W - 4, LAYOUT.labelH,
             "manual_label_" + manualData.manualID,
             manualLabelText(manualData), 40, 9);
 
@@ -1046,13 +1050,6 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             "cancel_m" + manualData.manualID, "CANCEL", fs.small, false,
             function() { executeCancel(manualData.manualID); });
 
-        // RESET CTL only where there is something to reset
-        var resetBtn = null;
-        if (wheels && wheels.length) {
-            resetBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualResetY,
-                "resetctl_m" + manualData.manualID, "RESET CTL", fs.small, false,
-                function() { executeResetControls(manualData.manualID); });
-        }
 
         // Controller dials in their own column(s), starting at the top edge like the
         // stops, filling one column before starting the next
@@ -1060,7 +1057,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         (wheels || []).forEach(function(ctl, i) {
             var col = Math.floor(i / plan.perColumn);
             var row = i % plan.perColumn;
-            var dx  = common.GEOMETRY.margin.x + (col * LAYOUT.ctrlColW);
+            var dx  = LAYOUT.col1W + (col * LAYOUT.ctrlColW);
             var dy  = LAYOUT.stopPadTop + (row * LAYOUT.ctrlH);
             var d = createControlDial(sp, dx, dy, ctl, "ctrl_m" + manualData.manualID + "_");
             if (d) dials.push(d);
@@ -1080,7 +1077,6 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             manualData:    manualData,
             panic:         panicBtn,
             cancel:        cancelBtn,
-            resetCtl:      resetBtn,
             dials:         dials,
             stopButtonMap: stopButtonMap,   // {varname → live.text MaxObj}
             stopState:     stopState
@@ -1146,7 +1142,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                     contentW = Math.max(contentW, LAYOUT.manualX + (m.width || 0) + 15);
                 });
             }
-            contentW = Math.max(contentW, G.margin.x + 500);   // header row minimum
+            contentW = Math.max(contentW, LAYOUT.col1W + LAYOUT.presetMenuW + 40);  // header row
             context.patcher.wind.size = [contentW, contentH];
             common.log(common.LOG_LEVEL.INFO, "Window resized: " + contentW + " x " + contentH);
         } catch(e) {
@@ -1448,4 +1444,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.07 - buttons on controller rows; RESET CTL; pitch-preserving truncation\n");
+post("organTool_MIDI.js v00.08 - wider columns; preset menu in column 2; quiet mode\n");

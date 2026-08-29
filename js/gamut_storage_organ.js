@@ -53,6 +53,15 @@ var _api        = null;
 var _presetMenu = null;   // direct MaxObj ref to live.menu "preset_menu"
 var _scriptDir  = "";     // set by initStorage — where the backup file lives
 var _loaded     = false;  // true once a load attempt has restored (or confirmed empty)
+var _quiet      = false;  // "debug 0" in Universal.js — keep the console clean live
+
+// Routine progress reports; warnings and errors always get through.
+function say(text) {
+    if (!_quiet) post(text);
+}
+
+/** setQuiet — silence the routine progress lines (called by Universal's debug switch). */
+exports.setQuiet = function(on) { _quiet = Boolean(on); };
 
 // ---- Runtime Dicts (fast in-memory cache, never GC'd) ----
 
@@ -182,7 +191,7 @@ function persist() {
 
         var fileOK = writeBackupFile(bank);
 
-        post("gamut_storage_organ: persisted " + describeBank(bank) +
+        say("gamut_storage_organ: persisted " + describeBank(bank) +
              (ps ? " → pattrstorage slot " + PERSIST_SLOT : " (NO pattrstorage found)") +
              (fileOK ? " + backup file" : " (backup file FAILED)") + "\n");
     } catch(e) {
@@ -268,7 +277,7 @@ function readBackupFile() {
 function tryRestore(sourceLabel) {
     var bank = readBankDict();
     if (applyBankObject(bank)) {
-        post("gamut_storage_organ: restored " + describeBank(bank) +
+        say("gamut_storage_organ: restored " + describeBank(bank) +
              " from bank dict (" + sourceLabel + ")\n");
         _loaded = true;
         return true;
@@ -278,7 +287,7 @@ function tryRestore(sourceLabel) {
     if (applyBankObject(bank)) {
         // Push the file contents back into the dict so the Live project picks them up
         _bankDict.replace("bank", JSON.stringify(bank));
-        post("gamut_storage_organ: restored " + describeBank(bank) +
+        say("gamut_storage_organ: restored " + describeBank(bank) +
              " from backup file (" + sourceLabel + ")\n");
         _loaded = true;
         return true;
@@ -314,13 +323,13 @@ exports.initStorage = function(patcher, scriptDir) {
         var retry = new Task(function() {
             if (_loaded) return;
             if (tryRestore("after pattrstorage recall")) return;
-            post("gamut_storage_organ: nothing stored yet — " +
+            say("gamut_storage_organ: nothing stored yet — " +
                  "pattrstorage slot " + PERSIST_SLOT + " empty, backup file " +
                  (hasFile ? "unreadable" : "not created yet") + " (first run)\n");
         });
         retry.schedule(150);
     } else {
-        post("gamut_storage_organ: nothing stored yet (first run)\n");
+        say("gamut_storage_organ: nothing stored yet (first run)\n");
     }
 };
 
@@ -339,7 +348,7 @@ exports.init = function(patcher, organMod, presetMenuRef) {
     if (!_loaded) tryRestore("late init");
 
     updateMenu();
-    post("gamut_storage_organ: init OK — " + readIndex().length + " preset(s)" +
+    say("gamut_storage_organ: init OK — " + readIndex().length + " preset(s)" +
          (_presetMenu ? "; menu=direct" : "; menu=search") + "\n");
 };
 
@@ -391,7 +400,7 @@ exports.store = function(presetNr, presetName) {
     persist();
     renameChain(presetNr, presetName);
 
-    post("gamut_storage_organ: stored preset " + presetNr + " \"" + presetName + "\"\n");
+    say("gamut_storage_organ: stored preset " + presetNr + " \"" + presetName + "\"\n");
 };
 
 exports.recall = function(presetNr) {
@@ -406,7 +415,7 @@ exports.recall = function(presetNr) {
         post("gamut_storage_organ.recall: no preset at slot " + presetNr + "\n"); return;
     }
     _organMod.recallPreset(jsonStr);
-    post("gamut_storage_organ: recalled preset " + presetNr + "\n");
+    say("gamut_storage_organ: recalled preset " + presetNr + "\n");
 };
 
 exports.recallFromMenuIndex = function(idx) {
@@ -432,7 +441,7 @@ exports.deletePreset = function(presetNr) {
     persist();
     clearChain(presetNr);
     updateMenu();
-    post("gamut_storage_organ: deleted preset " + presetNr + "\n");
+    say("gamut_storage_organ: deleted preset " + presetNr + "\n");
 };
 
 exports.deleteAll = function() {
@@ -444,7 +453,7 @@ exports.deleteAll = function() {
     writeIndex([]);
     persist();
     updateMenu();
-    post("gamut_storage_organ: all presets deleted\n");
+    say("gamut_storage_organ: all presets deleted\n");
 };
 
 exports.updateMenu  = updateMenu;
@@ -491,7 +500,7 @@ function updateMenu() {
     else if (names.length === 1) names.push("--");
 
     menu.setattr("_parameter_range", names);
-    post("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
+    say("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
 }
 
 // ---- MIDI Effect Rack chain renaming (optional — silent when no rack is present) ----
@@ -530,4 +539,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.09 loaded\n");
+post("gamut_storage_organ.js v00.10 loaded\n");

@@ -658,6 +658,94 @@ function resetSystem() {
 }
 
 // ================================================================================================
+// CONSOLE VERBOSITY — [message debug 0] / [message debug 1], or [toggle] → [prepend debug]
+// ================================================================================================
+// Live use wants a quiet console: "debug 0" leaves only warnings and errors,
+// "debug 1" restores the full trace.  Every module logs through common.log, so one
+// switch covers all of them.
+
+var _debugOn = true;
+
+function debug(on) {
+    _debugOn = Boolean(Number(on));
+    if (system.modules.common) {
+        // DEBUG shows everything; WARN keeps real problems visible but drops the chatter
+        system.modules.common.selectLogLevel(_debugOn ? "DEBUG" : "WARN");
+    }
+    if (organStorage && typeof organStorage.setQuiet === "function") {
+        organStorage.setQuiet(!_debugOn);
+    }
+    post("Organ debug output " + (_debugOn ? "ON" : "OFF") + "\n");
+}
+
+// ================================================================================================
+// TRACK MIDI OUTPUT ROUTING → multichanmidiout "port"
+// ================================================================================================
+// Follows the hosting track's MIDI output routing and hands it to multichanmidiout,
+// once at startup and again whenever it changes in Live.  Wire the js outlet to
+// multichanmidiout as usual — it understands "port <name>".
+//
+//   [message watchTrackOutput]   start observing (also runs automatically at init)
+//   [message sendTrackPort]      re-send the current routing by hand
+//
+// Live exposes two properties on the track, and they mean different things:
+//   output_routing_type    → the destination itself, e.g. "IAC Driver Bus 1"  ← the port
+//   output_routing_channel → the channel within it, e.g. "Ch. 1" / "All Channels"
+// multichanmidiout wants the destination, so the TYPE is what gets sent as the port;
+// the channel is logged alongside so you can see both.
+
+var _routingAPIs = [];   // module-level: a LiveAPI held only by a local is collected
+
+function routingDisplayName(api, prop) {
+    try {
+        var raw = api.get(prop);
+        var s   = (raw && raw.join) ? raw.join(" ") : String(raw);
+        // Routing properties come back as a JSON object carrying display_name
+        try {
+            var o = JSON.parse(s);
+            if (o) {
+                if (o.display_name) return String(o.display_name);
+                if (o[prop] && o[prop].display_name) return String(o[prop].display_name);
+            }
+        } catch (parseError) { /* not JSON — the plain string is the name */ }
+        return s;
+    } catch (e) {
+        return null;
+    }
+}
+
+function sendTrackPort() {
+    if (!_routingAPIs.length) return;
+    var api  = _routingAPIs[0];
+    var port = routingDisplayName(api, "output_routing_type");
+    var chan = routingDisplayName(api, "output_routing_channel");
+
+    post("Track MIDI out — port: " + port + "   channel: " + chan + "\n");
+
+    if (port && port !== "None" && port !== "0") {
+        outlet(0, "port", port);
+    }
+}
+
+function watchTrackOutput() {
+    try {
+        // Observers must be module-level, or Max collects them and the callback
+        // silently stops firing — the same trap as the suppression Task.
+        _routingAPIs = [];
+        ["output_routing_type", "output_routing_channel"].forEach(function(prop) {
+            var api = new LiveAPI(function() { sendTrackPort(); },
+                                  "this_device canonical_parent");
+            api.property = prop;          // assigning .property starts the observer
+            _routingAPIs.push(api);
+        });
+        sendTrackPort();                  // and once now, for the initial state
+        post("Watching track MIDI output routing\n");
+    } catch (e) {
+        post("watchTrackOutput: not available (" + e.message + ")\n");
+    }
+}
+
+// ================================================================================================
 // PRESET SYSTEM — message handlers callable from Max patch
 // ================================================================================================
 // Wire in Max:
@@ -730,7 +818,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.26 - organ + presets restored from bank on startup\n");
+    post("Organ Control System v01.27 - debug toggle; track MIDI routing follows to multichanmidiout\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
@@ -744,6 +832,8 @@ if (!initializeSystem()) {
         } else {
             post("organTool_Universal: no saved organ path (first run)\n");
         }
+        // Follow the track's MIDI output routing once Live has settled
+        watchTrackOutput();
     });
     autoReloadTask.schedule(400);
 }
