@@ -1287,6 +1287,48 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             "External stop " + stop.stopID + " -> " + state + " [MAN " + stop.manualID + "]");
     }
 
+    // Apply a complete registration: exactly these stops on, everything else off.
+    //
+    // This is what lets a clip drive the organ with note-ONs alone.  Incremental
+    // on/off needs the note-off to arrive, and a note-off arrives whenever the
+    // transport stops — which would drop the registration mid-rehearsal.  Reading a
+    // burst of notes as the whole picture removes the need for note-offs entirely.
+    function applyRegistration(stopIDs) {
+        var wanted = {};
+        (stopIDs || []).forEach(function(id) { wanted[Number(id)] = true; });
+
+        var changed = 0;
+        _suppressListeners = true;
+
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            Object.keys(manual.stopButtonMap).forEach(function(btnKey) {
+                var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+                var stopID = parseInt(numStr, 10);
+                if (isNaN(stopID)) return;
+
+                var want = Boolean(wanted[stopID]);
+                if (Boolean(manual.stopState[btnKey]) === want) return;   // already right
+
+                manual.stopState[btnKey] = want;
+                manual.stopButtonMap[btnKey].message("set", want ? 1 : 0);
+
+                var stop = organState.stopsByID[stopID];
+                if (stop) {
+                    dataLayer.setStopState(stopID, want, true, null);
+                    if (organState.stopSystem !== "sysex") sendStopMIDI(stop, want);
+                }
+                changed++;
+            });
+        });
+
+        if (organState.stopSystem === "sysex") sendSysExState();
+        releaseSuppression();
+
+        common.log(common.LOG_LEVEL.INFO,
+            "Registration applied: " + (stopIDs || []).length + " stop(s), " +
+            changed + " changed");
+    }
+
     // Reflect a stop's state on its button + cache without triggering the listener.
     function setStopGUI(stop, state) {
         if (!guiObjects.manuals) return;
@@ -1475,6 +1517,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         },
 
         handleStopEvent: handleStopEvent,
+        applyRegistration: applyRegistration,   // absolute set, from a clip note burst
 
         // Preset system — called from gamut_storage_organ.js
         capturePreset: capturePreset,

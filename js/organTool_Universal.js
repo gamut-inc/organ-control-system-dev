@@ -800,6 +800,47 @@ function presetGuard(on) {
 // Sending it as an argument rather than as module state keeps the tracks independent:
 // two tracks can address different ranges at the same time without racing each other.
 
+// ---- Latched registrations -------------------------------------------------------
+//
+// A stop must not fall when the transport stops.  Live sends note-offs on stop, and
+// with incremental on/off that silences the organ mid-rehearsal; sustaining the notes
+// instead only moves the problem, because a stop is still a note-off.
+//
+// So note-offs are ignored, and a BURST of note-ons is read as the whole
+// registration: everything in the burst comes on, everything else goes off.  Nothing
+// then depends on a note ending — stopping, looping and jumping leave the console
+// exactly as it stands, and no stop can hang, because the next burst states the full
+// picture rather than adding to it.
+//
+//   [message organLatch 0]  back to incremental on/off (note-off turns a stop off)
+
+var LATCH_WINDOW_MS = 40;      // notes this close together belong to one registration
+var _latch      = true;
+var _burst      = [];
+var _burstTask  = null;        // module-level: a local Task can be collected before it fires
+
+function organLatch(on) {
+    _latch = Boolean(Number(on));
+    post("Stop notes are " + (_latch ? "latched (note-offs ignored)" :
+                                       "incremental (note-off turns a stop off)") + "\n");
+}
+
+function flushBurst() {
+    var stops = _burst;
+    _burst = [];
+    if (!stops.length) return;
+    if (system.organModule && typeof system.organModule.applyRegistration === "function") {
+        system.organModule.applyRegistration(stops);
+    }
+}
+
+function collectStop(stopID) {
+    _burst.push(stopID);
+    if (!_burstTask) _burstTask = new Task(flushBurst);
+    try { _burstTask.cancel(); } catch(e) {}
+    _burstTask.schedule(LATCH_WINDOW_MS);
+}
+
 function organNote(note, velocity, offset) {
     note     = Number(note);
     velocity = Number(velocity);
@@ -818,6 +859,12 @@ function organNote(note, velocity, offset) {
     }
 
     var stopID = note + offset;
+
+    if (_latch) {
+        if (velocity > 0) collectStop(stopID);   // note-offs are deliberately ignored
+        return;
+    }
+
     if (system.organModule && typeof system.organModule.handleStopEvent === "function") {
         system.organModule.handleStopEvent(stopID, null, null, null, velocity > 0);
     }
@@ -950,7 +997,11 @@ function registrationClip() {
     // Which reading of "the notes" is available for this organ
     var system_ = (typeof system.organModule.getStopSystem === "function")
         ? system.organModule.getStopSystem() : "note";
-    var mode = modeArg || ((system_ === "note") ? "output" : "device");
+    // Device-facing notes by default.  They go through organNote, which latches the
+    // registration, so a stopped transport cannot drop the stops — see organLatch.
+    // "output" writes the organ's own addresses instead: usable without this device
+    // in the chain, but then a note-off IS a stop-off and stopping kills the organ.
+    var mode = modeArg || "device";
     if (mode === "output" && system_ !== "note") {
         post("registrationClip: this organ drives stops by \"" + system_ + "\", which a MIDI " +
              "clip cannot carry — writing device-facing notes instead\n");
@@ -1014,7 +1065,12 @@ function registrationClip() {
             }
         }
 
-        var result = fillClipWithNotes(clip, notes, sel.length, noteStart, carried);
+        // Latched device notes only need to fire once; a held note would put a
+        // note-off at the end of the selection, which is the very thing that drops
+        // the stops when the transport stops there.  Output notes must be held,
+        // since the organ reads their length as how long the stop stays drawn.
+        var noteLen = (mode === "device") ? Math.min(0.25, sel.length) : sel.length;
+        var result  = fillClipWithNotes(clip, notes, noteLen, noteStart, carried);
 
         if (result.count === 0) {
             post("registrationClip: the clip was created but stayed EMPTY — neither " +
@@ -1025,7 +1081,8 @@ function registrationClip() {
                  "to confirm\n");
         } else {
             post("registrationClip: " + notes.length + " stop(s) as " + mode +
-                 " notes into " + into + " via " + result.how +
+                 " notes (" + (mode === "device" ? "latched triggers" : "held") +
+                 ") into " + into + " via " + result.how +
                  " — " + result.count + " note(s) in it now, length " +
                  sel.length + " beats\n");
         }
