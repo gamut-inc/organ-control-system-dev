@@ -53,6 +53,38 @@ KNOWN_KEYS = {
 STOP_OPTIONAL = ["midiNote", "midiCC", "ccOn", "ccOff",
                  "programOn", "programOff", "stopChannel"]
 
+# Column aliases, so a table exported from anywhere still lands in the right field.
+# Matching ignores case, spaces, underscores and hyphens.
+ALIASES = {
+    "stopID":    ["stopid", "id", "nr", "stopnr", "stopnumber"],
+    "name":      ["name", "stopname", "register", "bezeichnung"],
+    "feet":      ["feet", "foot", "footage", "fuss", "fuß", "pitch", "lage"],
+    "manualID":  ["manualid", "manual", "man", "werk", "division"],
+    "channel":   ["channel", "ch", "stopchannel", "kanal"],
+    "onMsg":     ["onmsg", "msgon", "ontype", "typeon", "onmessage", "oncontrolmsg"],
+    "onNr":      ["onnr", "nron", "onnumber", "onvalue1", "oncontrolnr", "oncc", "onnote"],
+    "onValue":   ["onvalue", "valueon", "onvel", "onvelocity", "ondata"],
+    "offMsg":    ["offmsg", "msgoff", "offtype", "typeoff", "offmessage", "offcontrolmsg"],
+    "offNr":     ["offnr", "nroff", "offnumber", "offvalue1", "offcontrolnr", "offcc", "offnote"],
+    "offValue":  ["offvalue", "valueoff", "offvel", "offvelocity", "offdata"],
+    "msg":       ["msg", "controlmsg", "type", "message"],
+    "nr":        ["nr2", "controlnr", "number", "cc", "note"],
+}
+
+
+def norm(key):
+    """Normalise a column header for alias matching."""
+    return (key or "").strip().lower().replace(" ", "").replace("_", "").replace("-", "")
+
+
+def pick(row, field):
+    """Value of `field` in `row`, honouring the alias table. '' when absent."""
+    wanted = ALIASES.get(field, [field.lower()])
+    for key, value in row.items():
+        if norm(key) in wanted:
+            return (value or "").strip()
+    return ""
+
 
 def read_csv(path, required=True):
     """Read a CSV into a list of dicts; tolerate a missing optional file."""
@@ -65,6 +97,60 @@ def read_csv(path, required=True):
             {(k or "").strip(): (v or "").strip() for k, v in row.items()}
             for row in csv.DictReader(f)
         ]
+
+
+def build_stop_name(row):
+    """Join name and feet into one label, adding the foot mark: Principal + 8 → Principal 8'"""
+    name = pick(row, "name")
+    feet = pick(row, "feet")
+    if not feet:
+        return name
+    feet = feet.strip()
+    # Leave an already-marked or non-numeric footage alone (16', III, 2 2/3')
+    if not feet.endswith("'") and not feet.endswith("’"):
+        feet += "'"
+    return ("%s %s" % (name, feet)).strip()
+
+
+def build_address(row, side, default_channel):
+    """
+    One end of a stop's wiring, or None when the table does not describe it.
+
+    side is "on" or "off".  Consoles differ in how they address a stop: one note
+    with velocity 127/0, two separate CCs, two program changes (Laukhuff's odd/even).
+    Describing each end separately covers all of them, so the module does not need
+    to know which console it is talking to.
+    """
+    msg = pick(row, side + "Msg") or pick(row, "msg")
+    nr = pick(row, side + "Nr")
+    if not nr and not msg:
+        return None
+    if not nr:
+        nr = pick(row, "nr")
+    if nr == "":
+        return None
+
+    value = pick(row, side + "Value")
+    msg = (msg or "note").lower()
+    if value == "":
+        # Sensible default per message type: notes/CCs use 127 for on, 0 for off;
+        # program changes carry no value at all.
+        value = 127 if side == "on" else 0
+    else:
+        value = int(float(value))
+
+    try:
+        nr = int(float(nr))
+    except ValueError:
+        sys.exit("row %r: %sNr is not a number: %r" % (row, side, nr))
+
+    address = {"msg": msg, "nr": nr, "value": value}
+    channel = pick(row, "channel")
+    if channel:
+        address["channel"] = int(float(channel))
+    elif default_channel is not None:
+        address["channel"] = default_channel
+    return address
 
 
 def as_int(row, key, default=None):
@@ -113,20 +199,58 @@ def build(csv_dir):
         organ["manuals"].append(manual)
 
     # --- stops.csv ---
+    manual_stop_channel = {m["manualID"]: m.get("stopChannel") for m in organ["manuals"]}
+    explicit_pairs = 0
+
     for row in stop_rows:
-        sid = as_int(row, "stopID")
-        if sid is None:
+        raw_id = pick(row, "stopID")
+        if raw_id == "":
             sys.exit("stops.csv: every row needs a stopID (offending row: %r)" % row)
-        mid = as_int(row, "manualID", 0)
+        sid = int(float(raw_id))
+
+        raw_mid = pick(row, "manualID")
+        mid = int(float(raw_mid)) if raw_mid else 0
         if mid not in known_manual_ids:
             sys.exit("stops.csv: stop %d references manualID %s, which manuals.csv "
                      "does not define" % (sid, mid))
-        stop = {"stopID": sid, "name": row.get("name") or ("Stop %d" % sid), "manualID": mid}
-        for key in STOP_OPTIONAL:
-            val = as_int(row, key)
-            if val is not None:
-                stop[key] = val
+
+        stop = {
+            "stopID": sid,
+            "name": build_stop_name(row) or ("Stop %d" % sid),
+            "manualID": mid,
+        }
+
+        # Explicit on/off addresses win: they describe any console exactly.
+        default_channel = manual_stop_channel.get(mid)
+        on = build_address(row, "on", default_channel)
+        off = build_address(row, "off", default_channel)
+
+        # When on and off are DIFFERENT numbers, the number itself carries the
+        # meaning (Casavant's two controllers, Laukhuff's odd/even programs), so the
+        # off message is a trigger and must not be sent as "value 0" — that would be
+        # a no-op on most consoles.  Same number = note on/off, where 0 is the point.
+        if on and off and on["nr"] != off["nr"] and pick(row, "offValue") == "":
+            off["value"] = 127
+
+        if on or off:
+            if on:
+                stop["on"] = on
+            if off:
+                stop["off"] = off
+            explicit_pairs += 1
+        else:
+            # Otherwise fall back to the per-system override columns
+            for key in STOP_OPTIONAL:
+                val = as_int(row, key)
+                if val is not None:
+                    stop[key] = val
+
         organ["stops"].append(stop)
+
+    if explicit_pairs:
+        organ.setdefault("midi", {})["stopSystem"] = "explicit"
+        print("  note: %d stop(s) carry explicit on/off addresses → stopSystem "
+              "set to \"explicit\"" % explicit_pairs)
 
     # --- controls.csv ---
     controls = []
@@ -147,6 +271,54 @@ def build(csv_dir):
         organ["controls"] = controls
 
     return organ
+
+
+def check_collisions(organ):
+    """
+    Warn when two stops would send the identical message.
+
+    This is the mistake that silently breaks an organ: put every manual on the same
+    stopChannel and let each manual number its stops from zero, and the fourth
+    manual's Principal now speaks the pedal's Subbass.  Cheap to check, invisible
+    otherwise until you hear it.
+    """
+    system = organ["midi"].get("stopSystem", "note")
+    manual_channel = {m["manualID"]: m.get("stopChannel") for m in organ["manuals"]}
+    manual_name = {m["manualID"]: m["name"] for m in organ["manuals"]}
+    seen = {}
+    clashes = []
+
+    for stop in organ["stops"]:
+        channel = stop.get("stopChannel") or manual_channel.get(stop["manualID"])
+        if "on" in stop:
+            addr = stop["on"]
+            key = (addr.get("channel", channel), addr["msg"], addr["nr"])
+        elif system == "cc":
+            key = (channel, "cc", stop.get("midiCC", stop["stopID"]))
+        elif system in ("cc2", "program", "sysex", "explicit"):
+            continue  # addressed per stop, or not addressed individually at all
+        else:
+            key = (channel, "note", stop.get("midiNote", stop["stopID"]))
+
+        if key in seen:
+            clashes.append((seen[key], stop, key))
+        else:
+            seen[key] = stop
+
+    if not clashes:
+        return
+
+    print()
+    print("  WARNING: %d stop(s) share an address with another stop —" % len(clashes))
+    print("  they will speak together. Give each manual its own stopChannel, or make")
+    print("  the numbers unique across the whole organ.")
+    for first, second, key in clashes[:8]:
+        print("    ch %-3s %-4s %-4s  %s: %s  ==  %s: %s" % (
+            key[0], key[1], key[2],
+            manual_name.get(first["manualID"], first["manualID"]), first["name"],
+            manual_name.get(second["manualID"], second["manualID"]), second["name"]))
+    if len(clashes) > 8:
+        print("    … and %d more" % (len(clashes) - 8))
 
 
 def summarise(organ):
@@ -195,6 +367,7 @@ def main():
 
     print("wrote %s" % out_path)
     summarise(organ)
+    check_collisions(organ)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,18 @@
 //         "tagged" restores the old ("midi", "note", …) form for patches that route it.
 //         Controls table support (see CONTROLS below): dials per manual / global,
 //         and panic definitions that drive the existing PANIC buttons.
+// 00.04 - Fixed the suppression Task being garbage-collected: it is now held at module
+//         scope.  A Task referenced only by a local variable can be collected before it
+//         fires, which left _suppressListeners stuck true — every later stop click
+//         returned early, so CANCEL worked only sometimes and store captured nothing.
+//         Output format "named" is now the default: <note|cc|pc|poly> ch nr value.
+//         Controller dials: own reserved column (so every manual, pedal included, is
+//         indented alike), "tiny" appearance, wider, names cropped at 9 chars.
+//         Controller values are captured into presets and restored on recall.
+//         Stops hug the manual's top and bottom edge (stopPadTop/Bottom).
+//         Explicit per-stop on/off addresses ("explicit" system) — see STOP SYSTEMS.
+//         handleStopEvent now updates the button and the cache, so a stop moved from
+//         outside the GUI is visible and gets captured.
 // 29.08.2026
 //
 // TARGET: traditional pipe organs with MIDI interface — every stop belongs to
@@ -64,6 +76,14 @@
 //             midi.sysex.header / .footer are raw byte arrays (default F0 … F7).
 //             Bits are packed 7 per byte (MIDI data bytes must stay < 128).
 //
+//  "explicit" Each stop carries its own two addresses — the general case that covers
+//             every console above without the module having to know which one it is:
+//               "on":  { "msg": "cc", "channel": 11, "nr": 20, "value": 127 },
+//               "off": { "msg": "cc", "channel": 11, "nr": 21, "value": 127 }
+//             A stop's on/off pair overrides the organ's nominal system, whatever it
+//             is, so a single organ may mix addressing styles.  tools/csv_to_organ_json.py
+//             builds these from onMsg/onNr/offMsg/offNr columns.
+//
 // ================================================================================================
 // CONTROLS  (organ JSON "controls" array)
 // ================================================================================================
@@ -86,17 +106,19 @@
 // ================================================================================================
 // MIDI OUTPUT via outlet 0 — midi.outputFormat
 // ================================================================================================
-//  "raw" (default)  Status byte + data bytes, ready for [multichanmidiout] or [midiout]
-//                   wired straight to the js outlet:
-//                       note on/off  →  (143 + ch), note, velocity
-//                       control      →  (175 + ch), controller, value
-//                       program      →  (191 + ch), program
-//                       sysex        →  240, …, 247
-//                   Channels are 1..16 and are clamped, data bytes clamped to 0..127.
+//  "named" (default)  <type> channel number value, one message per line:
+//                         note 11 60 127     cc 11 9 64     pc 12 41     poly 11 60 80
+//                         sysex 240 … 247
+//                     Channels are 1..16, data 0..127; both are clamped.
 //
-//  "tagged"         ("midi", "note"|"cc"|"program"|"sysex", channel, …) for patches that
-//                   route the message themselves:
-//                       [route midi] → [route note cc program sysex] → noteout / ctlout / …
+//  "raw"              Status byte + data bytes, for [midiout] / [multichanmidiout]
+//                     wired straight to the js outlet:
+//                         note → (143 + ch), control → (175 + ch),
+//                         program → (191 + ch), poly → (159 + ch), sysex → 240 … 247
+//
+//  "tagged"           ("midi", "note"|"cc"|"program"|"poly"|"sysex", channel, …) for
+//                     patches that route the message themselves:
+//                         [route midi] → [route note cc program] → noteout / ctlout / …
 //
 // PUBLIC API (same interface as organTool_SINUA.js):
 //   loadOrgan, clearGUI, getCurrentOrganInfo, handleStopEvent,
@@ -118,23 +140,25 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         globalPanicY: 45,   // global PANIC — same x as the manual CANC buttons
         manualsY:    95,    // first manual (50px lower than the 45 of v00.01)
         manualGap:    8,
-        labelH:      25,    // label row inside a manual before the button/stop grid
-        // Controller dials live below CANC, in as many columns as they need.
-        // The stop grid shifts right by exactly those columns so nothing overlaps.
-        ctrlW:       45,
-        ctrlH:       38,
-        ctrlColW:    52,
-        ctrlMaxCols:  2     // beyond this the manual grows taller instead of wider
+        labelH:      18,    // manual name, top of the left column
+        stopPadTop:   4,    // small breathing room above the first stop …
+        stopPadBottom: 4,   // … and below the last one
+        // Controller dials get their OWN column, always — even for a manual that has
+        // none.  That keeps every manual (pedal included) indented identically, and
+        // the stop grid starts past the reserved columns.
+        ctrlW:       62,    // wide enough to read a name next to a tiny dial
+        ctrlH:       22,    // "tiny" appearance is short
+        ctrlColW:    66,
+        ctrlMaxCols:  2,    // beyond this the manual grows taller instead of wider
+        ctrlNameMax:  9     // crop at the length of "Tremulant"
     };
     // Global CANCEL sits directly below the global PANIC, same proportions as in the manuals
     LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
-    // Buttons in a manual start below the label row
+    // Left column inside a manual: name, then PANIC, then CANC
     LAYOUT.manualPanicY  = LAYOUT.labelH;
     LAYOUT.manualCancelY = LAYOUT.labelH + LAYOUT.btnH + LAYOUT.btnGap;
-    // First controller row inside a manual
-    LAYOUT.manualCtrlY   = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.btnGap;
-    // Minimum manual height so both buttons always fit
-    LAYOUT.manualMinH    = LAYOUT.manualCancelY + LAYOUT.btnH + 5;
+    // Height the left column needs on its own
+    LAYOUT.manualMinH    = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.stopPadBottom;
 
     // ================================================================================================
     // STATE
@@ -148,7 +172,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         stopsByID: {},      // {stopID: stop}
         allStops: [],       // JSON order — defines the SysEx bit order
         stopSystem: "note",
-        outputFormat: "raw",
+        outputFormat: "named",
+        controlValues: {},   // {controlID: last value} — captured into presets
         panicMethod: "cc123",
         sysex: { header: [240], footer: [247] },
         // Controls from the organ JSON, split by role and scope.
@@ -165,6 +190,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // cancel/recall).  btn.message("set", ...) fires listeners ASYNCHRONOUSLY,
     // so the flag is released via a 10ms Task, never synchronously.
     var _suppressListeners = false;
+    // Module-scope so Max cannot garbage-collect it mid-flight — see releaseSuppression()
+    var _suppressTask = null;
 
     // ================================================================================================
     // STOP COLOURING  (same classification as SINUA so both systems look alike)
@@ -245,38 +272,51 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
     function emitNote(ch, note, vel) {
         ch = clampCh(ch);
-        if (organState.outputFormat === "tagged") outlet(0, "midi", "note", ch, clampData(note), clampData(vel));
-        else                                      outlet(0, 143 + ch, clampData(note), clampData(vel));
+        note = clampData(note); vel = clampData(vel);
+        if      (organState.outputFormat === "raw")    outlet(0, 143 + ch, note, vel);
+        else if (organState.outputFormat === "tagged") outlet(0, "midi", "note", ch, note, vel);
+        else                                           outlet(0, "note", ch, note, vel);
     }
 
     function emitCC(ch, cc, val) {
         ch = clampCh(ch);
-        if (organState.outputFormat === "tagged") outlet(0, "midi", "cc", ch, clampData(cc), clampData(val));
-        else                                      outlet(0, 175 + ch, clampData(cc), clampData(val));
+        cc = clampData(cc); val = clampData(val);
+        if      (organState.outputFormat === "raw")    outlet(0, 175 + ch, cc, val);
+        else if (organState.outputFormat === "tagged") outlet(0, "midi", "cc", ch, cc, val);
+        else                                           outlet(0, "cc", ch, cc, val);
     }
 
     function emitProgram(ch, pgm) {
         ch = clampCh(ch);
-        if (organState.outputFormat === "tagged") outlet(0, "midi", "program", ch, clampData(pgm));
-        else                                      outlet(0, 191 + ch, clampData(pgm));
+        pgm = clampData(pgm);
+        if      (organState.outputFormat === "raw")    outlet(0, 191 + ch, pgm);
+        else if (organState.outputFormat === "tagged") outlet(0, "midi", "program", ch, pgm);
+        else                                           outlet(0, "pc", ch, pgm);
+    }
+
+    // Polyphonic key pressure — some consoles address stops this way
+    function emitPoly(ch, note, pressure) {
+        ch = clampCh(ch);
+        note = clampData(note); pressure = clampData(pressure);
+        if      (organState.outputFormat === "raw")    outlet(0, 159 + ch, note, pressure);
+        else if (organState.outputFormat === "tagged") outlet(0, "midi", "poly", ch, note, pressure);
+        else                                           outlet(0, "poly", ch, note, pressure);
     }
 
     function emitSysex(bytes) {
-        if (organState.outputFormat === "tagged") outlet.apply(null, [0, "midi", "sysex"].concat(bytes));
-        else                                      outlet.apply(null, [0].concat(bytes));
+        if      (organState.outputFormat === "raw")    outlet.apply(null, [0].concat(bytes));
+        else if (organState.outputFormat === "tagged") outlet.apply(null, [0, "midi", "sysex"].concat(bytes));
+        else                                           outlet.apply(null, [0, "sysex"].concat(bytes));
     }
 
-    // Send whatever a control definition describes (CC / program / note), with an
-    // explicit value.  Used by the dials and by the panic buttons.
+    // Send whatever a control definition describes, with an explicit value.
+    // Used by the dials, by the panic buttons and by the on/off stop addresses.
     function emitControl(ctl, value) {
         var msg = String(ctl.msg || "CC").toUpperCase();
-        if (msg === "PC" || msg === "PROGRAM") {
-            emitProgram(ctl.channel, ctl.nr);
-        } else if (msg === "NOTE") {
-            emitNote(ctl.channel, ctl.nr, value);
-        } else {
-            emitCC(ctl.channel, ctl.nr, value);
-        }
+        if      (msg === "PC" || msg === "PROGRAM") emitProgram(ctl.channel, ctl.nr);
+        else if (msg === "NOTE")                    emitNote(ctl.channel, ctl.nr, value);
+        else if (msg === "POLY")                    emitPoly(ctl.channel, ctl.nr, value);
+        else                                        emitCC(ctl.channel, ctl.nr, value);
     }
 
     // Stop-output channel: per stop → per manual → stopChannelBase + manual index.
@@ -289,6 +329,21 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
     function sendStopMIDI(stop, state) {
         var ch = stopChannelFor(stop);
+
+        // Explicit per-stop wiring always wins, whatever the organ's nominal system:
+        // {msg, channel, nr, value} for each end.  One note with velocity 127/0, two
+        // separate CCs, two program changes — all of them are just two addresses.
+        var addr = state ? stop.on : stop.off;
+        if (addr) {
+            emitControl({ msg: addr.msg, nr: addr.nr, channel: addr.channel || ch },
+                        (addr.value !== undefined) ? addr.value : (state ? 127 : 0));
+            common.log(common.LOG_LEVEL.VERBOSE,
+                "MIDI " + addr.msg + " ch" + (addr.channel || ch) + " #" + addr.nr +
+                " " + addr.value + " (stop " + stop.stopID + " " + (state ? "on" : "off") + ")");
+            return;
+        }
+        // An "explicit" organ with only one side defined: the missing side sends nothing
+        if (organState.stopSystem === "explicit") return;
 
         switch (organState.stopSystem) {
 
@@ -452,7 +507,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         organState.stopSystem   = midiCfg.stopSystem   || "note";
         organState.panicMethod  = midiCfg.panicMethod  || "cc123";
-        organState.outputFormat = midiCfg.outputFormat || "raw";
+        organState.outputFormat = midiCfg.outputFormat || "named";
 
         var sx = midiCfg.sysex || {};
         organState.sysex = {
@@ -482,7 +537,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 stopID:      s.stopID,
                 name:        s.name || ("Stop " + s.stopID),
                 manualID:    (s.manualID !== undefined) ? s.manualID : 0,
-                stopChannel: s.stopChannel || null
+                stopChannel: s.stopChannel || null,
+                on:          s.on  || null,     // explicit wiring, when the table gives it
+                off:         s.off || null
             };
             organState.stopsByID[stop.stopID] = stop;
 
@@ -655,6 +712,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         if (globalDials.length) {
             bottomY = Math.max(bottomY, LAYOUT.globalPanicY + LAYOUT.ctrlH);
         }
+        guiObjects.dialsByID = guiObjects.dialsByID || {};
 
         // preset_menu: reuse the user's existing menu; create + connect only if missing
         // (same pattern as SINUA createMainHeader).
@@ -696,16 +754,19 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                  globalDials: globalDials, bottomY: bottomY };
     }
 
-    // Continuous control → live.dial sending its CC (or note/program) on change.
+    // Continuous control → live.dial ("tiny" appearance, wide enough for the name)
+    // sending its CC / program / note on change.
     function createControlDial(p, x, y, ctl, varnamePrefix) {
         var varname = varnamePrefix + ctl.controlID;
         var dial;
         try {
+            // @appearance 1 = tiny (same as SINUA's controller dials)
             dial = p.newdefault(x, y, "live.dial",
                 "@varname",           varname,
                 "@patching_rect",     x, y, LAYOUT.ctrlW, LAYOUT.ctrlH,
                 "@presentation_rect", x, y, LAYOUT.ctrlW, LAYOUT.ctrlH,
-                "@presentation", 1);
+                "@presentation", 1,
+                "@appearance", 1);
         } catch(e) {
             post("createControlDial: " + e.message + "\n");
             return null;
@@ -718,10 +779,19 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             dial.setattr("_parameter_type",  1);      // int
             dial.setattr("_parameter_range", 0, 127);
             dial.setattr("_parameter_unitstyle", 0);
+            dial.setattr("_parameter_invisible", 0);
         } catch(e) { /* attribute set is best-effort */ }
+
+        // Remember the object and its value so presets can capture and restore it
+        guiObjects.dialsByID = guiObjects.dialsByID || {};
+        guiObjects.dialsByID[ctl.controlID] = dial;
+        if (organState.controlValues[ctl.controlID] === undefined) {
+            organState.controlValues[ctl.controlID] = 0;
+        }
 
         addListener(new MaxobjListener(dial, function(data) {
             if (_suppressListeners) return;
+            organState.controlValues[ctl.controlID] = data.value;
             emitControl(ctl, data.value);
             common.log(common.LOG_LEVEL.VERBOSE,
                 "Control " + ctl.name + " = " + data.value +
@@ -731,22 +801,27 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         return dial;
     }
 
-    // live.dial shows the shortname under the knob — keep it readable, not truncated mid-word.
+    // The tiny dial shows the shortname beside the slider — crop at the length of
+    // "Tremulant" so the common names stay whole and nothing overflows the column.
     function shortLabel(name) {
         var n = String(name).replace(/^[MP]\d*:\s*\d*\s*/, "");   // drop "M4: 12 " prefixes
-        return n.length > 10 ? n.substring(0, 10) : n;
+        n = n.replace(/^PANIC[^:]*:\s*/i, "");                     // drop "PANIC 1: " prefixes
+        return n.length > LAYOUT.ctrlNameMax ? n.substring(0, LAYOUT.ctrlNameMax) : n;
     }
 
-    // How many controller columns are needed, and how tall the manual must be for them.
-    // Returns {cols, perColumn, height} — height is never smaller than the value passed in.
+    // How many controller columns to reserve, and how tall the manual must be.
+    // ALWAYS at least one column, so all manuals line up whether or not they have
+    // controls.  Returns {cols, perColumn, height}; height never shrinks below the
+    // value passed in.
     function planControlColumns(count, availableHeight) {
-        if (count <= 0) return { cols: 0, perColumn: 0, height: availableHeight };
-
-        var usable    = availableHeight - LAYOUT.manualCtrlY - 5;
+        var usable    = availableHeight - LAYOUT.stopPadTop - LAYOUT.stopPadBottom;
         var perColumn = Math.floor(usable / LAYOUT.ctrlH);
         if (perColumn < 1) perColumn = 1;
 
+        if (count <= 0) return { cols: 1, perColumn: perColumn, height: availableHeight };
+
         var cols = Math.ceil(count / perColumn);
+        if (cols < 1) cols = 1;
         if (cols <= LAYOUT.ctrlMaxCols) {
             return { cols: cols, perColumn: perColumn, height: availableHeight };
         }
@@ -754,7 +829,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Too many columns — grow the manual downwards instead of sideways
         cols      = LAYOUT.ctrlMaxCols;
         perColumn = Math.ceil(count / cols);
-        var needed = LAYOUT.manualCtrlY + (perColumn * LAYOUT.ctrlH) + 5;
+        var needed = LAYOUT.stopPadTop + (perColumn * LAYOUT.ctrlH) + LAYOUT.stopPadBottom;
         return { cols: cols, perColumn: perColumn, height: Math.max(availableHeight, needed) };
     }
 
@@ -786,10 +861,14 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             var cols   = G.grid.columnsNeeded(manualData.stops.length);
             var rows   = Math.min(manualData.stops.length, common.MAX_STOPS_PER_COLUMN);
             var gridW  = cols * (G.columns.w() + G.columns.margin());
-            var baseH  = Math.max(LAYOUT.labelH + (rows * G.stops.h) + 5, LAYOUT.manualMinH);
+            // Stops hug the top and bottom edge — only stopPad on either side
+            var baseH  = Math.max(LAYOUT.stopPadTop + (rows * G.stops.h) + LAYOUT.stopPadBottom,
+                                  LAYOUT.manualMinH);
 
             // Controller columns sit between the button column and the stop grid,
             // so the stops shift right by exactly the space the dials occupy.
+            // planControlColumns always reserves at least one, keeping every manual
+            // (the pedal included) indented the same amount.
             var wheels = organState.wheelsByManual[manualData.manualID] || [];
             var plan   = planControlColumns(wheels.length, baseH);
             var startX = G.margin.x + (plan.cols * LAYOUT.ctrlColW);
@@ -815,9 +894,11 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var sp = bpatcher.subpatcher();
         try { sp.openinpresentation = 1; } catch(e) {}
 
-        var label = common.createLiveComment(sp, 0, 0, 140, 20,
+        // Left column: name, PANIC, CANC — kept inside the column so it never
+        // overlaps the controller column or the stops.
+        var label = common.createLiveComment(sp, LAYOUT.btnX, 0, common.GEOMETRY.margin.x - 4, 16,
             "manual_label_" + manualData.manualID,
-            manualData.name + "  (ch " + manualData.midiChannel + ")", 30, 11);
+            manualData.name + " (ch" + manualData.midiChannel + ")", 30, 9);
 
         // PANIC above CANC, both 2px in from the left edge
         var panicBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualPanicY,
@@ -828,20 +909,21 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             "cancel_m" + manualData.manualID, "CANC", fs.small, false,
             function() { executeCancel(manualData.manualID); });
 
-        // Controller dials below CANC, filling one column before starting the next
+        // Controller dials in their own column(s), starting at the top edge like the
+        // stops, filling one column before starting the next
         var dials = [];
         (wheels || []).forEach(function(ctl, i) {
             var col = Math.floor(i / plan.perColumn);
             var row = i % plan.perColumn;
-            var dx  = LAYOUT.btnX + (col * LAYOUT.ctrlColW);
-            var dy  = LAYOUT.manualCtrlY + (row * LAYOUT.ctrlH);
+            var dx  = common.GEOMETRY.margin.x + (col * LAYOUT.ctrlColW);
+            var dy  = LAYOUT.stopPadTop + (row * LAYOUT.ctrlH);
             var d = createControlDial(sp, dx, dy, ctl, "ctrl_m" + manualData.manualID + "_");
             if (d) dials.push(d);
         });
 
         // Fixed stop grid + per-manual listener cache
         var stopState     = {};   // {varname → bool} — updated by listeners, read by capturePreset
-        var stopButtonMap = createStopGrid(sp, stopStartX, LAYOUT.labelH, manualData, stopState);
+        var stopButtonMap = createStopGrid(sp, stopStartX, LAYOUT.stopPadTop, manualData, stopState);
 
         return {
             bpatcher:      bpatcher,
@@ -970,20 +1052,67 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     }
 
     // btn.message("set", ...) fires MaxobjListener callbacks ASYNCHRONOUSLY — keep
-    // the suppress flag true until they have all arrived (same pattern as SINUA).
+    // the suppress flag true until they have all arrived.
+    //
+    // The Task MUST live at module scope.  Held only by a local variable it becomes
+    // garbage the moment the function returns, and Max may collect it before it ever
+    // fires — leaving _suppressListeners stuck true forever.  Every later stop click
+    // then returned early, which is why CANCEL only worked sometimes and why store
+    // captured nothing: the per-manual stopState cache was never being updated.
     function releaseSuppression() {
-        var t = new Task(function() { _suppressListeners = false; });
-        t.schedule(10);
+        if (!_suppressTask) {
+            _suppressTask = new Task(function() { _suppressListeners = false; });
+        }
+        try { _suppressTask.cancel(); } catch(e) {}
+        _suppressTask.schedule(10);
     }
 
-    // Interface used by Universal.js anything() — external stop events
+    // Interface used by Universal.js anything() — stop events arriving from outside
+    // the GUI (the console's own stop action).  These must update the button and the
+    // cache too, otherwise the change is invisible and capturePreset would miss it.
     function handleStopEvent(stopID, manualID, layerID, divisionID, state) {
         var stop = organState.stopsByID[stopID];
         if (!stop) {
             common.log(common.LOG_LEVEL.WARN, "handleStopEvent: unknown stopID " + stopID);
             return;
         }
-        executeStopAction(stop, Boolean(state));
+        state = Boolean(state);
+        // Send BEFORE touching the GUI: setStopGUI raises the suppress flag, which
+        // would otherwise gag executeStopAction for this very event.
+        dataLayer.setStopState(stop.stopID, state, true, null);
+        sendStopMIDI(stop, state);
+        setStopGUI(stop, state);
+        common.log(common.LOG_LEVEL.VERBOSE,
+            "External stop " + stop.stopID + " -> " + state + " [MAN " + stop.manualID + "]");
+    }
+
+    // Reflect a stop's state on its button + cache without triggering the listener.
+    function setStopGUI(stop, state) {
+        if (!guiObjects.manuals) return;
+        _suppressListeners = true;
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            if (manual.manualData.manualID !== stop.manualID) return;
+            Object.keys(manual.stopButtonMap).forEach(function(btnKey) {
+                var numStr = String(btnKey).replace(/^stop/, "").split("_")[0];
+                if (parseInt(numStr, 10) !== stop.stopID) return;
+                manual.stopState[btnKey] = state;
+                manual.stopButtonMap[btnKey].message("set", state ? 1 : 0);
+            });
+        });
+        releaseSuppression();
+    }
+
+    function findControlByID(controlID) {
+        var found = null;
+        var cid = String(controlID);
+        function scan(list) {
+            list.forEach(function(c) { if (String(c.controlID) === cid) found = c; });
+        }
+        scan(organState.globalWheels);
+        Object.keys(organState.wheelsByManual).forEach(function(m) {
+            scan(organState.wheelsByManual[m]);
+        });
+        return found;
     }
 
     // ================================================================================================
@@ -998,9 +1127,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         }
 
         var preset = {
-            name:  name || ("Preset " + new Date().toISOString().slice(0,19).replace("T"," ")),
-            type:  "MIDI",
-            stops: {}    // {manualID: [stopID, ...]}
+            name:     name || ("Preset " + new Date().toISOString().slice(0,19).replace("T"," ")),
+            type:     "MIDI",
+            stops:    {},   // {manualID: [stopID, ...]}
+            controls: {}    // {controlID: value}
         };
 
         guiObjects.manuals.manuals.forEach(function(manual) {
@@ -1016,8 +1146,17 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             preset.stops[mid] = activeStops;
         });
 
+        // Controller positions travel with the preset — a registration is not just
+        // which stops are drawn, but where the swell and the tremulants stand.
+        Object.keys(organState.controlValues).forEach(function(cid) {
+            preset.controls[cid] = organState.controlValues[cid];
+        });
+
+        var stopCount = 0;
+        Object.keys(preset.stops).forEach(function(k) { stopCount += preset.stops[k].length; });
         common.log(common.LOG_LEVEL.INFO, "Preset captured: \"" + preset.name + "\" - " +
-            Object.keys(preset.stops).length + " manuals");
+            stopCount + " stops in " + Object.keys(preset.stops).length + " manuals, " +
+            Object.keys(preset.controls).length + " controls");
         return preset;
     }
 
@@ -1060,6 +1199,19 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // One dump covers the whole organ in sysex mode
         if (organState.stopSystem === "sysex") sendSysExState();
 
+        // Restore controller positions: move the dial silently, then send its value
+        if (preset.controls) {
+            Object.keys(preset.controls).forEach(function(cid) {
+                var value = preset.controls[cid];
+                var ctl   = findControlByID(cid);
+                if (!ctl) return;
+                organState.controlValues[cid] = value;
+                var dial = guiObjects.dialsByID ? guiObjects.dialsByID[cid] : null;
+                if (dial) dial.message("set", value);
+                emitControl(ctl, value);
+            });
+        }
+
         releaseSuppression();
         common.log(common.LOG_LEVEL.INFO, "Preset recalled: " + preset.name);
     }
@@ -1100,4 +1252,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.03 - raw MIDI out for multichanmidiout; controls + dials\n");
+post("organTool_MIDI.js v00.04 - named MIDI out; controls in presets; suppress-task fix\n");

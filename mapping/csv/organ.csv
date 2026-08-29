@@ -1,6 +1,6 @@
 key,value
-name,Grosse Orgel
+name,Konzerthausorgel
 stopSystem,note
-outputFormat,raw
+outputFormat,named
 panicMethod,cc123
 stopChannelBase,11
