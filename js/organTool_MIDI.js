@@ -23,6 +23,17 @@
 //         Explicit per-stop on/off addresses ("explicit" system) — see STOP SYSTEMS.
 //         handleStopEvent now updates the button and the cache, so a stop moved from
 //         outside the GUI is visible and gets captured.
+// 00.05 - Layout pass against the annotated screenshot:
+//         * everything starts higher — header at y=4, manuals follow the header
+//           directly instead of at a fixed y=95
+//         * manual height now measures the REAL grid extent.  createStopGrid passes
+//           the column margin (-3) to grid.pos as the row margin too, so rows are
+//           pitched 17px, not 20 — sizing with the plain stop height left ~25px of
+//           dead space under the last row.  Bottom gap is now 4px, same as the top.
+//         * label row is two lines tall (name / "(chN)") and PANIC + CANC sit below
+//           it, so the wrapped channel no longer collides with the buttons
+//         * manual name trimmed to labelMax so only "(chN)" wraps to line 2
+//         * controller dials pitched 38px apart (was 22) — names no longer overlap
 // 29.08.2026
 //
 // TARGET: traditional pipe organs with MIDI interface — every stop belongs to
@@ -136,25 +147,28 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         btnW:        45,
         btnH:        20,
         btnGap:       5,    // vertical gap between PANIC and CANC
-        headerY:     10,    // organ name label
-        globalPanicY: 45,   // global PANIC — same x as the manual CANC buttons
-        manualsY:    95,    // first manual (50px lower than the 45 of v00.01)
+        headerY:      4,    // organ name label — everything starts as high as it can
+        globalPanicY: 28,   // global PANIC — same x as the manual CANC buttons
+        headerGap:    6,    // header bottom → first manual
         manualGap:    8,
-        labelH:      18,    // manual name, top of the left column
+        // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
+        // column reserves both before PANIC starts.
+        labelH:      28,
+        labelMax:    12,    // trim the name so only the channel lands on line 2
         stopPadTop:   4,    // small breathing room above the first stop …
-        stopPadBottom: 4,   // … and below the last one
+        stopPadBottom: 4,   // … and the same below the last one
         // Controller dials get their OWN column, always — even for a manual that has
         // none.  That keeps every manual (pedal included) indented identically, and
         // the stop grid starts past the reserved columns.
         ctrlW:       62,    // wide enough to read a name next to a tiny dial
-        ctrlH:       22,    // "tiny" appearance is short
+        ctrlH:       38,    // tiny dial + its name label, with room to breathe
         ctrlColW:    66,
         ctrlMaxCols:  2,    // beyond this the manual grows taller instead of wider
         ctrlNameMax:  9     // crop at the length of "Tremulant"
     };
     // Global CANCEL sits directly below the global PANIC, same proportions as in the manuals
     LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
-    // Left column inside a manual: name, then PANIC, then CANC
+    // Left column inside a manual: name (two lines), then PANIC, then CANC
     LAYOUT.manualPanicY  = LAYOUT.labelH;
     LAYOUT.manualCancelY = LAYOUT.labelH + LAYOUT.btnH + LAYOUT.btnGap;
     // Height the left column needs on its own
@@ -671,9 +685,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         common.GEOMETRY.clearCache();
 
         guiObjects.header  = createMainHeader(context.patcher, organState.name);
-        // Global dials extend the header downwards; manuals start below whatever it needs
+        // Manuals start directly under the header — no fixed offset, so the whole
+        // layout sits as high as its contents allow.
         guiObjects.manuals = createManualSections(context.patcher,
-            Math.max(LAYOUT.manualsY, guiObjects.header.bottomY + 10));
+            guiObjects.header.bottomY + LAYOUT.headerGap);
 
         resizeWindowToContent();
 
@@ -701,9 +716,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
 
-        // Global controls (manual 0) run along the header, to the right of the buttons
+        // Global controls (manual 0) run along the header, to the right of the buttons —
+        // same x as the manuals' controller column, so the two line up.
         var globalDials = [];
-        var gdx = gx + LAYOUT.btnW + 10;
+        var gdx = G.margin.x;
         organState.globalWheels.forEach(function(ctl) {
             var d = createControlDial(p, gdx, LAYOUT.globalPanicY, ctl, "ctrl_global_");
             if (d) globalDials.push(d);
@@ -801,6 +817,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         return dial;
     }
 
+    // Keep the manual name to one line so the wrapped second line carries only "(chN)"
+    function trimManualName(name) {
+        var n = String(name || "");
+        return n.length > LAYOUT.labelMax ? n.substring(0, LAYOUT.labelMax) : n;
+    }
+
     // The tiny dial shows the shortname beside the slider — crop at the length of
     // "Tremulant" so the common names stay whole and nothing overflows the column.
     function shortLabel(name) {
@@ -860,9 +882,17 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         organState.displayOrder.forEach(function(manualData) {
             var cols   = G.grid.columnsNeeded(manualData.stops.length);
             var rows   = Math.min(manualData.stops.length, common.MAX_STOPS_PER_COLUMN);
-            var gridW  = cols * (G.columns.w() + G.columns.margin());
+            var margin = (typeof G.columns.margin === 'function') ? G.columns.margin() : G.columns.margin;
+            var gridW  = cols * (G.columns.w() + margin);
+
+            // Rows are pitched stops.h + margin apart, NOT stops.h: createStopGrid
+            // passes the column margin (-3) to grid.pos as the row margin too.  Sizing
+            // the manual with the plain stop height left ~25px of dead space below the
+            // last row.  Measure to the bottom edge of the last button instead.
+            var rowPitch = G.stops.h + margin;
+            var gridH    = ((rows - 1) * rowPitch) + G.stops.h;
             // Stops hug the top and bottom edge — only stopPad on either side
-            var baseH  = Math.max(LAYOUT.stopPadTop + (rows * G.stops.h) + LAYOUT.stopPadBottom,
+            var baseH  = Math.max(LAYOUT.stopPadTop + gridH + LAYOUT.stopPadBottom,
                                   LAYOUT.manualMinH);
 
             // Controller columns sit between the button column and the stop grid,
@@ -896,9 +926,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // Left column: name, PANIC, CANC — kept inside the column so it never
         // overlaps the controller column or the stops.
-        var label = common.createLiveComment(sp, LAYOUT.btnX, 0, common.GEOMETRY.margin.x - 4, 16,
+        // Name trimmed to labelMax so it fills line 1 and only "(chN)" wraps to line 2
+        var label = common.createLiveComment(sp, LAYOUT.btnX, 0,
+            common.GEOMETRY.margin.x - 4, LAYOUT.labelH,
             "manual_label_" + manualData.manualID,
-            manualData.name + " (ch" + manualData.midiChannel + ")", 30, 9);
+            trimManualName(manualData.name) + " (ch" + manualData.midiChannel + ")",
+            LAYOUT.labelMax + 8, 9);
 
         // PANIC above CANC, both 2px in from the left edge
         var panicBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualPanicY,
@@ -1252,4 +1285,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.04 - named MIDI out; controls in presets; suppress-task fix\n");
+post("organTool_MIDI.js v00.05 - tighter layout; two-line manual label; taller dials\n");
