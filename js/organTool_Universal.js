@@ -899,20 +899,47 @@ function registrationClip(where, modeArg) {
             : createArrangementClip(sel.start, sel.length);
         if (!clip) return;
 
-        fillClipWithNotes(clip, notes, sel.length);
-        post("registrationClip: wrote " + notes.length + " stop(s) as " + mode +
-             " notes, length " + sel.length + " beats\n");
+        var result = fillClipWithNotes(clip, notes, sel.length);
+
+        if (result.count === 0) {
+            post("registrationClip: the clip was created but stayed EMPTY — neither " +
+                 "add_new_notes nor set_notes put anything in it\n");
+        } else if (result.count < 0) {
+            post("registrationClip: sent " + notes.length + " stop(s) via " + result.how +
+                 " (length " + sel.length + " beats); the clip could not be read back " +
+                 "to confirm\n");
+        } else {
+            post("registrationClip: " + result.count + " note(s) in the clip via " +
+                 result.how + " — " + notes.length + " stop(s) as " + mode +
+                 " notes, length " + sel.length + " beats\n");
+        }
     } catch (e) {
         post("registrationClip failed: " + e.message + "\n");
     }
 }
 
+// LiveAPI.call() reports a new object in several shapes depending on the call:
+// 123, "123", "id 123" or the list ["id", 123].  Taking the trailing number covers
+// all of them; building "id " + the raw value does not, and an API pointing at
+// nothing then swallows every later call in silence — which is how a clip ends up
+// created but empty.
+function idFromResult(res) {
+    if (res === null || res === undefined) return null;
+    var m = String(res).match(/(\d+)\s*$/);
+    return m ? m[1] : null;
+}
+
 function createArrangementClip(startTime, length) {
     var track = new LiveAPI(null, "this_device canonical_parent");
     try {
-        var id = track.call("create_midi_clip", startTime, length);
+        var res = track.call("create_midi_clip", startTime, length);
+        var id  = idFromResult(res);
+        if (!id) throw new Error("create_midi_clip returned " + JSON.stringify(res));
+
         var clip = new LiveAPI(null, "id " + id);
-        if (!clip.id || String(clip.id) === "0") throw new Error("no clip returned");
+        if (!clip.id || String(clip.id) === "0") {
+            throw new Error("no clip at id " + id);
+        }
         return clip;
     } catch (e) {
         post("registrationClip: could not create an arrangement clip (" + e.message + ").\n" +
@@ -937,18 +964,79 @@ function createSessionClip(length) {
     }
 }
 
-// The classic set_notes / note / done sequence.  Deprecated in favour of
-// add_new_notes, which takes a Dictionary — awkward to hand over from JS, while
-// this sequence still works and needs no dict marshalling.
+// Put the notes in, then read them back.
+//
+// Two ways in, because neither is safe to assume: add_new_notes (Live 11+, takes a
+// Dictionary) is the current one, and the old set_notes / note / done sequence is
+// deprecated — a deprecated call can be a silent no-op, which leaves a clip created
+// but empty with nothing reported. So: try the modern path, count what landed, and
+// fall back to the classic sequence only if nothing did.
+//
+// Notes are held for the whole selection, so the stops draw at its start and
+// release at its end.
 function fillClipWithNotes(clip, notes, length) {
-    clip.call("set_notes");
-    clip.call("notes", notes.length);
-    notes.forEach(function(n) {
-        // pitch, start, duration, velocity, muted — held for the whole selection,
-        // so the stops draw at the start and release at the end of it
-        clip.call("note", n.pitch, 0, length, 127, 0);
-    });
-    clip.call("done");
+    // 0 means the call itself failed; -1 means it went through but the clip could
+    // not be read back.  Only a hard 0 justifies the fallback — retrying after an
+    // unverifiable success would write every note twice.
+    var wrote = writeViaAddNewNotes(clip, notes, length);
+    if (wrote !== 0) return { count: wrote, how: "add_new_notes" };
+
+    wrote = writeViaSetNotes(clip, notes, length);
+    return { count: wrote, how: (wrote !== 0 ? "set_notes" : "nothing worked") };
+}
+
+function writeViaAddNewNotes(clip, notes, length) {
+    try {
+        var spec = { notes: [] };
+        notes.forEach(function(n) {
+            spec.notes.push({
+                pitch:      n.pitch,
+                start_time: 0,
+                duration:   length,
+                velocity:   127,
+                mute:       0
+            });
+        });
+
+        var d = new Dict();               // local is fine: consumed before we return
+        d.parse(JSON.stringify(spec));
+        clip.call("add_new_notes", d);
+        d.freepeer();
+
+        return countClipNotes(clip, length);
+    } catch (e) {
+        post("registrationClip: add_new_notes unavailable (" + e.message + ")\n");
+        return 0;
+    }
+}
+
+function writeViaSetNotes(clip, notes, length) {
+    try {
+        clip.call("set_notes");
+        clip.call("notes", notes.length);
+        notes.forEach(function(n) {
+            // pitch, time, duration, velocity, muted
+            clip.call("note", n.pitch, 0, length, 127, 0);
+        });
+        clip.call("done");
+        return countClipNotes(clip, length);
+    } catch (e) {
+        post("registrationClip: set_notes failed (" + e.message + ")\n");
+        return 0;
+    }
+}
+
+// How many notes the clip actually holds.  Returns -1 when it cannot be read, so a
+// failed count is never mistaken for an empty clip.
+function countClipNotes(clip, length) {
+    try {
+        var raw = clip.call("get_notes_extended", 0, 128, 0, length + 1);
+        var s   = (raw && raw.join) ? raw.join("") : String(raw);
+        var obj = JSON.parse(s);
+        return (obj && obj.notes) ? obj.notes.length : 0;
+    } catch (e) {
+        return -1;
+    }
 }
 
 // ================================================================================================
