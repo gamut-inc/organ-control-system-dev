@@ -639,6 +639,15 @@ function openDialog(mode, label, defaultText) {
  * Falls back to storing straight away when no dialog object can be made.
  */
 exports.storePrompt = function(presetNr) {
+    // No number given: ask for one first, suggesting the lowest free slot
+    if (presetNr === undefined || presetNr === null || presetNr === "") {
+        _pending = { stage: "storenr" };
+        if (!openDialog(0, "Preset speichern — welche Nummer?", String(lowestFreeSlot()))) {
+            _pending = null;
+        }
+        return;
+    }
+
     presetNr = Number(presetNr);
     if (isNaN(presetNr) || presetNr < 0) {
         post("gamut_storage_organ.storePrompt: invalid presetNr\n"); return;
@@ -661,6 +670,16 @@ exports.storePrompt = function(presetNr) {
 
     askForName(presetNr, "Preset " + presetNr);
 };
+
+// Lowest slot number not in use, so the number prompt suggests something sensible
+function lowestFreeSlot() {
+    var taken = {};
+    readIndex().forEach(function(s) { taken[s.nr] = true; });
+    for (var n = 1; n < PERSIST_SLOT; n++) {
+        if (!taken[n]) return n;
+    }
+    return 1;
+}
 
 function askForName(presetNr, defaultName) {
     _pending = { stage: "name", nr: presetNr, name: defaultName };
@@ -737,6 +756,17 @@ exports.fromDialog = function() {
         var from = _pending.from, to = _pending.nr;
         _pending = null;
         doMove(from, to);
+        return;
+    }
+
+    if (stage === "storenr") {                   // which slot to store into
+        var slot = parseInt(args.join(" ").trim(), 10);
+        _pending = null;
+        if (isNaN(slot) || slot < 0) {
+            post("gamut_storage_organ: \"" + args.join(" ") + "\" is not a slot number\n");
+            return;
+        }
+        exports.storePrompt(slot);               // on into confirm / name
         return;
     }
 

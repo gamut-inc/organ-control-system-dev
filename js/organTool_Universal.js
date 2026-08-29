@@ -881,6 +881,56 @@ function clipsOverlapping(start, length) {
     return out;
 }
 
+// The span one merged clip has to cover: the loop, plus every clip it touches.
+// The loop end matters even when no clip reaches it (a clip stopping short must be
+// extended), and a clip reaching past the loop matters too (its tail must survive).
+function mergeSpan(selStart, selLength, found) {
+    var lo = selStart, hi = selStart + selLength;
+    for (var i = 0; i < found.length; i++) {
+        lo = Math.min(lo, found[i].start);
+        hi = Math.max(hi, found[i].end);
+    }
+    return { lo: lo, hi: hi, noteStart: selStart - lo };
+}
+
+// A clip's notes in ARRANGEMENT time.  A clip's own timeline starts at its
+// start_marker, which is what the clip shows at its start_time on the timeline —
+// so the two have to be reconciled, or every carried note lands displaced.
+function readClipNotesAbsolute(entry) {
+    var out = [];
+    try {
+        var clip   = entry.clip;
+        var marker = parseFloat(clip.get("start_marker")) || 0;
+        var raw    = clip.call("get_notes_extended", 0, 128, 0, 100000);
+        var s      = (raw && raw.join) ? raw.join("") : String(raw);
+        var obj    = JSON.parse(s);
+        (obj.notes || []).forEach(function(n) {
+            out.push({
+                pitch:    n.pitch,
+                start:    entry.start + (n.start_time - marker),
+                duration: n.duration,
+                velocity: n.velocity,
+                mute:     n.mute ? 1 : 0
+            });
+        });
+    } catch (e) {
+        post("registrationClip: could not read the notes of the clip at " +
+             entry.start + " (" + e.message + ") — they would be lost, aborting\n");
+        throw e;
+    }
+    return out;
+}
+
+function deleteArrangementClip(clip) {
+    try {
+        var track = new LiveAPI(null, "this_device canonical_parent");
+        track.call("delete_clip", "id", clip.id);
+    } catch (e) {
+        post("registrationClip: could not delete the clip (" + e.message + ")\n");
+        throw e;
+    }
+}
+
 function registrationClip() {
     if (!system.organModule || typeof system.organModule.getRegistrationNotes !== "function") {
         post("registrationClip: the loaded organ cannot describe its registration\n");
@@ -932,18 +982,29 @@ function registrationClip() {
         var into  = "a new clip";
         var noteStart = 0;              // where inside the clip the notes belong
 
-        // Merging keeps what is already recorded there and adds the registration to
-        // it, instead of leaving a second clip stacked on the same bars.
+        // Merging rebuilds the whole loop span as ONE clip: the notes have to run
+        // across the entire selection, and writing into just the first overlapping
+        // clip left every gap between clips empty and stopped at that clip's end.
+        var carried = [];
         if (merge && where === "arrangement") {
             var found = clipsOverlapping(sel.start, sel.length);
             if (found.length) {
-                if (found.length > 1) {
-                    post("registrationClip: " + found.length + " clips overlap the loop — " +
-                         "merging into the earliest one, at " + found[0].start + "\n");
-                }
-                clip      = found[0].clip;
-                noteStart = Math.max(0, sel.start - found[0].start);
-                into      = "the clip at " + found[0].start;
+                // The new clip spans the loop AND every clip it touches — a clip
+                // reaching past the loop must not lose the part that sticks out.
+                var span = mergeSpan(sel.start, sel.length, found);
+                var lo = span.lo, hi = span.hi;
+                found.forEach(function(f) {
+                    carried = carried.concat(readClipNotesAbsolute(f));
+                });
+                found.forEach(function(f) { deleteArrangementClip(f.clip); });
+
+                clip      = createArrangementClip(lo, hi - lo);
+                noteStart = sel.start - lo;      // where the loop sits inside the new clip
+                into      = "one clip from " + lo + " to " + hi +
+                            " (merged " + found.length + ", " + carried.length + " note(s) kept)";
+
+                // Carried notes move with the new clip's origin
+                carried.forEach(function(n) { n.start = n.start - lo; });
             }
         } else if (merge && where === "session") {
             var slot = new LiveAPI(null, "live_set view highlighted_clip_slot");
@@ -953,14 +1014,7 @@ function registrationClip() {
             }
         }
 
-        if (!clip) {
-            clip = (where === "session")
-                ? createSessionClip(sel.length)
-                : createArrangementClip(sel.start, sel.length);
-        }
-        if (!clip) return;
-
-        var result = fillClipWithNotes(clip, notes, sel.length, noteStart);
+        var result = fillClipWithNotes(clip, notes, sel.length, noteStart, carried);
 
         if (result.count === 0) {
             post("registrationClip: the clip was created but stayed EMPTY — neither " +
@@ -1036,21 +1090,26 @@ function createSessionClip(length) {
 //
 // Notes are held for the whole selection, so the stops draw at its start and
 // release at its end.
-function fillClipWithNotes(clip, notes, length, startAt) {
+function fillClipWithNotes(clip, notes, length, startAt, carried) {
     startAt = startAt || 0;
+    carried = carried || [];
     // 0 means the call itself failed; -1 means it went through but the clip could
     // not be read back.  Only a hard 0 justifies the fallback — retrying after an
     // unverifiable success would write every note twice.
-    var wrote = writeViaAddNewNotes(clip, notes, length, startAt);
+    var wrote = writeViaAddNewNotes(clip, notes, length, startAt, carried);
     if (wrote !== 0) return { count: wrote, how: "add_new_notes" };
 
-    wrote = writeViaSetNotes(clip, notes, length, startAt);
+    wrote = writeViaSetNotes(clip, notes, length, startAt, carried);
     return { count: wrote, how: (wrote !== 0 ? "set_notes" : "nothing worked") };
 }
 
-function writeViaAddNewNotes(clip, notes, length, startAt) {
+function writeViaAddNewNotes(clip, notes, length, startAt, carried) {
     try {
         var spec = { notes: [] };
+        carried.forEach(function(n) {
+            spec.notes.push({ pitch: n.pitch, start_time: n.start, duration: n.duration,
+                              velocity: n.velocity, mute: n.mute });
+        });
         notes.forEach(function(n) {
             spec.notes.push({
                 pitch:      n.pitch,
@@ -1073,10 +1132,13 @@ function writeViaAddNewNotes(clip, notes, length, startAt) {
     }
 }
 
-function writeViaSetNotes(clip, notes, length, startAt) {
+function writeViaSetNotes(clip, notes, length, startAt, carried) {
     try {
         clip.call("set_notes");
-        clip.call("notes", notes.length);
+        clip.call("notes", notes.length + carried.length);
+        carried.forEach(function(n) {
+            clip.call("note", n.pitch, n.start, n.duration, n.velocity, n.mute);
+        });
         notes.forEach(function(n) {
             // pitch, time, duration, velocity, muted
             clip.call("note", n.pitch, startAt, length, 127, 0);
