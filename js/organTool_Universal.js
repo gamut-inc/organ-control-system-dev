@@ -6,11 +6,14 @@
 //         gamut_storage_organ v00.02: fix recall — single module-level Dict prevents GC
 // 01.24 - Pass direct presetMenu MaxObj ref to organStorage.init (from SINUA.getPresetMenu())
 //         so gamut_storage_organ doesn't rely on getnamed() across patcher boundaries.
-// 01.25 - Live project persistence via [dict @name/@varname] + pattrstorage Parameter Mode.
-//         loadOrgan saves filepath to Dict "gamut_organ_path" (patcher dict, tracked by pattrstorage).
-//         On startup 200ms Task reads that dict and auto-reloads the last organ.
-//         Requires [dict @name gamut_organ_path @varname gamut_organ_path] in patcher.
-//         gamut_storage_organ v00.07: preset bank saved to [dict @name gamut_preset_bank].
+// 01.25 - Live project persistence attempt via [dict] alone — dict was empty on reload.
+// 01.26 - Persistence fixed in gamut_storage_organ v00.08 (pattrstorage recall + backup file).
+//         organStorage.initStorage(patcher, scriptDir) runs during initializeSystem(),
+//         before any organ loads, so the bank and the organ path are available.
+//         The organ filepath now lives IN the preset bank (setOrganPath/getOrganPath) —
+//         one store covers both "which organ" and "which presets".
+//         Auto-reload Task moved to 400ms to clear the asynchronous pattrstorage recall.
+//         MIDI organ module (organTool_MIDI.js) for traditional consoles without layers.
 // 29.05.2026
 
 autowatch = 1;
@@ -89,35 +92,6 @@ if (scriptDir) {
 var _maxPatcher = this.patcher;
 
 // ================================================================================================
-// ORGAN PATH PERSISTENCE via [dict @name gamut_organ_path @varname gamut_organ_path]
-// ================================================================================================
-// Requires: [dict @name gamut_organ_path @varname gamut_organ_path] in the patcher
-//           pattrstorage with "Parameter Mode Enable" checked in inspector
-//
-// Dict @name = internal JS name; Dict @varname = scripting name for pattrstorage tracking.
-// new Dict("gamut_organ_path") in JS accesses the same underlying dict as the patcher object.
-// When pattrstorage (Parameter Mode) saves the Live project, it captures the dict contents.
-// On reopen, pattrstorage restores the dict → 200ms Task reads it → auto-reload.
-
-var _organPathDict = new Dict("gamut_organ_path");  // module-level = GC-safe
-
-function saveOrganPath(filepath) {
-    try {
-        _organPathDict.replace("path", filepath);
-    } catch(e) {
-        post("organTool_Universal: saveOrganPath error: " + e.message + "\n");
-    }
-}
-
-function loadOrganPath() {
-    try {
-        var raw = _organPathDict.get("path");
-        var s = raw ? String(raw) : "";
-        return (s && s !== "(undefined)" && s !== "0" && s !== "") ? s : null;
-    } catch(e) { return null; }
-}
-
-// ================================================================================================
 // SYSTEM STATE
 // ================================================================================================
 
@@ -169,6 +143,10 @@ function initializeSystem() {
             throw new Error("ProtocolLayer module initialization failed");
         }
         
+        // Restore the preset bank + last organ path BEFORE any organ loads, so the
+        // auto-reload below has a path to work with.
+        if (organStorage) organStorage.initStorage(_maxPatcher, scriptDir);
+
         system.initialized = true;
         system.modules.common.log(system.modules.common.LOG_LEVEL.INFO, "System initialized successfully");
         post("✓ All modules initialized successfully\n");
@@ -373,8 +351,8 @@ function loadOrgan(filepath) {
             // Configure protocol
             configureProtocol(organType);
 
-            // Persist filepath so Live project reopen can auto-reload
-            saveOrganPath(filepath);
+            // Persist filepath in the preset bank so a project reopen can auto-reload
+            if (organStorage) organStorage.setOrganPath(filepath);
 
             // Wire preset manager to the freshly-loaded organ module.
             // Pass the presetMenu MaxObj reference directly so gamut_storage_organ doesn't
@@ -752,22 +730,22 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.25 - Live project persistence via [dict] + pattrstorage\n");
+    post("Organ Control System v01.26 - organ + presets restored from bank on startup\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
-    // Auto-reload last organ from Live project pattr.
-    // 200ms delay ensures pattrstorage has finished restoring pattr values before we read them.
-    // If no pattr is in the patcher this is a silent no-op.
+    // Auto-reload the organ that was loaded when the project was last saved.
+    // 400ms: initStorage() may still be waiting on an asynchronous pattrstorage
+    // recall (150ms Task) before the bank — and with it the organ path — is readable.
     var autoReloadTask = new Task(function() {
-        var savedPath = loadOrganPath();
+        var savedPath = organStorage ? organStorage.getOrganPath() : null;
         if (savedPath) {
-            post("organTool_Universal: auto-reloading organ from pattr: " + savedPath + "\n");
+            post("organTool_Universal: auto-reloading organ: " + savedPath + "\n");
             loadOrgan(savedPath);
         } else {
-            post("organTool_Universal: no saved organ path in pattr (first run or pattr missing)\n");
+            post("organTool_Universal: no saved organ path (first run)\n");
         }
     });
-    autoReloadTask.schedule(200);
+    autoReloadTask.schedule(400);
 }
 
 // Export for testing

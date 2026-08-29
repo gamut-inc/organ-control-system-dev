@@ -3,46 +3,57 @@
 // 00.03 - Fix store: call updateMenu() BEFORE syncToPattrstorage.
 // 00.04 - updateMenu: try parent patcher if direct patcher has no preset_menu.
 // 00.05 - Direct presetMenu reference via init() 3rd arg.
-// 00.06 - Live project persistence via pattr (did not work — pattr values not captured by pattrstorage).
-// 00.07 - Correct persistence: use [dict @name gamut_preset_bank @varname gamut_preset_bank]
-//         in the patcher.  JS does new Dict("gamut_preset_bank") → same underlying object.
-//         pattrstorage (with Parameter Mode Enable) tracks the dict via @varname and saves its
-//         contents in the .als when Live saves.  No external JSON files needed.
-//         _bankDict = new Dict("gamut_preset_bank") at module level (GC-safe, shared with patcher dict).
-//         syncToBankDict()  — mirrors _indexDict / _dataDict into _bankDict after every write.
-//         loadFromBankDict() — on init(), restores _indexDict / _dataDict from _bankDict.
-// 29.05.2026
+// 00.06 - pattr persistence attempt — did NOT work: a pattr value is not what
+//         pattrstorage captures, and Live parameters cannot hold long symbols.
+// 00.07 - [dict @name] persistence attempt — dict was written correctly, but on
+//         project reload it was still EMPTY: pattrstorage only refills a tracked
+//         dict when a slot is explicitly RECALLED, which nobody did.
+// 00.08 - Working persistence, three layers (first hit wins on load):
+//         1. Dict "gamut_preset_bank" — refilled by an explicit pattrstorage
+//            "recall PERSIST_SLOT" at startup (Live project persistence).
+//         2. JSON file next to the js files — always written, always readable,
+//            survives even when pattrstorage is absent or misconfigured.
+//         3. Whatever is already in the runtime dicts (same Max session).
+//         The organ FILEPATH now lives in the same bank, so one store covers
+//         "which organ" and "which presets" together.
+//         initStorage(patcher, scriptDir) — call at system init, before any organ
+//         is loaded; init(patcher, organMod, menuRef) — call after each organ load.
+// 29.08.2026
 //
 // PATCHER SETUP (add once):
 //   [dict @name gamut_preset_bank @varname gamut_preset_bank]
-//   [dict @name gamut_organ_path  @varname gamut_organ_path]
-//   pattrstorage → Inspector → "Parameter Mode Enable" ✓
+//   pattrstorage named "storage" → Inspector → "Parameter Mode Enable" checked
 //
-// JS uses new Dict("gamut_preset_bank") → same data as the patcher dict → pattrstorage saves it.
+// Slot 128 (PERSIST_SLOT) is reserved for this bank — user presets keep 1..127,
+// which is also what the MIDI Effect Rack chain renaming uses.
 //
-// STORAGE (three-tier):
-//   RUNTIME:  _indexDict ("organ_preset_index")   — fast index, module-level, GC-safe
-//             _dataDict  ("organ_preset_data")    — per-slot JSON blobs, module-level, GC-safe
-//   DURABLE:  _bankDict  ("gamut_preset_bank")    — patcher dict; contents saved by pattrstorage
-//             Populated from _index/_data on every write; restores them on init().
+// STORAGE LAYERS
+//   RUNTIME:  _indexDict / _dataDict  — fast in-memory, module-level (GC-safe)
+//   DURABLE:  _bankDict "gamut_preset_bank" → pattrstorage slot 128 → Live project
+//   BACKUP:   <scriptDir>gamut_organ_presets.json — plain file, written on every change
 
 autowatch = 1;
 
-// ---- Module-level state (never GC'd) ----
+// ---- Constants ----
 
-var _patcher      = null;
-var _organMod     = null;
-var _api          = null;
-var _presetMenu   = null;   // direct MaxObj ref to live.menu "preset_menu"
+var PERSIST_SLOT   = 128;                          // pattrstorage slot holding the whole bank
+var BACKUP_FILE    = "gamut_organ_presets.json";   // written next to the js files
 
-// ---- Runtime Dicts (fast in-memory cache) ----
+// ---- Module-level state ----
+
+var _patcher    = null;
+var _organMod   = null;
+var _api        = null;
+var _presetMenu = null;   // direct MaxObj ref to live.menu "preset_menu"
+var _scriptDir  = "";     // set by initStorage — where the backup file lives
+var _loaded     = false;  // true once a load attempt has restored (or confirmed empty)
+
+// ---- Runtime Dicts (fast in-memory cache, never GC'd) ----
 
 var _indexDict = new Dict("organ_preset_index");   // [{nr, name}, ...]
 var _dataDict  = new Dict("organ_preset_data");    // slot_N_json / slot_N_name
 
 // ---- Durable Dict (shared with patcher [dict @name gamut_preset_bank]) ----
-// When pattrstorage (Parameter Mode) stores/recalls, it captures this dict's contents.
-// JS writes here via the same internal name; pattrstorage sees updates immediately.
 
 var _bankDict = new Dict("gamut_preset_bank");
 
@@ -87,86 +98,240 @@ function removeSlot(nr) {
     }
 }
 
-// ---- Bank Dict (durable, pattrstorage-tracked) ----
-//
-// syncToBankDict: mirror runtime dicts → _bankDict so pattrstorage captures current state.
-// Call after every write (store / delete / deleteAll).
-//
-// loadFromBankDict: on init(), restore runtime dicts from _bankDict (which pattrstorage restored).
-// Returns true if at least one preset was found.
+function dictStr(d, key) {
+    var raw = d.get(key);
+    if (!raw) return "";
+    var s = String(raw);
+    return (s === "(undefined)") ? "" : s;
+}
 
-function syncToBankDict() {
-    try {
-        var idx = _indexDict.get("data");
-        _bankDict.replace("index", idx && String(idx) !== "(undefined)" ? String(idx) : "[]");
-        var slots = readIndex();
-        slots.forEach(function(s) {
-            var json = _dataDict.get("slot_" + s.nr + "_json");
-            var name = _dataDict.get("slot_" + s.nr + "_name");
-            _bankDict.replace("slot_" + s.nr + "_json", json && String(json) !== "(undefined)" ? String(json) : "");
-            _bankDict.replace("slot_" + s.nr + "_name", name && String(name) !== "(undefined)" ? String(name) : s.name);
+// ================================================================================================
+// PERSISTENCE
+// ================================================================================================
+//
+// One serialisable object holds everything worth keeping:
+//   { v: 1, organPath: "...", index: [{nr,name}], slots: { "1": {name, json} } }
+
+function buildBankObject() {
+    var slots = readIndex();
+    var slotsObj = {};
+    slots.forEach(function(s) {
+        var json = loadSlotJson(s.nr);
+        if (json) slotsObj[s.nr] = { name: s.name, json: json };
+    });
+    return {
+        v:         1,
+        organPath: dictStr(_bankDict, "organPath"),
+        index:     slots,
+        slots:     slotsObj
+    };
+}
+
+// Returns true when anything usable was restored — an organ path counts on its own,
+// so loading an organ without ever storing a preset still survives a project reload.
+function applyBankObject(bank) {
+    if (!bank) return false;
+    var restored = false;
+
+    if (bank.organPath) {
+        _bankDict.replace("organPath", bank.organPath);
+        restored = true;
+    }
+
+    if (bank.index && bank.index.length) {
+        writeIndex(bank.index);
+        var slotsObj = bank.slots || {};
+        Object.keys(slotsObj).forEach(function(nr) {
+            var s = slotsObj[nr];
+            if (!s) return;
+            _dataDict.replace("slot_" + nr + "_json", s.json);
+            _dataDict.replace("slot_" + nr + "_name", s.name);
         });
-        post("gamut_storage_organ: synced " + slots.length + " slot(s) → gamut_preset_bank dict\n");
+        restored = true;
+    }
+
+    return restored;
+}
+
+// Human-readable summary for the restore log line
+function describeBank(bank) {
+    var n = (bank && bank.index) ? bank.index.length : 0;
+    return n + " preset(s)" + ((bank && bank.organPath) ? " + organ path" : "");
+}
+
+// --- Layer 1: bank dict (pattrstorage / Live project) ---
+
+// Mirror everything into _bankDict, then push it into the reserved pattrstorage slot.
+// Without the explicit "store", pattrstorage never captures the dict contents —
+// that was the v00.07 bug.
+function persist() {
+    try {
+        var bank = buildBankObject();
+        _bankDict.replace("bank", JSON.stringify(bank));
+
+        var ps = findPattrstorage();
+        if (ps) {
+            try { ps.message("store", PERSIST_SLOT, "GAMUT_BANK"); } catch(e) {}
+        }
+
+        writeBackupFile(bank);
+
+        post("gamut_storage_organ: persisted " + bank.index.length + " preset(s)" +
+             (ps ? " → pattrstorage slot " + PERSIST_SLOT : " (no pattrstorage)") + " + backup file\n");
     } catch(e) {
-        post("gamut_storage_organ: syncToBankDict error: " + e.message + "\n");
+        post("gamut_storage_organ: persist error: " + e.message + "\n");
     }
 }
 
-function loadFromBankDict() {
+function readBankDict() {
     try {
-        var raw = _bankDict.get("index");
-        var rawStr = raw ? String(raw) : "";
-        if (!rawStr || rawStr === "(undefined)" || rawStr === "[]" || rawStr === "") return false;
-        var slots = JSON.parse(rawStr);
-        if (!Array.isArray(slots) || slots.length === 0) return false;
+        var raw = dictStr(_bankDict, "bank");
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch(e) {
+        post("gamut_storage_organ: readBankDict error: " + e.message + "\n");
+        return null;
+    }
+}
 
-        writeIndex(slots);
-        slots.forEach(function(s) {
-            var json = _bankDict.get("slot_" + s.nr + "_json");
-            var name = _bankDict.get("slot_" + s.nr + "_name");
-            if (json && String(json) !== "(undefined)") _dataDict.replace("slot_" + s.nr + "_json", String(json));
-            if (name && String(name) !== "(undefined)") _dataDict.replace("slot_" + s.nr + "_name", String(name));
-        });
-        post("gamut_storage_organ: restored " + slots.length + " preset(s) from gamut_preset_bank dict\n");
+// Ask pattrstorage to refill the tracked dict from the reserved slot.
+// This is asynchronous — the caller must re-read the dict from a Task.
+function requestPattrstorageRecall() {
+    var ps = findPattrstorage();
+    if (!ps) return false;
+    try {
+        ps.message("recall", PERSIST_SLOT);
         return true;
     } catch(e) {
-        post("gamut_storage_organ: loadFromBankDict error: " + e.message + "\n");
+        post("gamut_storage_organ: pattrstorage recall failed: " + e.message + "\n");
         return false;
     }
 }
 
-// ---- Public API ----
+// --- Layer 2: plain JSON backup file ---
+
+function backupPath() {
+    return _scriptDir ? (_scriptDir + BACKUP_FILE) : BACKUP_FILE;
+}
+
+function writeBackupFile(bank) {
+    try {
+        var d = new Dict();                       // temporary — freed below
+        d.replace("bank", JSON.stringify(bank));
+        d.export_json(backupPath());
+        d.freepeer();
+    } catch(e) {
+        post("gamut_storage_organ: backup write failed: " + e.message + "\n");
+    }
+}
+
+function readBackupFile() {
+    try {
+        var d = new Dict();
+        d.import_json(backupPath());
+        var raw = dictStr(d, "bank");
+        d.freepeer();
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch(e) {
+        return null;   // file absent on first run — not an error
+    }
+}
+
+// --- Load orchestration ---
+
+// Try dict → backup file. Returns true when presets were restored.
+function tryRestore(sourceLabel) {
+    var bank = readBankDict();
+    if (applyBankObject(bank)) {
+        post("gamut_storage_organ: restored " + describeBank(bank) +
+             " from bank dict (" + sourceLabel + ")\n");
+        _loaded = true;
+        return true;
+    }
+
+    bank = readBackupFile();
+    if (applyBankObject(bank)) {
+        // Push the file contents back into the dict so the Live project picks them up
+        _bankDict.replace("bank", JSON.stringify(bank));
+        post("gamut_storage_organ: restored " + describeBank(bank) +
+             " from backup file (" + sourceLabel + ")\n");
+        _loaded = true;
+        return true;
+    }
+    return false;
+}
 
 /**
- * init — call after each organ load.
- * patcher      : this.patcher of Universal.js
+ * initStorage — call ONCE at system init, BEFORE any organ is loaded.
+ * Restores the preset bank and the last organ path so the auto-reload can use them.
+ * patcher   : this.patcher of Universal.js
+ * scriptDir : directory holding the js files (backup file goes there)
+ */
+exports.initStorage = function(patcher, scriptDir) {
+    _patcher   = patcher;
+    _scriptDir = scriptDir || "";
+    _loaded    = false;
+
+    // Immediate attempt: Live may already have recalled the slot for us
+    if (tryRestore("immediate")) return;
+
+    // Otherwise ask pattrstorage to refill the dict, then retry from a Task
+    // (pattrstorage recall is asynchronous — reading synchronously returns stale data).
+    if (requestPattrstorageRecall()) {
+        var retry = new Task(function() {
+            if (!_loaded) tryRestore("after pattrstorage recall");
+            if (!_loaded) post("gamut_storage_organ: no stored presets found (first run?)\n");
+        });
+        retry.schedule(150);
+    } else {
+        post("gamut_storage_organ: no stored presets found (no pattrstorage, no backup)\n");
+    }
+};
+
+/**
+ * init — call after each organ load, once the organ module exists.
  * organMod     : system.organModule (capturePreset / recallPreset)
  * presetMenuRef: (optional) direct MaxObj ref to live.menu "preset_menu"
  */
 exports.init = function(patcher, organMod, presetMenuRef) {
-    _patcher    = patcher;
+    _patcher    = patcher || _patcher;
     _organMod   = organMod;
     _presetMenu = presetMenuRef || null;
     _api        = null;
 
-    // Restore from pattrstorage-backed dict (survives Live project close/open).
-    // If _bankDict is empty (first run, or pattr not set up), fall through —
-    // runtime dicts may have data from the same Max session.
-    var restored = loadFromBankDict();
+    // Storage was restored by initStorage(); only reload here if that never ran
+    if (!_loaded) tryRestore("late init");
 
     updateMenu();
     post("gamut_storage_organ: init OK — " + readIndex().length + " preset(s)" +
-         (restored ? " (from bank dict)" : "") +
          (_presetMenu ? "; menu=direct" : "; menu=search") + "\n");
 };
 
-/**
- * store — capture current organ state → slot <presetNr>.
- */
+// ---- Organ path (stored in the same bank) ----
+
+/** setOrganPath — remember which organ was loaded, so the next session can reload it. */
+exports.setOrganPath = function(filepath) {
+    if (!filepath) return;
+    _bankDict.replace("organPath", String(filepath));
+    persist();
+};
+
+/** getOrganPath — the organ file loaded when the project was last saved (or null). */
+exports.getOrganPath = function() {
+    var p = dictStr(_bankDict, "organPath");
+    return (p && p !== "0") ? p : null;
+};
+
+// ---- Public preset API ----
+
 exports.store = function(presetNr, presetName) {
     presetNr = Number(presetNr);
     if (isNaN(presetNr) || presetNr < 0) {
         post("gamut_storage_organ.store: invalid presetNr\n"); return;
+    }
+    if (presetNr === PERSIST_SLOT) {
+        post("gamut_storage_organ.store: slot " + PERSIST_SLOT + " is reserved\n"); return;
     }
     if (!_organMod || typeof _organMod.capturePreset !== "function") {
         post("gamut_storage_organ.store: organModule.capturePreset not available\n"); return;
@@ -187,17 +352,13 @@ exports.store = function(presetNr, presetName) {
     if (!updated) slots.push({ nr: presetNr, name: presetName });
     writeIndex(sortedSlots(slots));
 
-    updateMenu();          // BEFORE syncToPattrstorage so pattrstorage sees correct range
-    syncToBankDict();      // mirror runtime dicts → pattrstorage-tracked dict
-    syncToPattrstorage("store", presetNr, presetName);
+    updateMenu();     // before persist() so pattrstorage captures the correct menu range
+    persist();
     renameChain(presetNr, presetName);
 
     post("gamut_storage_organ: stored preset " + presetNr + " \"" + presetName + "\"\n");
 };
 
-/**
- * recall — restore organ state from slot <presetNr>.
- */
 exports.recall = function(presetNr) {
     presetNr = Number(presetNr);
     if (isNaN(presetNr)) { post("gamut_storage_organ.recall: invalid presetNr\n"); return; }
@@ -213,9 +374,6 @@ exports.recall = function(presetNr) {
     post("gamut_storage_organ: recalled preset " + presetNr + "\n");
 };
 
-/**
- * recallFromMenuIndex — recall by 0-based menu position.
- */
 exports.recallFromMenuIndex = function(idx) {
     idx = Number(idx);
     var slots = readIndex();
@@ -225,9 +383,6 @@ exports.recallFromMenuIndex = function(idx) {
     exports.recall(slots[idx].nr);
 };
 
-/**
- * deletePreset — remove slot <presetNr>.
- */
 exports.deletePreset = function(presetNr) {
     presetNr = Number(presetNr);
     if (isNaN(presetNr)) return;
@@ -236,16 +391,12 @@ exports.deletePreset = function(presetNr) {
     var slots = readIndex().filter(function(s) { return s.nr !== presetNr; });
     writeIndex(slots);
 
-    syncToBankDict();
-    syncToPattrstorage("delete", presetNr);
+    persist();
     clearChain(presetNr);
     updateMenu();
     post("gamut_storage_organ: deleted preset " + presetNr + "\n");
 };
 
-/**
- * deleteAll — wipe all presets.
- */
 exports.deleteAll = function() {
     var slots = readIndex();
     for (var i = 0; i < slots.length; i++) {
@@ -253,8 +404,7 @@ exports.deleteAll = function() {
         clearChain(slots[i].nr);
     }
     writeIndex([]);
-    syncToBankDict();
-    syncToPattrstorage("clear");
+    persist();
     updateMenu();
     post("gamut_storage_organ: all presets deleted\n");
 };
@@ -271,6 +421,17 @@ function findPresetMenu() {
     while (p) {
         var m = p.getnamed("preset_menu");
         if (m) return m;
+        p = p.parentpatcher;
+    }
+    return null;
+}
+
+function findPattrstorage() {
+    if (!_patcher) return null;
+    var p = _patcher;
+    while (p) {
+        var ps = p.getnamed("storage");
+        if (ps) return ps;
         p = p.parentpatcher;
     }
     return null;
@@ -295,20 +456,7 @@ function updateMenu() {
     post("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
 }
 
-// ---- pattrstorage sync (XML export, optional) ----
-
-function syncToPattrstorage(action, presetNr, presetName) {
-    if (!_patcher) return;
-    try {
-        var ps = _patcher.getnamed("storage");
-        if (!ps) return;
-        if      (action === "store")  ps.message("store",  presetNr, presetName);
-        else if (action === "delete") ps.message("delete", presetNr);
-        else if (action === "clear")  ps.message("clear");
-    } catch(e) { /* pattrstorage not present */ }
-}
-
-// ---- MIDI Effect Rack chain renaming ----
+// ---- MIDI Effect Rack chain renaming (optional — silent when no rack is present) ----
 
 function getLiveAPI() {
     if (_api) return _api;
@@ -317,24 +465,31 @@ function getLiveAPI() {
     return _api;
 }
 
-function renameChain(nr, name) {
+// True only when the device really sits in a rack with enough chains.
+// Without this check every store printed two "v8liveapi: set: no valid object set" errors.
+function chainExists(nr) {
     var api = getLiveAPI();
-    if (!api) return;
+    if (!api) return false;
     try {
         api.path = "this_device canonical_parent devices 0 chains " + nr;
-        api.set("name", "p " + nr + ": " + name);
-        api.set("color", 100);
-    } catch(e) { post("gamut_storage_organ: renameChain " + nr + " failed: " + e.message + "\n"); }
+        return (api.id && String(api.id) !== "0");
+    } catch(e) { return false; }
+}
+
+function renameChain(nr, name) {
+    if (!chainExists(nr)) return;
+    try {
+        _api.set("name", "p " + nr + ": " + name);
+        _api.set("color", 100);
+    } catch(e) { /* rack disappeared between check and set */ }
 }
 
 function clearChain(nr) {
-    var api = getLiveAPI();
-    if (!api) return;
+    if (!chainExists(nr)) return;
     try {
-        api.path = "this_device canonical_parent devices 0 chains " + nr;
-        api.set("name", "--");
-        api.set("color", 1);
+        _api.set("name", "--");
+        _api.set("color", 1);
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.07 loaded\n");
+post("gamut_storage_organ.js v00.08 loaded\n");

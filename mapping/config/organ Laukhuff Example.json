@@ -1,0 +1,35 @@
+{
+  "name": "Laukhuff Example",
+
+  "_comment": "Laukhuff console: program changes, ODD number = stop ON, EVEN = stop OFF. Derived automatically per manual as programBase + 2*i + 1 / programBase + 2*i, overridable per stop via programOn / programOff. Alternative systems: stopSystem cc2 (Casavant: separate on/off CCs), sysex (whole-organ state dump), cc, note.",
+
+  "midi": {
+    "stopSystem": "program",
+    "programBase": 0,
+    "stopChannelBase": 11,
+    "panicMethod": "allnotesoff"
+  },
+
+  "manuals": [
+    { "manualID": 0, "name": "Pedal",     "midiChannel": 1, "stopChannel": 11 },
+    { "manualID": 1, "name": "Hauptwerk", "midiChannel": 2, "stopChannel": 12 },
+    { "manualID": 2, "name": "Positiv",   "midiChannel": 3, "stopChannel": 13 }
+  ],
+
+  "stops": [
+    { "stopID": 1,  "name": "Subbass 16'",   "manualID": 0 },
+    { "stopID": 2,  "name": "Principal 8'",  "manualID": 0 },
+    { "stopID": 3,  "name": "Fagott 16'",    "manualID": 0 },
+
+    { "stopID": 10, "name": "Principal 8'",  "manualID": 1 },
+    { "stopID": 11, "name": "Gedackt 8'",    "manualID": 1 },
+    { "stopID": 12, "name": "Octave 4'",     "manualID": 1 },
+    { "stopID": 13, "name": "Mixtur V",      "manualID": 1 },
+    { "stopID": 14, "name": "Trompete 8'",   "manualID": 1, "programOn": 91, "programOff": 90 },
+
+    { "stopID": 20, "name": "Holzfloete 8'", "manualID": 2 },
+    { "stopID": 21, "name": "Principal 4'",  "manualID": 2 },
+    { "stopID": 22, "name": "Sesquialter 2 2/3'", "manualID": 2 },
+    { "stopID": 23, "name": "Krummhorn 8'",  "manualID": 2 }
+  ]
+}
