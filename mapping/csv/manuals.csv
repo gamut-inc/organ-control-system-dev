@@ -1,0 +1,6 @@
+manualID,name,midiChannel,stopChannel
+1,Rueckpositiv,1,11
+2,Hauptwerk,2,12
+3,Oberwerk,3,13
+4,Schwellwerk,4,14
+8,Pedal,8,15

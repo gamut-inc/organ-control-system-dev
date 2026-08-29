@@ -1,0 +1,13 @@
+controlID,controlName,type,manual,channel,controlMsg,controlNr
+1,Schweller,wheel,4,11,CC,9
+2,Winddrossel,wheel,0,11,CC,10
+3,Tremulant 1,wheel,1,11,CC,11
+4,Tremulant 2,wheel,2,11,CC,12
+5,Tremulant 3,wheel,3,11,CC,13
+6,Tremulant 4,wheel,4,11,CC,14
+7,PANIC 1: All Notes Off,button,1,1,CC,123
+8,PANIC 2: All Notes Off,button,2,2,CC,123
+9,PANIC 3: All Notes Off,button,3,3,CC,123
+10,PANIC 4: All Notes Off,button,4,4,CC,123
+11,PANIC 8: All Notes Off,button,8,8,CC,123
+12,GLOBAL PANIC: All Notes and Stops Off,button,0,0,CC,120

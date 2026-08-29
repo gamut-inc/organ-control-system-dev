@@ -6,7 +6,12 @@
 //         Stop colouring (reed/aliquot) same as SINUA.
 //         Pluggable stop-output systems: note | cc | cc2 | program (Laukhuff) | sysex.
 //         Stop output channels are independent of the key-action (note) channels.
-// 29.05.2026
+// 00.03 - RAW MIDI output by default: the js outlet feeds [multichanmidiout] directly,
+//         so messages must be status + data bytes, not tagged lists.  midi.outputFormat
+//         "tagged" restores the old ("midi", "note", …) form for patches that route it.
+//         Controls table support (see CONTROLS below): dials per manual / global,
+//         and panic definitions that drive the existing PANIC buttons.
+// 29.08.2026
 //
 // TARGET: traditional pipe organs with MIDI interface — every stop belongs to
 // exactly ONE manual (fixed disposition, like the physical console).  There are
@@ -60,18 +65,38 @@
 //             Bits are packed 7 per byte (MIDI data bytes must stay < 128).
 //
 // ================================================================================================
-// MIDI OUTPUT via outlet 0 (shared js outlet, prefix "midi")
+// CONTROLS  (organ JSON "controls" array)
 // ================================================================================================
-//   ("midi", "note",    channel, note,       velocity)
-//   ("midi", "cc",      channel, controller, value)
-//   ("midi", "program", channel, program)
-//   ("midi", "sysex",   byte, byte, byte, ...)          // complete message incl. F0 / F7
+// Mirrors the console's control table one row per entry:
+//   { "controlID": 1, "name": "Schweller", "type": "wheel",
+//     "manual": 4, "channel": 11, "msg": "CC", "nr": 9 }
 //
-// Patcher wiring:  [route midi] → [route note cc program sysex]
-//                  note    → [midiformat] / noteout
-//                  cc      → ctlout
-//                  program → pgmout
-//                  sysex   → [midiout]        (bytes arrive as a list)
+//   type "wheel" (anything not a panic) → live.dial under the manual's CANC button,
+//        sending msg/nr on `channel` with the dial value 0..127
+//   type "button" whose name contains "panic" (or type "panic") → NOT drawn; it defines
+//        what the PANIC button of that manual sends.  This is how a console declares
+//        that a single CC123 on its own channel silences the manual, so no 128 note-offs.
+//   manual 0 (or a manualID no manual claims) → global: dials go in the header,
+//        panics fire from the global PANIC button.  channel 0 on a global panic means
+//        "send on every manual's key-action channel".
+//
+// Dials fill one column below CANC before starting the next; the stop grid shifts right
+// by exactly those columns.  Past midi.ctrlMaxCols the manual grows taller instead.
+//
+// ================================================================================================
+// MIDI OUTPUT via outlet 0 — midi.outputFormat
+// ================================================================================================
+//  "raw" (default)  Status byte + data bytes, ready for [multichanmidiout] or [midiout]
+//                   wired straight to the js outlet:
+//                       note on/off  →  (143 + ch), note, velocity
+//                       control      →  (175 + ch), controller, value
+//                       program      →  (191 + ch), program
+//                       sysex        →  240, …, 247
+//                   Channels are 1..16 and are clamped, data bytes clamped to 0..127.
+//
+//  "tagged"         ("midi", "note"|"cc"|"program"|"sysex", channel, …) for patches that
+//                   route the message themselves:
+//                       [route midi] → [route note cc program sysex] → noteout / ctlout / …
 //
 // PUBLIC API (same interface as organTool_SINUA.js):
 //   loadOrgan, clearGUI, getCurrentOrganInfo, handleStopEvent,
@@ -93,13 +118,21 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         globalPanicY: 45,   // global PANIC — same x as the manual CANC buttons
         manualsY:    95,    // first manual (50px lower than the 45 of v00.01)
         manualGap:    8,
-        labelH:      25     // label row inside a manual before the button/stop grid
+        labelH:      25,    // label row inside a manual before the button/stop grid
+        // Controller dials live below CANC, in as many columns as they need.
+        // The stop grid shifts right by exactly those columns so nothing overlaps.
+        ctrlW:       45,
+        ctrlH:       38,
+        ctrlColW:    52,
+        ctrlMaxCols:  2     // beyond this the manual grows taller instead of wider
     };
     // Global CANCEL sits directly below the global PANIC, same proportions as in the manuals
     LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
     // Buttons in a manual start below the label row
     LAYOUT.manualPanicY  = LAYOUT.labelH;
     LAYOUT.manualCancelY = LAYOUT.labelH + LAYOUT.btnH + LAYOUT.btnGap;
+    // First controller row inside a manual
+    LAYOUT.manualCtrlY   = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.btnGap;
     // Minimum manual height so both buttons always fit
     LAYOUT.manualMinH    = LAYOUT.manualCancelY + LAYOUT.btnH + 5;
 
@@ -115,8 +148,15 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         stopsByID: {},      // {stopID: stop}
         allStops: [],       // JSON order — defines the SysEx bit order
         stopSystem: "note",
+        outputFormat: "raw",
         panicMethod: "cc123",
-        sysex: { header: [240], footer: [247] }
+        sysex: { header: [240], footer: [247] },
+        // Controls from the organ JSON, split by role and scope.
+        // manual 0 (or a manualID no manual claims) means "global".
+        wheelsByManual: {},  // {manualID: [control, ...]} — continuous, drawn as live.dial
+        globalWheels:   [],
+        panicsByManual: {},  // {manualID: [control, ...]} — wired to the manual PANIC button
+        globalPanics:   []
     };
 
     var guiObjects = {};
@@ -184,6 +224,61 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // MIDI OUTPUT — pluggable stop systems
     // ================================================================================================
 
+    // --- Wire format ---------------------------------------------------------------
+    // "raw" (default): status byte + data bytes, which is what [multichanmidiout]
+    //                  and [midiout] expect — the js outlet feeds one of those directly.
+    // "tagged":        ("midi", "note"|"cc"|"program"|"sysex", ...) for patches that
+    //                  route the message themselves before formatting it.
+
+    function clampCh(ch) {
+        ch = Math.round(Number(ch) || 1);
+        if (ch < 1)  return 1;
+        if (ch > 16) return 16;
+        return ch;
+    }
+    function clampData(v) {
+        v = Math.round(Number(v) || 0);
+        if (v < 0)   return 0;
+        if (v > 127) return 127;
+        return v;
+    }
+
+    function emitNote(ch, note, vel) {
+        ch = clampCh(ch);
+        if (organState.outputFormat === "tagged") outlet(0, "midi", "note", ch, clampData(note), clampData(vel));
+        else                                      outlet(0, 143 + ch, clampData(note), clampData(vel));
+    }
+
+    function emitCC(ch, cc, val) {
+        ch = clampCh(ch);
+        if (organState.outputFormat === "tagged") outlet(0, "midi", "cc", ch, clampData(cc), clampData(val));
+        else                                      outlet(0, 175 + ch, clampData(cc), clampData(val));
+    }
+
+    function emitProgram(ch, pgm) {
+        ch = clampCh(ch);
+        if (organState.outputFormat === "tagged") outlet(0, "midi", "program", ch, clampData(pgm));
+        else                                      outlet(0, 191 + ch, clampData(pgm));
+    }
+
+    function emitSysex(bytes) {
+        if (organState.outputFormat === "tagged") outlet.apply(null, [0, "midi", "sysex"].concat(bytes));
+        else                                      outlet.apply(null, [0].concat(bytes));
+    }
+
+    // Send whatever a control definition describes (CC / program / note), with an
+    // explicit value.  Used by the dials and by the panic buttons.
+    function emitControl(ctl, value) {
+        var msg = String(ctl.msg || "CC").toUpperCase();
+        if (msg === "PC" || msg === "PROGRAM") {
+            emitProgram(ctl.channel, ctl.nr);
+        } else if (msg === "NOTE") {
+            emitNote(ctl.channel, ctl.nr, value);
+        } else {
+            emitCC(ctl.channel, ctl.nr, value);
+        }
+    }
+
     // Stop-output channel: per stop → per manual → stopChannelBase + manual index.
     // Deliberately independent of manual.midiChannel (the key-action channel).
     function stopChannelFor(stop) {
@@ -198,7 +293,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         switch (organState.stopSystem) {
 
             case "cc":
-                outlet(0, "midi", "cc", ch, stop.midiCC, state ? 127 : 0);
+                emitCC(ch, stop.midiCC, state ? 127 : 0);
                 common.log(common.LOG_LEVEL.VERBOSE,
                     "MIDI cc ch" + ch + " #" + stop.midiCC + " " + (state ? 127 : 0));
                 break;
@@ -206,7 +301,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             case "cc2":
                 // Casavant: separate controllers address ON and OFF, both sent with 127
                 var cc2 = state ? stop.ccOn : stop.ccOff;
-                outlet(0, "midi", "cc", ch, cc2, 127);
+                emitCC(ch, cc2, 127);
                 common.log(common.LOG_LEVEL.VERBOSE,
                     "MIDI cc2 ch" + ch + " #" + cc2 + " (" + (state ? "on" : "off") + ")");
                 break;
@@ -214,7 +309,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             case "program":
                 // Laukhuff: odd program = ON, even program = OFF
                 var pgm = state ? stop.programOn : stop.programOff;
-                outlet(0, "midi", "program", ch, pgm);
+                emitProgram(ch, pgm);
                 common.log(common.LOG_LEVEL.VERBOSE,
                     "MIDI program ch" + ch + " p" + pgm + " (" + (state ? "on" : "off") + ")");
                 break;
@@ -226,7 +321,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
             case "note":
             default:
-                outlet(0, "midi", "note", ch, stop.midiNote, state ? 127 : 0);
+                emitNote(ch, stop.midiNote, state ? 127 : 0);
                 common.log(common.LOG_LEVEL.VERBOSE,
                     "MIDI note ch" + ch + " n" + stop.midiNote + " " + (state ? 127 : 0));
                 break;
@@ -251,7 +346,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         if (bitCount > 0) bytes.push(acc);   // flush partial byte
 
         bytes = bytes.concat(organState.sysex.footer);
-        outlet.apply(null, [0, "midi", "sysex"].concat(bytes));
+        emitSysex(bytes);
         common.log(common.LOG_LEVEL.VERBOSE, "MIDI sysex: " + bytes.length + " bytes");
     }
 
@@ -270,16 +365,52 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     }
 
     // Panic targets the KEY ACTION channel — it silences sounding notes, not stops.
+    //
+    // When the organ JSON declares panic controls (type button, name containing
+    // "panic"), those definitions win: this console knows a single CC123 on its own
+    // channel is enough, so there is no reason to spray 128 note-offs.
+    // Without such definitions we fall back to midi.panicMethod.
     function sendPanicMIDI(manual) {
+        var defs = organState.panicsByManual[manual.manualID];
+        if (defs && defs.length) {
+            defs.forEach(function(ctl) { emitControl(ctl, 0); });
+            common.log(common.LOG_LEVEL.INFO,
+                "PANIC " + manual.name + ": " + describePanics(defs));
+            return;
+        }
+
         var ch = manual.midiChannel || 1;
         if (organState.panicMethod === "allnotesoff") {
-            for (var n = 0; n < 128; n++) outlet(0, "midi", "note", ch, n, 0);
+            for (var n = 0; n < 128; n++) emitNote(ch, n, 0);
             common.log(common.LOG_LEVEL.INFO, "PANIC ch" + ch + ": 128 note-offs");
         } else {
-            outlet(0, "midi", "cc", ch, 123, 0);   // all notes off
-            outlet(0, "midi", "cc", ch, 120, 0);   // all sound off
+            emitCC(ch, 123, 0);   // all notes off
+            emitCC(ch, 120, 0);   // all sound off
             common.log(common.LOG_LEVEL.INFO, "PANIC ch" + ch + ": CC123 + CC120");
         }
+    }
+
+    // Global panic controls: channel 0 means "every key-action channel".
+    function sendGlobalPanicMIDI() {
+        organState.globalPanics.forEach(function(ctl) {
+            if (Number(ctl.channel) === 0) {
+                organState.manuals.forEach(function(m) {
+                    emitControl({ msg: ctl.msg, nr: ctl.nr, channel: m.midiChannel }, 0);
+                });
+            } else {
+                emitControl(ctl, 0);
+            }
+        });
+        if (organState.globalPanics.length) {
+            common.log(common.LOG_LEVEL.INFO,
+                "GLOBAL PANIC: " + describePanics(organState.globalPanics));
+        }
+    }
+
+    function describePanics(defs) {
+        return defs.map(function(c) {
+            return (c.msg || "CC") + c.nr + "@ch" + c.channel;
+        }).join(", ");
     }
 
     function findManualByID(manualID) {
@@ -319,8 +450,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var manualsRaw = organData.manuals || [];
         var stopsRaw   = organData.stops   || [];
 
-        organState.stopSystem  = midiCfg.stopSystem  || "note";
-        organState.panicMethod = midiCfg.panicMethod || "cc123";
+        organState.stopSystem   = midiCfg.stopSystem   || "note";
+        organState.panicMethod  = midiCfg.panicMethod  || "cc123";
+        organState.outputFormat = midiCfg.outputFormat || "raw";
 
         var sx = midiCfg.sysex || {};
         organState.sysex = {
@@ -378,9 +510,54 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         organState.displayOrder = buildDisplayOrder(organState.manuals);
 
+        parseControls(organData.controls || []);
+
         common.log(common.LOG_LEVEL.INFO, "Parsed MIDI organ: " +
             organState.manuals.length + " manuals, " + organState.allStops.length + " stops, " +
-            "system=" + organState.stopSystem + ", panic=" + organState.panicMethod);
+            (organData.controls ? organData.controls.length : 0) + " controls, " +
+            "system=" + organState.stopSystem + ", out=" + organState.outputFormat);
+    }
+
+    // Controls table (see the organ JSON header): controlID, name, type, manual,
+    // channel, msg, nr.  Panic buttons are attached to the PANIC buttons that already
+    // exist; continuous controls become dials in the manual they belong to.
+    // manual 0 — or any manualID no manual claims — is global.
+    function parseControls(controlsRaw) {
+        organState.wheelsByManual = {};
+        organState.globalWheels   = [];
+        organState.panicsByManual = {};
+        organState.globalPanics   = [];
+
+        controlsRaw.forEach(function(c) {
+            var ctl = {
+                controlID: c.controlID,
+                name:      c.name || c.controlName || ("Control " + c.controlID),
+                type:      String(c.type || "wheel").toLowerCase(),
+                manual:    (c.manual !== undefined) ? Number(c.manual) : 0,
+                // Explicit undefined check — channel 0 is meaningful (global panic:
+                // "every key-action channel") and `c.channel || 1` would swallow it.
+                channel:   (c.channel === undefined || c.channel === null) ? 1 : Number(c.channel),
+                msg:       String(c.msg || c.controlMsg || "CC").toUpperCase(),
+                nr:        Number((c.nr !== undefined) ? c.nr : c.controlNr)
+            };
+
+            // A button whose name mentions panic drives the existing PANIC control
+            var isPanic = (ctl.type === "panic") ||
+                          (ctl.type === "button" && /panic/i.test(ctl.name));
+            var target  = findManualByID(ctl.manual);   // null → global
+
+            if (isPanic) {
+                if (!target) { organState.globalPanics.push(ctl); return; }
+                if (!organState.panicsByManual[ctl.manual]) organState.panicsByManual[ctl.manual] = [];
+                organState.panicsByManual[ctl.manual].push(ctl);
+                return;
+            }
+
+            // Everything else is a continuous control drawn as a dial
+            if (!target) { organState.globalWheels.push(ctl); return; }
+            if (!organState.wheelsByManual[ctl.manual]) organState.wheelsByManual[ctl.manual] = [];
+            organState.wheelsByManual[ctl.manual].push(ctl);
+        });
     }
 
     // GUI order: highest manual at the top, descending, pedal always last —
@@ -437,7 +614,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         common.GEOMETRY.clearCache();
 
         guiObjects.header  = createMainHeader(context.patcher, organState.name);
-        guiObjects.manuals = createManualSections(context.patcher);
+        // Global dials extend the header downwards; manuals start below whatever it needs
+        guiObjects.manuals = createManualSections(context.patcher,
+            Math.max(LAYOUT.manualsY, guiObjects.header.bottomY + 10));
 
         resizeWindowToContent();
 
@@ -462,6 +641,20 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         var cancel = createActionButton(p, gx, LAYOUT.globalCancelY, "cancel_all", "CANCEL",
             fs.small, false, function() { executeCancel(null); });
+
+        var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
+
+        // Global controls (manual 0) run along the header, to the right of the buttons
+        var globalDials = [];
+        var gdx = gx + LAYOUT.btnW + 10;
+        organState.globalWheels.forEach(function(ctl) {
+            var d = createControlDial(p, gdx, LAYOUT.globalPanicY, ctl, "ctrl_global_");
+            if (d) globalDials.push(d);
+            gdx += LAYOUT.ctrlColW;
+        });
+        if (globalDials.length) {
+            bottomY = Math.max(bottomY, LAYOUT.globalPanicY + LAYOUT.ctrlH);
+        }
 
         // preset_menu: reuse the user's existing menu; create + connect only if missing
         // (same pattern as SINUA createMainHeader).
@@ -499,7 +692,70 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             post("createMainHeader: reusing existing preset_menu\n");
         }
 
-        return { label: label, panic: panic, cancel: cancel, presetMenu: presetMenu };
+        return { label: label, panic: panic, cancel: cancel, presetMenu: presetMenu,
+                 globalDials: globalDials, bottomY: bottomY };
+    }
+
+    // Continuous control → live.dial sending its CC (or note/program) on change.
+    function createControlDial(p, x, y, ctl, varnamePrefix) {
+        var varname = varnamePrefix + ctl.controlID;
+        var dial;
+        try {
+            dial = p.newdefault(x, y, "live.dial",
+                "@varname",           varname,
+                "@patching_rect",     x, y, LAYOUT.ctrlW, LAYOUT.ctrlH,
+                "@presentation_rect", x, y, LAYOUT.ctrlW, LAYOUT.ctrlH,
+                "@presentation", 1);
+        } catch(e) {
+            post("createControlDial: " + e.message + "\n");
+            return null;
+        }
+        if (!dial) return null;
+
+        try {
+            dial.setattr("_parameter_longname",  ctl.name);
+            dial.setattr("_parameter_shortname", shortLabel(ctl.name));
+            dial.setattr("_parameter_type",  1);      // int
+            dial.setattr("_parameter_range", 0, 127);
+            dial.setattr("_parameter_unitstyle", 0);
+        } catch(e) { /* attribute set is best-effort */ }
+
+        addListener(new MaxobjListener(dial, function(data) {
+            if (_suppressListeners) return;
+            emitControl(ctl, data.value);
+            common.log(common.LOG_LEVEL.VERBOSE,
+                "Control " + ctl.name + " = " + data.value +
+                " (" + ctl.msg + ctl.nr + " ch" + ctl.channel + ")");
+        }));
+
+        return dial;
+    }
+
+    // live.dial shows the shortname under the knob — keep it readable, not truncated mid-word.
+    function shortLabel(name) {
+        var n = String(name).replace(/^[MP]\d*:\s*\d*\s*/, "");   // drop "M4: 12 " prefixes
+        return n.length > 10 ? n.substring(0, 10) : n;
+    }
+
+    // How many controller columns are needed, and how tall the manual must be for them.
+    // Returns {cols, perColumn, height} — height is never smaller than the value passed in.
+    function planControlColumns(count, availableHeight) {
+        if (count <= 0) return { cols: 0, perColumn: 0, height: availableHeight };
+
+        var usable    = availableHeight - LAYOUT.manualCtrlY - 5;
+        var perColumn = Math.floor(usable / LAYOUT.ctrlH);
+        if (perColumn < 1) perColumn = 1;
+
+        var cols = Math.ceil(count / perColumn);
+        if (cols <= LAYOUT.ctrlMaxCols) {
+            return { cols: cols, perColumn: perColumn, height: availableHeight };
+        }
+
+        // Too many columns — grow the manual downwards instead of sideways
+        cols      = LAYOUT.ctrlMaxCols;
+        perColumn = Math.ceil(count / cols);
+        var needed = LAYOUT.manualCtrlY + (perColumn * LAYOUT.ctrlH) + 5;
+        return { cols: cols, perColumn: perColumn, height: Math.max(availableHeight, needed) };
     }
 
     // Momentary button (live.text in button mode) with a click listener.
@@ -521,28 +777,37 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
     // *** MANUAL SECTIONS: stacked vertically, highest manual first, pedal last ***
 
-    function createManualSections(p) {
+    function createManualSections(p, startY) {
         var G = common.GEOMETRY;
         var manuals  = [];
-        var currentY = LAYOUT.manualsY;
+        var currentY = startY;
 
         organState.displayOrder.forEach(function(manualData) {
             var cols   = G.grid.columnsNeeded(manualData.stops.length);
             var rows   = Math.min(manualData.stops.length, common.MAX_STOPS_PER_COLUMN);
             var gridW  = cols * (G.columns.w() + G.columns.margin());
-            var startX = G.margin.x;                       // left column holds PANIC / CANC
-            var w      = startX + gridW + 10;
-            var h      = Math.max(LAYOUT.labelH + (rows * G.stops.h) + 5, LAYOUT.manualMinH);
+            var baseH  = Math.max(LAYOUT.labelH + (rows * G.stops.h) + 5, LAYOUT.manualMinH);
 
-            var manual = createManualBpatcher(p, LAYOUT.manualX, currentY, w, h, manualData, startX);
-            if (manual) manuals.push(manual);
-            currentY += h + LAYOUT.manualGap;
+            // Controller columns sit between the button column and the stop grid,
+            // so the stops shift right by exactly the space the dials occupy.
+            var wheels = organState.wheelsByManual[manualData.manualID] || [];
+            var plan   = planControlColumns(wheels.length, baseH);
+            var startX = G.margin.x + (plan.cols * LAYOUT.ctrlColW);
+            var w      = startX + gridW + 10;
+
+            var manual = createManualBpatcher(p, LAYOUT.manualX, currentY, w, plan.height,
+                                              manualData, startX, wheels, plan);
+            if (manual) {
+                manual.width = w;          // remembered so the window resize is exact
+                manuals.push(manual);
+            }
+            currentY += plan.height + LAYOUT.manualGap;
         });
 
         return { manuals: manuals, totalHeight: currentY };
     }
 
-    function createManualBpatcher(p, x, y, w, h, manualData, stopStartX) {
+    function createManualBpatcher(p, x, y, w, h, manualData, stopStartX, wheels, plan) {
         var fs = common.GEOMETRY.button.fontsize;
         var bpatcher = common.createBpatcher(p, x, y, w, h, "manual" + manualData.manualID);
         if (!bpatcher) return null;
@@ -563,6 +828,17 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             "cancel_m" + manualData.manualID, "CANC", fs.small, false,
             function() { executeCancel(manualData.manualID); });
 
+        // Controller dials below CANC, filling one column before starting the next
+        var dials = [];
+        (wheels || []).forEach(function(ctl, i) {
+            var col = Math.floor(i / plan.perColumn);
+            var row = i % plan.perColumn;
+            var dx  = LAYOUT.btnX + (col * LAYOUT.ctrlColW);
+            var dy  = LAYOUT.manualCtrlY + (row * LAYOUT.ctrlH);
+            var d = createControlDial(sp, dx, dy, ctl, "ctrl_m" + manualData.manualID + "_");
+            if (d) dials.push(d);
+        });
+
         // Fixed stop grid + per-manual listener cache
         var stopState     = {};   // {varname → bool} — updated by listeners, read by capturePreset
         var stopButtonMap = createStopGrid(sp, stopStartX, LAYOUT.labelH, manualData, stopState);
@@ -572,6 +848,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             manualData:    manualData,
             panic:         panicBtn,
             cancel:        cancelBtn,
+            dials:         dials,
             stopButtonMap: stopButtonMap,   // {varname → live.text MaxObj}
             stopState:     stopState
         };
@@ -624,11 +901,13 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             var contentW = 200;
             var contentH = (guiObjects.manuals && guiObjects.manuals.totalHeight)
                 ? guiObjects.manuals.totalHeight + 20 : 400;
-            organState.manuals.forEach(function(m) {
-                var cols = G.grid.columnsNeeded(m.stops.length);
-                var w = G.margin.x + (cols * (G.columns.w() + G.columns.margin())) + 25;
-                contentW = Math.max(contentW, w);
-            });
+            // Use the widths the manuals were actually built with — they already
+            // include the controller columns the stops were shifted past.
+            if (guiObjects.manuals) {
+                guiObjects.manuals.manuals.forEach(function(m) {
+                    contentW = Math.max(contentW, LAYOUT.manualX + (m.width || 0) + 15);
+                });
+            }
             contentW = Math.max(contentW, G.margin.x + 500);   // header row minimum
             context.patcher.wind.size = [contentW, contentH];
             common.log(common.LOG_LEVEL.INFO, "Window resized: " + contentW + " x " + contentH);
@@ -676,16 +955,18 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             ((manualID !== null && manualID !== undefined) ? " for manual " + manualID : " (all)"));
     }
 
-    // manualID null → all manuals
+    // manualID null → every manual, plus any global panic definitions
     function executePanic(manualID) {
-        var targets = (manualID === null || manualID === undefined)
+        var isGlobal = (manualID === null || manualID === undefined);
+        var targets = isGlobal
             ? organState.manuals
             : organState.manuals.filter(function(m) { return m.manualID === manualID; });
 
         targets.forEach(function(manual) { sendPanicMIDI(manual); });
+        if (isGlobal) sendGlobalPanicMIDI();
 
         common.log(common.LOG_LEVEL.INFO, "PANIC" +
-            ((manualID !== null && manualID !== undefined) ? " manual " + manualID : " (all manuals)"));
+            (isGlobal ? " (all manuals)" : " manual " + manualID));
     }
 
     // btn.message("set", ...) fires MaxobjListener callbacks ASYNCHRONOUSLY — keep
@@ -819,4 +1100,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.02 - traditional MIDI organ; pluggable stop systems\n");
+post("organTool_MIDI.js v00.03 - raw MIDI out for multichanmidiout; controls + dials\n");

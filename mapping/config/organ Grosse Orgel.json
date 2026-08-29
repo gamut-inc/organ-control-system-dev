@@ -1,0 +1,753 @@
+{
+  "name": "Grosse Orgel",
+  "midi": {
+    "stopSystem": "note",
+    "outputFormat": "raw",
+    "panicMethod": "cc123",
+    "stopChannelBase": 11
+  },
+  "manuals": [
+    {
+      "manualID": 1,
+      "name": "Rueckpositiv",
+      "midiChannel": 1,
+      "stopChannel": 11
+    },
+    {
+      "manualID": 2,
+      "name": "Hauptwerk",
+      "midiChannel": 2,
+      "stopChannel": 12
+    },
+    {
+      "manualID": 3,
+      "name": "Oberwerk",
+      "midiChannel": 3,
+      "stopChannel": 13
+    },
+    {
+      "manualID": 4,
+      "name": "Schwellwerk",
+      "midiChannel": 4,
+      "stopChannel": 14
+    },
+    {
+      "manualID": 8,
+      "name": "Pedal",
+      "midiChannel": 8,
+      "stopChannel": 15
+    }
+  ],
+  "stops": [
+    {
+      "stopID": 1,
+      "name": "Super IV-IV",
+      "manualID": 4,
+      "midiNote": 0
+    },
+    {
+      "stopID": 2,
+      "name": "Lieblich Gedackt 16'",
+      "manualID": 4,
+      "midiNote": 1
+    },
+    {
+      "stopID": 3,
+      "name": "Zartgeige 16'",
+      "manualID": 4,
+      "midiNote": 2
+    },
+    {
+      "stopID": 4,
+      "name": "Flötenprinzipal 8'",
+      "manualID": 4,
+      "midiNote": 3
+    },
+    {
+      "stopID": 5,
+      "name": "Querflöte 8'",
+      "manualID": 4,
+      "midiNote": 4
+    },
+    {
+      "stopID": 6,
+      "name": "Salizional 8'",
+      "manualID": 4,
+      "midiNote": 5
+    },
+    {
+      "stopID": 7,
+      "name": "Schwebung 8'",
+      "manualID": 4,
+      "midiNote": 6
+    },
+    {
+      "stopID": 8,
+      "name": "Oktave 4'",
+      "manualID": 4,
+      "midiNote": 7
+    },
+    {
+      "stopID": 9,
+      "name": "Dulzflöte 4'",
+      "manualID": 4,
+      "midiNote": 8
+    },
+    {
+      "stopID": 10,
+      "name": "Schweizer Pfeife 2'",
+      "manualID": 4,
+      "midiNote": 9
+    },
+    {
+      "stopID": 11,
+      "name": "Sub IV-IV",
+      "manualID": 4,
+      "midiNote": 10
+    },
+    {
+      "stopID": 12,
+      "name": "Rep. Septime ⁴⁄₇ – ⅐‘",
+      "manualID": 4,
+      "midiNote": 11
+    },
+    {
+      "stopID": 13,
+      "name": "Sesquialtera 2 f.",
+      "manualID": 4,
+      "midiNote": 12
+    },
+    {
+      "stopID": 14,
+      "name": "Plein jeu 5-6 f.",
+      "manualID": 4,
+      "midiNote": 13
+    },
+    {
+      "stopID": 15,
+      "name": "Terzzimbel 3 f.",
+      "manualID": 4,
+      "midiNote": 14
+    },
+    {
+      "stopID": 16,
+      "name": "Cor anglais 16'",
+      "manualID": 4,
+      "midiNote": 15
+    },
+    {
+      "stopID": 17,
+      "name": "Trompet harmonique 8'",
+      "manualID": 4,
+      "midiNote": 16
+    },
+    {
+      "stopID": 18,
+      "name": "Hautbois 8'",
+      "manualID": 4,
+      "midiNote": 17
+    },
+    {
+      "stopID": 19,
+      "name": "Clairon Tremulant 4'",
+      "manualID": 4,
+      "midiNote": 18
+    },
+    {
+      "stopID": 20,
+      "name": "Tremulant",
+      "manualID": 4,
+      "midiNote": 19
+    },
+    {
+      "stopID": 21,
+      "name": "Super IV-III",
+      "manualID": 3,
+      "midiNote": 0
+    },
+    {
+      "stopID": 22,
+      "name": "Quintade 16'",
+      "manualID": 3,
+      "midiNote": 1
+    },
+    {
+      "stopID": 23,
+      "name": "Prinzipal 8'",
+      "manualID": 3,
+      "midiNote": 2
+    },
+    {
+      "stopID": 24,
+      "name": "Weitgedackt 8'",
+      "manualID": 3,
+      "midiNote": 3
+    },
+    {
+      "stopID": 25,
+      "name": "Oktave 4'",
+      "manualID": 3,
+      "midiNote": 4
+    },
+    {
+      "stopID": 26,
+      "name": "Blockflöte 4'",
+      "manualID": 3,
+      "midiNote": 5
+    },
+    {
+      "stopID": 27,
+      "name": "Nasat 2⅔‘",
+      "manualID": 3,
+      "midiNote": 6
+    },
+    {
+      "stopID": 28,
+      "name": "Oktave 2'",
+      "manualID": 3,
+      "midiNote": 7
+    },
+    {
+      "stopID": 29,
+      "name": "Terz 1⅗‘",
+      "manualID": 3,
+      "midiNote": 8
+    },
+    {
+      "stopID": 30,
+      "name": "Quinte 1⅓‘",
+      "manualID": 3,
+      "midiNote": 9
+    },
+    {
+      "stopID": 31,
+      "name": "Sub IV-III",
+      "manualID": 3,
+      "midiNote": 10
+    },
+    {
+      "stopID": 32,
+      "name": "Sifflöte 1'",
+      "manualID": 3,
+      "midiNote": 11
+    },
+    {
+      "stopID": 33,
+      "name": "Tonus fabri 2'",
+      "manualID": 3,
+      "midiNote": 12
+    },
+    {
+      "stopID": 34,
+      "name": "Scharfzimbel 5 f.",
+      "manualID": 3,
+      "midiNote": 13
+    },
+    {
+      "stopID": 35,
+      "name": "Holzdulzian 16'",
+      "manualID": 3,
+      "midiNote": 14
+    },
+    {
+      "stopID": 36,
+      "name": "Cromorne 8'",
+      "manualID": 3,
+      "midiNote": 15
+    },
+    {
+      "stopID": 37,
+      "name": "Rohrschalmey 4'",
+      "manualID": 3,
+      "midiNote": 16
+    },
+    {
+      "stopID": 38,
+      "name": "IV-III",
+      "manualID": 3,
+      "midiNote": 17
+    },
+    {
+      "stopID": 39,
+      "name": "Tremulant",
+      "manualID": 3,
+      "midiNote": 18
+    },
+    {
+      "stopID": 40,
+      "name": "Glockenspiel",
+      "manualID": 3,
+      "midiNote": 19
+    },
+    {
+      "stopID": 41,
+      "name": "Super IV-II",
+      "manualID": 2,
+      "midiNote": 0
+    },
+    {
+      "stopID": 42,
+      "name": "Super II-II",
+      "manualID": 2,
+      "midiNote": 1
+    },
+    {
+      "stopID": 43,
+      "name": "Prinzipal 16'",
+      "manualID": 2,
+      "midiNote": 2
+    },
+    {
+      "stopID": 44,
+      "name": "Oktave 8'",
+      "manualID": 2,
+      "midiNote": 3
+    },
+    {
+      "stopID": 45,
+      "name": "Koppelflöte 8'",
+      "manualID": 2,
+      "midiNote": 4
+    },
+    {
+      "stopID": 46,
+      "name": "Viola di Gamba 8'",
+      "manualID": 2,
+      "midiNote": 5
+    },
+    {
+      "stopID": 47,
+      "name": "Oktave 4'",
+      "manualID": 2,
+      "midiNote": 6
+    },
+    {
+      "stopID": 48,
+      "name": "Spitzflöte 4'",
+      "manualID": 2,
+      "midiNote": 7
+    },
+    {
+      "stopID": 49,
+      "name": "Quinte 2⅔‘",
+      "manualID": 2,
+      "midiNote": 8
+    },
+    {
+      "stopID": 50,
+      "name": "Oktave 2'",
+      "manualID": 2,
+      "midiNote": 9
+    },
+    {
+      "stopID": 51,
+      "name": "Waldflöte 2'",
+      "manualID": 2,
+      "midiNote": 10
+    },
+    {
+      "stopID": 52,
+      "name": "Sub IV-II",
+      "manualID": 2,
+      "midiNote": 11
+    },
+    {
+      "stopID": 53,
+      "name": "Sub II-II",
+      "manualID": 2,
+      "midiNote": 12
+    },
+    {
+      "stopID": 54,
+      "name": "Mixtur 5-6 f.",
+      "manualID": 2,
+      "midiNote": 13
+    },
+    {
+      "stopID": 55,
+      "name": "Scharf 4 f.",
+      "manualID": 2,
+      "midiNote": 14
+    },
+    {
+      "stopID": 56,
+      "name": "Cornett 5 f.",
+      "manualID": 2,
+      "midiNote": 15
+    },
+    {
+      "stopID": 57,
+      "name": "Trompete 16'",
+      "manualID": 2,
+      "midiNote": 16
+    },
+    {
+      "stopID": 58,
+      "name": "Trompete 8'",
+      "manualID": 2,
+      "midiNote": 17
+    },
+    {
+      "stopID": 59,
+      "name": "Span. Regal 8'",
+      "manualID": 2,
+      "midiNote": 18
+    },
+    {
+      "stopID": 60,
+      "name": "IV-II",
+      "manualID": 2,
+      "midiNote": 19
+    },
+    {
+      "stopID": 61,
+      "name": "III-II",
+      "manualID": 2,
+      "midiNote": 20
+    },
+    {
+      "stopID": 62,
+      "name": "I-II",
+      "manualID": 2,
+      "midiNote": 21
+    },
+    {
+      "stopID": 63,
+      "name": "Zimbelstern 1",
+      "manualID": 1,
+      "midiNote": 0
+    },
+    {
+      "stopID": 64,
+      "name": "Zimbelstern 2",
+      "manualID": 1,
+      "midiNote": 1
+    },
+    {
+      "stopID": 65,
+      "name": "Kuckuck",
+      "manualID": 1,
+      "midiNote": 2
+    },
+    {
+      "stopID": 66,
+      "name": "Vogelschrei",
+      "manualID": 1,
+      "midiNote": 3
+    },
+    {
+      "stopID": 67,
+      "name": "Holzgedackt 8'",
+      "manualID": 1,
+      "midiNote": 4
+    },
+    {
+      "stopID": 68,
+      "name": "Quintatön 8'",
+      "manualID": 1,
+      "midiNote": 5
+    },
+    {
+      "stopID": 69,
+      "name": "Praestant 4'",
+      "manualID": 1,
+      "midiNote": 6
+    },
+    {
+      "stopID": 70,
+      "name": "Rohrflöte 4'",
+      "manualID": 1,
+      "midiNote": 7
+    },
+    {
+      "stopID": 71,
+      "name": "Oktave 2'",
+      "manualID": 1,
+      "midiNote": 8
+    },
+    {
+      "stopID": 72,
+      "name": "Blockflöte 2'",
+      "manualID": 1,
+      "midiNote": 9
+    },
+    {
+      "stopID": 73,
+      "name": "Oktave 1'",
+      "manualID": 1,
+      "midiNote": 10
+    },
+    {
+      "stopID": 74,
+      "name": "Terzian 2 f.",
+      "manualID": 1,
+      "midiNote": 11
+    },
+    {
+      "stopID": 75,
+      "name": "Zimbel 3 f.",
+      "manualID": 1,
+      "midiNote": 12
+    },
+    {
+      "stopID": 76,
+      "name": "Vox humanav 8'",
+      "manualID": 1,
+      "midiNote": 13
+    },
+    {
+      "stopID": 77,
+      "name": "Tremulant 8'",
+      "manualID": 1,
+      "midiNote": 14
+    },
+    {
+      "stopID": 78,
+      "name": "Prinzipal 16'",
+      "manualID": 8,
+      "midiNote": 0
+    },
+    {
+      "stopID": 79,
+      "name": "Subbaß 16'",
+      "manualID": 8,
+      "midiNote": 1
+    },
+    {
+      "stopID": 80,
+      "name": "Zartbaß 16'",
+      "manualID": 8,
+      "midiNote": 2
+    },
+    {
+      "stopID": 81,
+      "name": "Quinte 10 ⅔‘",
+      "manualID": 8,
+      "midiNote": 3
+    },
+    {
+      "stopID": 82,
+      "name": "Oktavbaß 8'",
+      "manualID": 8,
+      "midiNote": 4
+    },
+    {
+      "stopID": 83,
+      "name": "Holzflöte 8'",
+      "manualID": 8,
+      "midiNote": 5
+    },
+    {
+      "stopID": 84,
+      "name": "Choralbaß 4'",
+      "manualID": 8,
+      "midiNote": 6
+    },
+    {
+      "stopID": 85,
+      "name": "Koppelflöte 4'",
+      "manualID": 8,
+      "midiNote": 7
+    },
+    {
+      "stopID": 86,
+      "name": "Nachthorn 2'",
+      "manualID": 8,
+      "midiNote": 8
+    },
+    {
+      "stopID": 87,
+      "name": "Hintersatz 4 f.",
+      "manualID": 8,
+      "midiNote": 9
+    },
+    {
+      "stopID": 88,
+      "name": "Pedalmixtur 6 f.",
+      "manualID": 8,
+      "midiNote": 10
+    },
+    {
+      "stopID": 89,
+      "name": "Super IV-P",
+      "manualID": 8,
+      "midiNote": 11
+    },
+    {
+      "stopID": 90,
+      "name": "Kontrafagott 32'",
+      "manualID": 8,
+      "midiNote": 12
+    },
+    {
+      "stopID": 91,
+      "name": "Posaune 16'",
+      "manualID": 8,
+      "midiNote": 13
+    },
+    {
+      "stopID": 92,
+      "name": "Dulzian 16'",
+      "manualID": 8,
+      "midiNote": 14
+    },
+    {
+      "stopID": 93,
+      "name": "Trompete 8'",
+      "manualID": 8,
+      "midiNote": 15
+    },
+    {
+      "stopID": 94,
+      "name": "Feldtrompete 4'",
+      "manualID": 8,
+      "midiNote": 16
+    },
+    {
+      "stopID": 95,
+      "name": "Singend Kornett 2'",
+      "manualID": 8,
+      "midiNote": 17
+    },
+    {
+      "stopID": 96,
+      "name": "IV-P",
+      "manualID": 8,
+      "midiNote": 18
+    },
+    {
+      "stopID": 97,
+      "name": "III-P",
+      "manualID": 8,
+      "midiNote": 19
+    },
+    {
+      "stopID": 98,
+      "name": "II-P",
+      "manualID": 8,
+      "midiNote": 20
+    },
+    {
+      "stopID": 99,
+      "name": "I-P",
+      "manualID": 8,
+      "midiNote": 21
+    },
+    {
+      "stopID": 100,
+      "name": "Tremulant Kleinpedal",
+      "manualID": 8,
+      "midiNote": 22
+    }
+  ],
+  "controls": [
+    {
+      "controlID": 1,
+      "name": "Schweller",
+      "type": "wheel",
+      "manual": 4,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 9
+    },
+    {
+      "controlID": 2,
+      "name": "Winddrossel",
+      "type": "wheel",
+      "manual": 0,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 10
+    },
+    {
+      "controlID": 3,
+      "name": "Tremulant 1",
+      "type": "wheel",
+      "manual": 1,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 11
+    },
+    {
+      "controlID": 4,
+      "name": "Tremulant 2",
+      "type": "wheel",
+      "manual": 2,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 12
+    },
+    {
+      "controlID": 5,
+      "name": "Tremulant 3",
+      "type": "wheel",
+      "manual": 3,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 13
+    },
+    {
+      "controlID": 6,
+      "name": "Tremulant 4",
+      "type": "wheel",
+      "manual": 4,
+      "channel": 11,
+      "msg": "CC",
+      "nr": 14
+    },
+    {
+      "controlID": 7,
+      "name": "PANIC 1: All Notes Off",
+      "type": "button",
+      "manual": 1,
+      "channel": 1,
+      "msg": "CC",
+      "nr": 123
+    },
+    {
+      "controlID": 8,
+      "name": "PANIC 2: All Notes Off",
+      "type": "button",
+      "manual": 2,
+      "channel": 2,
+      "msg": "CC",
+      "nr": 123
+    },
+    {
+      "controlID": 9,
+      "name": "PANIC 3: All Notes Off",
+      "type": "button",
+      "manual": 3,
+      "channel": 3,
+      "msg": "CC",
+      "nr": 123
+    },
+    {
+      "controlID": 10,
+      "name": "PANIC 4: All Notes Off",
+      "type": "button",
+      "manual": 4,
+      "channel": 4,
+      "msg": "CC",
+      "nr": 123
+    },
+    {
+      "controlID": 11,
+      "name": "PANIC 8: All Notes Off",
+      "type": "button",
+      "manual": 8,
+      "channel": 8,
+      "msg": "CC",
+      "nr": 123
+    },
+    {
+      "controlID": 12,
+      "name": "GLOBAL PANIC: All Notes and Stops Off",
+      "type": "button",
+      "manual": 0,
+      "channel": 0,
+      "msg": "CC",
+      "nr": 120
+    }
+  ]
+}

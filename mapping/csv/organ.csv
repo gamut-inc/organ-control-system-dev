@@ -1,0 +1,6 @@
+key,value
+name,Grosse Orgel
+stopSystem,note
+outputFormat,raw
+panicMethod,cc123
+stopChannelBase,11
