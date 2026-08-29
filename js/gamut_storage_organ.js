@@ -51,6 +51,10 @@
 //         recallCurrent / recallNext / recallPrevious walk the STORED slots, so
 //         gaps in the numbering do not matter.  They stop at the ends rather than
 //         wrapping: a stage button should run out, not jump back to the opening.
+// 00.15 - clearCurrentPrompt(): deletes the preset in play, naming it in the prompt.
+//         clearAllPrompt() asks twice — the first prompt can be dismissed by reflex.
+//         After a delete, "current" takes the place of what was removed instead of
+//         collapsing to nothing, so next/previous carry on from the same spot.
 // 29.08.2026
 //
 // PATCHER SETUP (add once):
@@ -468,14 +472,30 @@ exports.deletePreset = function(presetNr) {
     presetNr = Number(presetNr);
     if (isNaN(presetNr)) return;
 
+    // Where the deleted one sat, so "current" can take its place rather than
+    // collapsing to nothing — next/previous keep working from the same spot.
+    var before = readIndex();
+    var wasAt  = -1;
+    for (var i = 0; i < before.length; i++) {
+        if (before[i].nr === presetNr) { wasAt = i; break; }
+    }
+
     removeSlot(presetNr);
     var slots = readIndex().filter(function(s) { return s.nr !== presetNr; });
     writeIndex(slots);
 
+    if (_current === presetNr) {
+        if (!slots.length)            _current = null;
+        else if (wasAt < slots.length) _current = slots[wasAt].nr;   // the one that moved up
+        else                           _current = slots[slots.length - 1].nr;
+        if (_current !== null) highlightMenu(_current);
+    }
+
     persist();
     clearChain(presetNr);
     updateMenu();
-    say("gamut_storage_organ: deleted preset " + presetNr + "\n");
+    say("gamut_storage_organ: deleted preset " + presetNr +
+        (_current !== null ? " (current is now " + _current + ")" : "") + "\n");
 };
 
 exports.deleteAll = function() {
@@ -485,6 +505,7 @@ exports.deleteAll = function() {
         clearChain(slots[i].nr);
     }
     writeIndex([]);
+    _current = null;
     persist();
     updateMenu();
     say("gamut_storage_organ: all presets deleted\n");
@@ -718,7 +739,24 @@ exports.fromDialog = function() {
         return;
     }
 
-    if (stage === "clearall") {
+    if (stage === "clearone") {
+        var victim = _pending.nr;
+        _pending = null;
+        exports.deletePreset(victim);
+        return;
+    }
+
+    if (stage === "clearall1") {                 // asked once, ask again
+        var count = _pending.count;
+        _pending = { stage: "clearall2" };
+        if (!openDialog(2, "Wirklich? Alle " + count + " Presets sind dann weg.\n" +
+                           "Das lässt sich nicht rückgängig machen.", "")) {
+            _pending = null;
+        }
+        return;
+    }
+
+    if (stage === "clearall2") {
         _pending = null;
         exports.deleteAll();
         return;
@@ -804,7 +842,24 @@ function doMove(fromNr, toNr) {
 }
 
 /**
- * clearAllPrompt — wipe the whole bank, but say how much is at stake first.
+ * clearCurrentPrompt — delete the preset in play, after naming it.
+ */
+exports.clearCurrentPrompt = function() {
+    if (_current === null) {
+        say("gamut_storage_organ: no current preset to clear\n");
+        return;
+    }
+    var name = dictStr(_dataDict, "slot_" + _current + "_name") || ("Preset " + _current);
+    _pending = { stage: "clearone", nr: _current };
+    if (!openDialog(2, "Preset " + _current + ": \"" + name + "\"\nlöschen?", "")) {
+        _pending = null;
+        post("gamut_storage_organ: clear needs the dialog object — nothing deleted\n");
+    }
+};
+
+/**
+ * clearAllPrompt — wipe the whole bank.  Asked twice: the first prompt can be
+ * dismissed by reflex, the second one cannot.
  */
 exports.clearAllPrompt = function() {
     var n = readIndex().length;
@@ -812,8 +867,8 @@ exports.clearAllPrompt = function() {
         say("gamut_storage_organ: nothing to clear\n");
         return;
     }
-    _pending = { stage: "clearall" };
-    if (!openDialog(2, "Alle " + n + " Presets löschen?\nDas lässt sich nicht rückgängig machen.", "")) {
+    _pending = { stage: "clearall1", count: n };
+    if (!openDialog(2, "Alle " + n + " Presets löschen?", "")) {
         _pending = null;
         post("gamut_storage_organ: clearAll needs the dialog object — not cleared\n");
     }
@@ -913,4 +968,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.14 loaded\n");
+post("gamut_storage_organ.js v00.15 loaded\n");

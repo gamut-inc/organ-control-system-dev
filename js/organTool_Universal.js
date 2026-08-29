@@ -818,11 +818,12 @@ function presetStorePrompt(presetNr) {
 }
 
 // Move a preset to another slot, keeping its name.  Asks before overwriting.
-//   [message presetMove 3 7]      both slots given
-//   [message presetMovePrompt]    asks which preset, then where to
+//   [message presetMove]          asks which preset, then where to  ← button
+//   [message presetMove 3 7]      both slots given outright
 function presetMove(fromNr, toNr) {
-    if (organStorage) organStorage.movePreset(Number(fromNr), Number(toNr));
-    else post("presetMove: organStorage not initialized\n");
+    if (!organStorage) { post("presetMove: organStorage not initialized\n"); return; }
+    if (fromNr === undefined || toNr === undefined) organStorage.movePrompt();
+    else organStorage.movePreset(Number(fromNr), Number(toNr));
 }
 
 function presetMovePrompt() {
@@ -848,7 +849,14 @@ function presetPrevious() {
     else post("presetPrevious: organStorage not initialized\n");
 }
 
-// Wipe the whole bank after confirming.
+// Delete the preset in play, after naming it in the prompt.
+//   [message presetClearCurrent]
+function presetClearCurrent() {
+    if (organStorage) organStorage.clearCurrentPrompt();
+    else post("presetClearCurrent: organStorage not initialized\n");
+}
+
+// Wipe the whole bank.  Asks twice — the first prompt can be dismissed by reflex.
 //   [message presetClearAll]
 function presetClearAll() {
     if (organStorage) organStorage.clearAllPrompt();
