@@ -172,7 +172,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         btnH:        20,
         btnGap:       5,    // vertical gap between the stacked buttons
         headerY:      4,    // organ name label — everything starts as high as it can
-        globalPanicY: 4,    // global PANIC sits beside the title, not under it
+        headerH:     24,    // the title's own row
+        globalPanicY: 0,    // filled in below: the buttons sit under the title
         headerGap:    6,    // header bottom → first manual
         manualGap:    8,
         // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
@@ -183,7 +184,6 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         col1W:       90,
         labelH:      28,
         labelMax:    14,    // name budget after the "M4 " prefix, so only "(chN)" wraps
-        titleInset:   4,    // comment widgets inset their text; pull the title back
         // Couplers sit apart from the registers, in their own trailing column
         couplerGap:   4,
         stopPadTop:   4,    // small breathing room above the first stop …
@@ -201,9 +201,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         ctrlNameMax: 12,    // "Winddrossel" (11) must survive whole
         stopLabelMax: 18    // characters that fit a stop button at fontsize 10
     };
-    // Header rows, all of column 2 starting at the same x: title, preset menu, dials
+    // The organ name shares the manuals' left edge, so the whole window reads down
+    // one line.  The global buttons drop below it; column 2 carries the preset menu
+    // and the global dials.
+    LAYOUT.globalPanicY  = LAYOUT.headerY + LAYOUT.headerH;
     LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
-    LAYOUT.presetMenuY   = LAYOUT.headerY + 24;
+    LAYOUT.presetMenuY   = LAYOUT.globalPanicY;
     LAYOUT.presetMenuW   = 170;
     LAYOUT.globalDialY   = LAYOUT.presetMenuY + LAYOUT.btnH + LAYOUT.btnGap;
     // Inside a manual the buttons line up with the SECOND controller row, so the
@@ -714,7 +717,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
     function clearGUI() {
         if (context.patcher) {
-            common.clearGUIObjects(context.patcher, ["organ_name_display", "preset_menu"]);
+            common.clearGUIObjects(context.patcher, ["organ_name_display", "preset_menu", "presetControl", "organ_dialog"]);
         }
         cleanupAllListeners();
         guiObjects = {};
@@ -764,10 +767,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Global buttons share the x of the per-manual buttons (manual bpatcher x + inner offset)
         var gx = LAYOUT.manualX + LAYOUT.btnX;
 
-        // Title starts at the controller column.  A comment insets its text, so pull
-        // the box back by that much to make the glyphs line up with the dials below.
-        var label = common.createLiveComment(p, LAYOUT.col1W - LAYOUT.titleInset, LAYOUT.headerY,
-            220, 22, "organNameLabel", organName, 30, 14);
+        // The organ name sits on the manuals' own left edge.  Both are comments, so
+        // matching the box x also matches the glyphs — no inset correction needed.
+        var label = common.createLiveComment(p, LAYOUT.manualX + LAYOUT.btnX, LAYOUT.headerY,
+            260, 22, "organNameLabel", organName, 40, 14);
 
         var panic = createActionButton(p, gx, LAYOUT.globalPanicY, "panic_all", "PANIC",
             fs.large, true, function() { executePanic(null); });
@@ -1447,4 +1450,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.09 - wider controller dials; note control via organNote\n");
+post("organTool_MIDI.js v00.10 - title on the manual edge; preset controls survive clearGUI\n");

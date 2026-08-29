@@ -425,7 +425,13 @@ function clearGUIObjects(patcher, keepObjects) {
             obj.varname === "fileControl" ||
             obj.varname === "soloSafe" ||
             obj.varname === "messageDisplay" ||
-            (obj.varname && obj.varname.startsWith("ignore"));
+            (obj.varname && obj.varname.startsWith("ignore")) ||
+            // The preset system's own controls (presetControl, preset_menu,
+            // presetMenuSelect …) share this patcher but are not part of the organ
+            // GUI — rebuilding the organ must not take them with it.
+            (obj.varname && obj.varname.startsWith("preset")) ||
+            obj.varname === "organ_dialog" ||
+            obj.varname === "gamut_preset_bank";
 
             if (!shouldKeep && obj.varname) {
                 objectsToRemove.push(obj);

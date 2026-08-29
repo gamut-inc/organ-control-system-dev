@@ -313,7 +313,7 @@ function createSINUAModuleWithDI(common, dataLayer, context) {
         }
 
         if (context.patcher) {
-            common.clearGUIObjects(context.patcher, ["organ_name_display", "preset_menu"]);
+            common.clearGUIObjects(context.patcher, ["organ_name_display", "preset_menu", "presetControl", "organ_dialog"]);
         }
 
         cleanupAllListeners();
