@@ -1004,6 +1004,38 @@ function readClipNotesAbsolute(entry) {
     return out;
 }
 
+// Put back the part of a cut-up clip that lies outside the loop, as its own clip.
+// Notes crossing the boundary are trimmed to it — that is what cutting a range means;
+// a note is not moved or dropped, only shortened to what still fits.
+// Returns how many notes survived, so the report can say what was kept.
+function notesInWindow(notes, from, to) {
+    var out = [];
+    notes.forEach(function(n) {
+        var noteEnd = n.start + n.duration;
+        var a = Math.max(n.start, from);
+        var b = Math.min(noteEnd, to);
+        if (b <= a) return;                       // nothing of this note is in here
+        out.push({
+            pitch:    n.pitch,
+            start:    a - from,                   // relative to the window's own origin
+            duration: b - a,
+            velocity: n.velocity,
+            mute:     n.mute
+        });
+    });
+    return out;
+}
+
+function rebuildRemnant(from, to, notes) {
+    var inWindow = notesInWindow(notes, from, to);
+    if (!inWindow.length) return 0;
+
+    var remnant = createArrangementClip(from, to - from);
+    if (!remnant) return 0;
+    fillClipWithNotes(remnant, [], 0, 0, inWindow);
+    return inWindow.length;
+}
+
 function deleteArrangementClip(clip) {
     try {
         var track = new LiveAPI(null, "this_device canonical_parent");
@@ -1020,15 +1052,20 @@ function registrationClip() {
         return;
     }
 
-    // Keywords in any order: session | arrangement, output | device, merge | new
-    var where = "arrangement", modeArg = null, merge = true;
+    // Keywords in any order: session | arrangement, output | device,
+    // merge | replace | new
+    //   merge    fuse the loop and everything it touches into one clip (default)
+    //   replace  cut the loop range out of what is there and set the clip into the
+    //            gap; what lies outside the loop stays, as its own clip
+    //   new      just make a clip and let Live sort out the overlap
+    var where = "arrangement", modeArg = null, how = "merge";
     Array.prototype.slice.call(arguments).forEach(function(a) {
         a = String(a).toLowerCase();
-        if      (a === "session" || a === "arrangement") where   = a;
-        else if (a === "output"  || a === "device")      modeArg = a;
-        else if (a === "merge")                          merge   = true;
-        else if (a === "new")                            merge   = false;
+        if      (a === "session" || a === "arrangement")          where   = a;
+        else if (a === "output"  || a === "device")               modeArg = a;
+        else if (a === "merge" || a === "replace" || a === "new") how     = a;
     });
+    var merge = (how === "merge");
 
     // Which reading of "the notes" is available for this organ
     var system_ = (typeof system.organModule.getStopSystem === "function")
@@ -1073,7 +1110,24 @@ function registrationClip() {
         // across the entire selection, and writing into just the first overlapping
         // clip left every gap between clips empty and stopped at that clip's end.
         var carried = [];
-        if (merge && where === "arrangement") {
+        if (how === "replace" && where === "arrangement") {
+            var selEnd = sel.start + sel.length;
+            var hit    = clipsOverlapping(sel.start, sel.length);
+            var kept   = 0;
+
+            hit.forEach(function(f) {
+                // Read before deleting: what lies outside the loop has to come back
+                var old = readClipNotesAbsolute(f);
+                deleteArrangementClip(f.clip);
+                if (f.start < sel.start) kept += rebuildRemnant(f.start, sel.start, old);
+                if (f.end   > selEnd)    kept += rebuildRemnant(selEnd,   f.end,    old);
+            });
+
+            clip      = createArrangementClip(sel.start, sel.length);
+            noteStart = 0;
+            into      = "the loop, cut out of " + hit.length + " clip(s)" +
+                        (kept ? " (" + kept + " note(s) kept outside it)" : "");
+        } else if (merge && where === "arrangement") {
             var found = clipsOverlapping(sel.start, sel.length);
             if (found.length) {
                 // The new clip spans the loop AND every clip it touches — a clip
