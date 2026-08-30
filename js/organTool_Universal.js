@@ -800,27 +800,23 @@ function presetGuard(on) {
 // Sending it as an argument rather than as module state keeps the tracks independent:
 // two tracks can address different ranges at the same time without racing each other.
 
-// ---- Stop-offs are deferred, so a transport stop cannot cancel a registration ----
+// ---- Stop-offs: untouched by default ----------------------------------------------
 //
-// note-off means stop-off — that is the honest reading and it stays.  The trouble is
-// only that Live also sends note-offs when the transport stops, and those say
-// nothing about the music.
+// A note-off turns its stop off, immediately, exactly as it arrives.  Nothing is
+// buffered, reordered or second-guessed.
 //
-// So a stop-off waits OFF_DEFER_MS before it is acted on.  If the transport stops
-// inside that window, the queued offs are thrown away: they were the transport's
-// doing, not the score's, and the organ is never told.  Nothing has to be repaired
-// afterwards, so there is no audible click and no chance of the GUI and the console
-// disagreeing.  Stop-ONs are never delayed.
+// The machinery below can hold stop-offs back for a moment and discard the ones a
+// transport stop caused, which keeps a registration standing when playback halts.
+// It is OFF, because a delay between the note and the stop moving is the kind of
+// thing that feels broken even when it is working as designed.  Turn it on with
 //
-// A jump works out on its own: it sends offs for the old notes and ons for the new
-// ones, and an incoming ON removes that stop from the off queue — so a stop present
-// on both sides of the jump simply stays drawn, instead of being switched off by an
-// off that was queued before it.
+//   [message organOffDefer 50]     hold stop-offs 50ms, drop the ones a stop caused
+//   [message organOffDefer 0]      back to untouched (the default)
 //
-//   [message organOffDefer 0]   act on stop-offs immediately again
+// While it is on, an incoming ON removes that stop from the queue, so a jump — offs
+// for the old notes, ons for the new — cannot switch off a stop that both sides share.
 
-var OFF_DEFER_MS   = 50;
-var _offDefer      = OFF_DEFER_MS;
+var _offDefer      = 0;         // 0 = pass stop-offs straight through
 var _pendingOffs   = {};        // stopID → queued, waiting out the window
 var _offTask       = null;      // module-level: a local Task can be collected before it fires
 var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
@@ -828,7 +824,13 @@ var _wasPlaying    = 0;
 
 function organOffDefer(ms) {
     _offDefer = Math.max(0, Number(ms) || 0);
-    post("Stop-offs " + (_offDefer ? ("deferred by " + _offDefer + "ms") : "act immediately") + "\n");
+    if (_offDefer) {
+        if (!_transportAPI) watchTransport();   // only needed while offs are held back
+        post("Stop-offs held " + _offDefer + "ms; the ones a transport stop causes are dropped\n");
+    } else {
+        dropPendingOffs("deferral off");
+        post("Stop-offs act immediately\n");
+    }
 }
 
 function setStop(stopID, on) {
@@ -855,7 +857,7 @@ function dropPendingOffs(why) {
     var n = Object.keys(_pendingOffs).length;
     _pendingOffs = {};
     if (_offTask) { try { _offTask.cancel(); } catch(e) {} }
-    if (n) post("Transport " + why + " — kept " + n + " stop(s) that the stop would have cancelled\n");
+    if (n) post("Transport " + why + " — kept " + n + " stop(s) it would have cancelled\n");
 }
 
 function onTransportChange() {
@@ -1031,11 +1033,10 @@ function registrationClip() {
     // Which reading of "the notes" is available for this organ
     var system_ = (typeof system.organModule.getStopSystem === "function")
         ? system.organModule.getStopSystem() : "note";
-    // Device-facing notes by default.  They pass through organNote, which defers
-    // stop-offs and drops the ones a transport stop caused, so halting playback
-    // leaves the registration standing.  "output" writes the organ's own addresses
-    // instead: playable without this device in the chain, but then nothing sits
-    // between Live and the organ, and a transport stop takes the stops with it.
+    // Device-facing notes by default: they pass through organNote, so the clip plays
+    // on any console this tool can drive — cc, two-CC, program changes, sysex.
+    // "output" writes the organ's own addresses instead, which plays without this
+    // device in the chain but only exists for a note-driven organ.
     var mode = modeArg || "device";
     if (mode === "output" && system_ !== "note") {
         post("registrationClip: this organ drives stops by \"" + system_ + "\", which a MIDI " +
@@ -1436,8 +1437,6 @@ if (!initializeSystem()) {
         }
         // Follow the track's MIDI output routing once Live has settled
         watchTrackOutput();
-        // …and the transport, so stopping cannot cancel a registration
-        watchTransport();
     });
     autoReloadTask.schedule(400);
 }
