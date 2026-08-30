@@ -387,9 +387,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     }
 
     function emitSysex(bytes) {
-        if      (organState.outputFormat === "raw")    outlet.apply(null, [0].concat(bytes));
-        else if (organState.outputFormat === "tagged") outlet.apply(null, [0, "midi", "sysex"].concat(bytes));
-        else                                           outlet.apply(null, [0, "sysex"].concat(bytes));
+        // An array reaches Max as a list, which avoids Function.prototype.apply on
+        // outlet — a native binding, and going through apply was found to send
+        // nothing at all.
+        if      (organState.outputFormat === "raw")    outlet(0, bytes);
+        else if (organState.outputFormat === "tagged") outlet(0, "midi", "sysex", bytes);
+        else                                           outlet(0, "sysex", bytes);
     }
 
     // Send whatever a control definition describes, with an explicit value.

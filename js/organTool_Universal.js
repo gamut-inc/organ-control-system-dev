@@ -695,9 +695,16 @@ function statusOutlet(which) {
 }
 
 // Every status message goes through here, so one switch moves all of them.
-function statusOut() {
-    var args = Array.prototype.slice.call(arguments);
-    outlet.apply(null, [_statusOutlet].concat(args));
+//
+// Called plainly, never through Function.prototype.apply: outlet is a native
+// binding Max provides, and outlet.apply(null, …) silently sent nothing — which is
+// why outletTest (a direct call) arrived while renameChain, routed through a helper
+// that used apply, did not.
+function statusOut(a, b, c, d) {
+    if      (d !== undefined) outlet(_statusOutlet, a, b, c, d);
+    else if (c !== undefined) outlet(_statusOutlet, a, b, c);
+    else if (b !== undefined) outlet(_statusOutlet, a, b);
+    else                      outlet(_statusOutlet, a);
 }
 
 // ================================================================================================
