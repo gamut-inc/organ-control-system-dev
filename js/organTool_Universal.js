@@ -958,12 +958,19 @@ function probeSelection() {
         }
     });
 
-    // And the values the loop brace currently reports, for comparison
+    // The values themselves, for comparison.  start_time is the interesting one:
+    // Live 12 publishes no selection bounds (play_selection proves it knows the
+    // selection, but only as an action), so if start_time tracks where the selection
+    // begins, that is the closest thing to a cursor the LOM offers.
+    // Move the insert marker, run this again, and see whether it follows.
     try {
         var song = new LiveAPI(null, "live_set");
-        post("loop_start = " + song.get("loop_start") +
-             "   loop_length = " + song.get("loop_length") +
-             "   current_song_time = " + song.get("current_song_time") + "\n");
+        post("start_time = "         + song.get("start_time") +
+             "   current_song_time = " + song.get("current_song_time") +
+             "   last_event_time = "  + song.get("last_event_time") + "\n");
+        post("loop_start = "         + song.get("loop_start") +
+             "   loop_length = "     + song.get("loop_length") +
+             "   loop = "            + song.get("loop") + "\n");
     } catch (e) { /* not in Live */ }
 }
 
