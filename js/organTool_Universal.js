@@ -1106,7 +1106,18 @@ function deleteArrangementClip(clip) {
 // ================================================================================================
 // MIDI EFFECT RACK — name the chains after the loaded organ
 // ================================================================================================
-//   [message rackChainNames]  →  outlet 1  →  [route renameChain] → the rack builder
+//   [message rackChainNames]  →  outlet 1  →  the rack builder
+//
+// WIRING outlet 1.  Route only what has to lose its selector; route's rightmost
+// outlet passes everything else through UNCHANGED, selector included, so
+// renameChain reaches the rack whole and needs no prepend to put it back:
+//
+//   outlet 1 ──> [route port preset]
+//                  ├ port   -> [prepend port] -> [multichanmidiout]   (port is stripped
+//                  │                                by route, and multichanmidiout
+//                  │                                needs to see the word)
+//                  ├ preset -> display / number boxes
+//                  └ reject -> the rack bpatcher   ("renameChain 0 PRESET 0")
 //
 // One "renameChain <id> <name> <colour>" per chain, in the format the rack patch
 // already speaks:
@@ -1134,8 +1145,8 @@ function rackChainNames() {
     }
     var names = system.organModule.getRackChainNames();
 
-    // One message per chain, out of the STATUS outlet:
-    //   [route renameChain] → the rack builder
+    // One message per chain, out of the STATUS outlet.  See the wiring note above:
+    // let these fall through route's reject outlet so the selector survives.
     //
     // Not a dict: the rack's own dict is named with #0/#1 so several devices can
     // coexist in one session, and a fixed name from here could never address it.
