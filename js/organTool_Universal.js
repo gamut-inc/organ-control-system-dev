@@ -152,7 +152,7 @@ function initializeSystem() {
             organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
             // Status outlet: "preset <nr> <name>" whenever the current preset changes
             organStorage.setStatusHandler(function(nr, name) {
-                statusOut("preset", nr, name || "");
+                outlet(1, "preset", nr, name || "");
             });
         }
 
@@ -667,45 +667,19 @@ function resetSystem() {
 }
 
 // ================================================================================================
-// WHERE THE STATUS MESSAGES LEAVE
+// OUTLET 1 — port, renameChain, preset
 // ================================================================================================
-// port, renameChain and preset normally go out outlet 1.  outlets = 2 is only read
-// when the object is INSTANTIATED, so an object placed before the second outlet
-// existed still has one, and outlet(1, …) then goes nowhere without complaining.
+// Wire it by routing only what has to lose its selector; route's rightmost outlet
+// passes everything else through unchanged, so renameChain reaches the rack whole:
 //
-//   [message statusOutlet 0]   send them out outlet 0 instead — works with one outlet
-//   [message statusOutlet 1]   back to the dedicated outlet (the default)
+//   outlet 1 ──> [route port preset]
+//                  ├ port   -> [prepend port] -> [multichanmidiout]
+//                  ├ preset -> display / number boxes
+//                  └ reject -> the rack bpatcher   ("renameChain 0 PRESET 0")
 //
-// With statusOutlet 0 everything shares one outlet, so peel the named messages off
-// before the MIDI reaches multichanmidiout.  Raw MIDI starts with a number, matches
-// no selector, and falls out of route's reject outlet untouched:
-//
-//   outlet 0 ──> [route port renameChain preset]
-//                  ├ port         -> [prepend port] -> [multichanmidiout]
-//                  ├ renameChain  -> [prepend renameChain] -> the rack bpatcher
-//                  ├ preset       -> display
-//                  └ reject       -> [multichanmidiout]      (the notes themselves)
-
-var _statusOutlet = 1;
-
-function statusOutlet(which) {
-    _statusOutlet = (Number(which) === 0) ? 0 : 1;
-    post("Status messages (port / renameChain / preset) now leave by outlet " +
-         _statusOutlet + "\n");
-}
-
-// Every status message goes through here, so one switch moves all of them.
-//
-// Called plainly, never through Function.prototype.apply: outlet is a native
-// binding Max provides, and outlet.apply(null, …) silently sent nothing — which is
-// why outletTest (a direct call) arrived while renameChain, routed through a helper
-// that used apply, did not.
-function statusOut(a, b, c, d) {
-    if      (d !== undefined) outlet(_statusOutlet, a, b, c, d);
-    else if (c !== undefined) outlet(_statusOutlet, a, b, c);
-    else if (b !== undefined) outlet(_statusOutlet, a, b);
-    else                      outlet(_statusOutlet, a);
-}
+// Call outlet directly, never through Function.prototype.apply: it is a native
+// binding Max provides, and going through apply sends nothing at all — that cost a
+// long hunt once already.
 
 // ================================================================================================
 // CONSOLE VERBOSITY — [message debug 0] / [message debug 1], or [toggle] → [prepend debug]
@@ -776,7 +750,7 @@ function sendTrackPort() {
         // NOT outlet 0: that one feeds multichanmidiout AND udpsend, and udpsend's
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
-        statusOut("port", port);
+        outlet(1, "port", port);
     }
 }
 
@@ -1192,10 +1166,10 @@ function rackChainNames() {
     // Not a dict: the rack's own dict is named with #0/#1 so several devices can
     // coexist in one session, and a fixed name from here could never address it.
     names.forEach(function(c) {
-        statusOut("renameChain", c.id, c.name, 0);
+        outlet(1, "renameChain", c.id, c.name, 0);
     });
 
-    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet " + _statusOutlet + " " +
+    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet 1 " +
          "(first: 0 \"" + names[0].name + "\", last: " + names[names.length-1].id +
          " \"" + names[names.length-1].name + "\")\n");
 }
