@@ -774,7 +774,12 @@ function sendTrackPort() {
     post("Track MIDI out — port: " + port + "   channel: " + chan +
          (_routingValid ? "" : "   (not a port name yet — Live API not ready)") + "\n");
 
+    // Two observers (type and channel) both fire on a change, and the retries add
+    // more calls on top — without this the same port is announced half a dozen times
+    // and multichanmidiout re-lists and re-connects each time.
+    if (_routingValid && port === _lastPortSent) return;
     if (_routingValid) {
+        _lastPortSent = port;
         // multichanmidiout matches against a list it only builds on request
         sendStatus("ports");
     }
@@ -822,6 +827,7 @@ function findNamedAroundHere(name) {
 }
 
 function watchTrackOutput() {
+    if (_watching) { sendTrackPort(); return; }   // already installed; just re-read
     try {
         // Observers must be module-level, or Max collects them and the callback
         // silently stops firing — the same trap as the suppression Task.
@@ -833,11 +839,12 @@ function watchTrackOutput() {
             _routingAPIs.push(api);
         });
         sendTrackPort();                  // and once now, for the initial state
+        _watching = _routingValid;        // only count as installed once it answered
 
         // Opening a set, the track routing is often not restored at this point, and
         // the observer does not fire for a value that was already there.  Ask again
         // a couple of times; re-sending the same port is harmless.
-        _portRetries = [];
+        if (_portRetries.length) return;   // retries already pending
         [1500, 4000].forEach(function(ms) {
             // Rebuild rather than re-read: an observer created before the Live API
             // was up stays invalid, and reading it again only repeats the bad answer.
@@ -923,6 +930,8 @@ var _offTask       = null;      // module-level: a local Task can be collected b
 var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
 var _portRetries   = [];        // startup re-checks of the track routing, kept alive
 var _routingValid  = false;     // did the observers come up against a live API?
+var _lastPortSent  = null;      // only announce a port that actually changed
+var _watching      = false;     // observers already installed and valid
 var _wasPlaying    = 0;
 
 function organOffDefer(ms) {

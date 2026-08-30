@@ -1142,4 +1142,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.15 loaded\n");
+post("gamut_storage_organ.js v00.17 loaded\n");
