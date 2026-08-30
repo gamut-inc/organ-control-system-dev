@@ -1083,10 +1083,14 @@ function rackChainNames() {
 
     // 1. Into a dict the rack builder can read directly — no patch cord involved.
     //    Same shape the hand-built one uses: chains: { "1": [id, name, colour] }.
+    var inDict = -1;
     try {
         var spec = { chains: {} };
         names.forEach(function(c) { spec.chains[c.id] = [c.id, c.name, 0]; });
         _rackDict.parse(JSON.stringify(spec));
+        // Read it straight back: "the dict was filled" should be a fact, not a hope
+        var probe = _rackDict.get("chains::0");
+        inDict = (probe && String(probe) !== "(undefined)") ? names.length : 0;
     } catch (e) {
         post("rackChainNames: could not fill the dict (" + e.message + ")\n");
     }
@@ -1096,8 +1100,10 @@ function rackChainNames() {
         outlet(1, "renameChain", c.id, c.name, 0);
     });
 
-    post("rackChainNames: " + names.length + " chain name(s) → dict \"gamut_rack_chains\" " +
-         "and out of OUTLET 1 (the right-hand one)\n");
+    post("rackChainNames: " + names.length + " chain name(s) sent out OUTLET 1; dict " +
+         "\"gamut_rack_chains\" " +
+         (inDict > 0 ? ("holds them (chains::0 = " + _rackDict.get("chains::0") + ")")
+                     : (inDict === 0 ? "came back EMPTY" : "could not be read back")) + "\n");
 }
 
 // One message per mode, so a button can carry the mode in its own name instead of
