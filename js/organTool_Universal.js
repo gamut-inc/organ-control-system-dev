@@ -152,7 +152,7 @@ function initializeSystem() {
             organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
             // Status outlet: "preset <nr> <name>" whenever the current preset changes
             organStorage.setStatusHandler(function(nr, name) {
-                outlet(1, "preset", nr, name || "");
+                sendStatus("preset", nr, name || "");
             });
         }
 
@@ -680,6 +680,28 @@ function resetSystem() {
 // Call outlet directly, never through Function.prototype.apply: it is a native
 // binding Max provides, and going through apply sends nothing at all — that cost a
 // long hunt once already.
+//
+// Everything is ALSO sent to [receive organStatus], which needs no patch cord:
+//
+//   [receive organStatus] -> [route port renameChain preset]
+//
+// Worth having, because a cord on outlet 1 is fragile in a way that is easy to
+// mistake for a bug in here.  If the object is typed as a bare [v8] with the script
+// attached as an attribute, Max builds it with one outlet, restores the cords, and
+// only then runs the script that asks for two — so the cord to outlet 1 refers to
+// nothing yet and is silently dropped, for good, at the next save.  Typing the box
+// as [v8 organTool_Universal.js] fixes that; the named send does not care either way.
+
+var STATUS_RECEIVE = "organStatus";
+
+function sendStatus(sel, a, b, c) {
+    // Same call twice rather than a loop: outlet and messnamed are both native
+    // bindings, and neither may be reached through apply.
+    if      (c !== undefined) { outlet(1, sel, a, b, c); messnamed(STATUS_RECEIVE, sel, a, b, c); }
+    else if (b !== undefined) { outlet(1, sel, a, b);    messnamed(STATUS_RECEIVE, sel, a, b); }
+    else if (a !== undefined) { outlet(1, sel, a);       messnamed(STATUS_RECEIVE, sel, a); }
+    else                      { outlet(1, sel);          messnamed(STATUS_RECEIVE, sel); }
+}
 
 // ================================================================================================
 // CONSOLE VERBOSITY — [message debug 0] / [message debug 1], or [toggle] → [prepend debug]
@@ -750,7 +772,7 @@ function sendTrackPort() {
         // NOT outlet 0: that one feeds multichanmidiout AND udpsend, and udpsend's
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
-        outlet(1, "port", port);
+        sendStatus("port", port);
     }
 }
 
@@ -1166,10 +1188,10 @@ function rackChainNames() {
     // Not a dict: the rack's own dict is named with #0/#1 so several devices can
     // coexist in one session, and a fixed name from here could never address it.
     names.forEach(function(c) {
-        outlet(1, "renameChain", c.id, c.name, 0);
+        sendStatus("renameChain", c.id, c.name, 0);
     });
 
-    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet 1 " +
+    post("rackChainNames: " + names.length + " renameChain message(s) — outlet 1 and [receive organStatus] " +
          "(first: 0 \"" + names[0].name + "\", last: " + names[names.length-1].id +
          " \"" + names[names.length-1].name + "\")\n");
 }
