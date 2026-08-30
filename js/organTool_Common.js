@@ -477,7 +477,21 @@ function clearGUIObjects(patcher, keepObjects) {
             // the MIDI Effect Rack panel lives here too and is not organ GUI
             (obj.varname && obj.varname.startsWith("rack")) ||
             obj.varname === "organ_dialog" ||
-            obj.varname === "gamut_preset_bank";
+            obj.varname === "gamut_preset_bank" ||
+            // Everything this tool creates for itself is prefixed, so one rule covers
+            // organ_dialog, organ_live_ready, organ_live_ready_fwd and whatever comes
+            // next — they are not organ GUI and must survive a rebuild.
+            (obj.varname && obj.varname.indexOf("organ_") === 0) ||
+            // KEEP BY CLASS.  The rule above is a denylist: anything carrying a varname
+            // that is not listed gets removed.  A [dict] holding the preset bank was
+            // deleted that way as soon as Max or autopattr gave it a scripting name of
+            // its own — taking the presets with it.  These classes are never part of
+            // the organ GUI, whatever they happen to be called.
+            obj.maxclass === "dict" ||
+            obj.maxclass === "live.thisdevice" ||
+            obj.maxclass === "prepend" ||
+            obj.maxclass === "receive" ||
+            obj.maxclass === "send";
 
             if (!shouldKeep && obj.varname) {
                 objectsToRemove.push(obj);
@@ -493,7 +507,13 @@ function clearGUIObjects(patcher, keepObjects) {
             }
         }
 
-        log(LOG_LEVEL.INFO, "clearGUIObjects(): Removed " + objectsToRemove.length + " GUI objects");
+        var names = [];
+        for (var n = 0; n < objectsToRemove.length && n < 12; n++) {
+            try { names.push(String(objectsToRemove[n].varname)); } catch(e) {}
+        }
+        log(LOG_LEVEL.INFO, "clearGUIObjects(): Removed " + objectsToRemove.length +
+            " GUI objects" + (names.length ? " [" + names.join(", ") +
+            (objectsToRemove.length > names.length ? ", …" : "") + "]" : ""));
 
     } catch (error) {
         log(LOG_LEVEL.WARN, "clearGUIObjects(): Error during clearing: " + error.message);
@@ -560,4 +580,4 @@ if (typeof global !== 'undefined') {
     global.createCommonModule = createCommonModule;
 }
 
-post("organTool_Common.js v00.16 - Fixed GEOMETRY integration with dependency injection\n");
+post("organTool_Common.js v00.17 - clearGUI keeps dicts and everything named organ_*\n");
