@@ -595,8 +595,11 @@ function findDialogObject() {
 
     // Not there yet — build it and wire its answer back into the js object
     try {
-        _dialogObj = _patcher.newdefault(20, 400, "dialog", "@varname", "organ_dialog");
+        // varname is a BOX attribute; [dialog] rejects it as an object argument
+        // ("dialog: \"varname\" is not a valid attribute argument"), so set it after.
+        _dialogObj = _patcher.newdefault(20, 400, "dialog");
         if (!_dialogObj) return null;
+        try { _dialogObj.varname = "organ_dialog"; } catch(e) {}
         var fwd = _patcher.newdefault(20, 430, "prepend", "fromDialog");
         if (fwd) {
             _patcher.connect(_dialogObj, 0, fwd, 0);

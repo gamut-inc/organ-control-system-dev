@@ -260,6 +260,11 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     var _suppressListeners = false;
     // Module-scope so Max cannot garbage-collect it mid-flight — see releaseSuppression()
     var _suppressTask = null;
+    // Building the GUI makes every button and dial fire its listener once, and Live
+    // pushes stored values back in shortly afterwards.  Without a window around that,
+    // loading a set sends a note-off for all ~100 stops straight at the organ.
+    var BOOT_SETTLE_MS = 1500;
+    var _bootTask = null;
 
     // ================================================================================================
     // STOP COLOURING  (same classification as SINUA so both systems look alike)
@@ -769,8 +774,17 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         resizeWindowToContent();
 
+        // Hold the listeners off until the widgets have stopped reporting themselves
+        // and Live has finished restoring.  Dial defaults are sent by createControlDial
+        // directly, not through a listener, so they still go out.
+        _suppressListeners = true;
+        if (!_bootTask) _bootTask = new Task(function() { _suppressListeners = false; });
+        try { _bootTask.cancel(); } catch(e) {}
+        _bootTask.schedule(BOOT_SETTLE_MS);
+
         common.log(common.LOG_LEVEL.INFO,
-            "MIDI GUI built — " + organState.manuals.length + " manual sections (no layers)");
+            "MIDI GUI built — " + organState.manuals.length + " manual sections; " +
+            "listeners quiet for " + BOOT_SETTLE_MS + "ms while the widgets settle");
         return true;
     }
 

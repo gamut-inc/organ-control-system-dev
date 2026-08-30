@@ -672,8 +672,10 @@ function resetSystem() {
 // Wire it by routing only what has to lose its selector; route's rightmost outlet
 // passes everything else through unchanged, so renameChain reaches the rack whole:
 //
-//   outlet 1 ──> [route port preset]
+//   outlet 1 ──> [route port ports preset]
 //                  ├ port   -> [prepend port] -> [multichanmidiout]
+//                  ├ ports  -> [message ports] -> [multichanmidiout]   (it only builds
+//                  │            its port list on request, and matches names against it)
 //                  ├ preset -> display / number boxes
 //                  └ reject -> the rack bpatcher   ("renameChain 0 PRESET 0")
 //
@@ -766,14 +768,57 @@ function sendTrackPort() {
     var port = routingDisplayName(api, "output_routing_type");
     var chan = routingDisplayName(api, "output_routing_channel");
 
-    post("Track MIDI out — port: " + port + "   channel: " + chan + "\n");
+    // A bare number means the API answered before it was up — not a port name
+    _routingValid = !!(port && !/^\d+$/.test(String(port)) && port !== "None");
 
-    if (port && port !== "None" && port !== "0") {
+    post("Track MIDI out — port: " + port + "   channel: " + chan +
+         (_routingValid ? "" : "   (not a port name yet — Live API not ready)") + "\n");
+
+    if (_routingValid) {
+        // multichanmidiout matches against a list it only builds on request
+        sendStatus("ports");
+    }
+    if (_routingValid) {
         // NOT outlet 0: that one feeds multichanmidiout AND udpsend, and udpsend's
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
         sendStatus("port", port);
     }
+}
+
+// The Live API is not up when the script loads — every early call answers
+// "Live API is not initialized, use live.thisdevice…", and the observers built then
+// stay invalid, which is why the port came back as "0" and later "1" instead of a
+// name.  [live.thisdevice] bangs once Live is ready; it is created here and wired
+// back in, so no manual patching is needed.
+function liveReady() {
+    post("Live is ready — reading the track's MIDI routing\n");
+    watchTrackOutput();
+}
+
+function makeLiveReadyTrigger() {
+    try {
+        if (findNamedAroundHere("organ_live_ready")) return;   // already there
+        var td = _maxPatcher.newdefault(20, 470, "live.thisdevice");
+        if (!td) return;
+        try { td.varname = "organ_live_ready"; } catch(e) {}
+        var fwd = _maxPatcher.newdefault(20, 500, "prepend", "liveReady");
+        if (fwd) {
+            _maxPatcher.connect(td, 0, fwd, 0);
+            if (_maxBox) _maxPatcher.connect(fwd, 0, _maxBox, 0);
+        }
+        post("Created [live.thisdevice] to wait for the Live API\n");
+    } catch (e) {
+        post("makeLiveReadyTrigger: " + e.message + "\n");
+    }
+}
+
+function findNamedAroundHere(name) {
+    try {
+        return system.modules.common
+            ? system.modules.common.findNamedAround(_maxPatcher, name)
+            : _maxPatcher.getnamed(name);
+    } catch (e) { return null; }
 }
 
 function watchTrackOutput() {
@@ -794,7 +839,12 @@ function watchTrackOutput() {
         // a couple of times; re-sending the same port is harmless.
         _portRetries = [];
         [1500, 4000].forEach(function(ms) {
-            var t = new Task(sendTrackPort);
+            // Rebuild rather than re-read: an observer created before the Live API
+            // was up stays invalid, and reading it again only repeats the bad answer.
+            var t = new Task(function() {
+                if (_routingValid) sendTrackPort();
+                else               watchTrackOutput();
+            });
             _portRetries.push(t);         // module-level, or Max collects them
             t.schedule(ms);
         });
@@ -872,6 +922,7 @@ var _pendingOffs   = {};        // stopID → queued, waiting out the window
 var _offTask       = null;      // module-level: a local Task can be collected before it fires
 var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
 var _portRetries   = [];        // startup re-checks of the track routing, kept alive
+var _routingValid  = false;     // did the observers come up against a live API?
 var _wasPlaying    = 0;
 
 function organOffDefer(ms) {
@@ -1691,7 +1742,9 @@ if (!initializeSystem()) {
         } else {
             post("organTool_Universal: no saved organ path (first run)\n");
         }
-        // Follow the track's MIDI output routing once Live has settled
+        // Follow the track's MIDI output routing.  live.thisdevice tells us when the
+        // Live API is actually up; this first attempt is just the early try.
+        makeLiveReadyTrigger();
         watchTrackOutput();
     });
     autoReloadTask.schedule(400);
