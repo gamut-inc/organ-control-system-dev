@@ -822,6 +822,10 @@ function sendTrackPort() {
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
         sendStatus("port", port);
+        // A valid port answers the only question the fallback was asking, so stop it
+        // before it reports "no bang from [live.thisdevice]" into a session where
+        // everything already works — that reads like a fault and is not one.
+        try { if (_liveReadyFallback) _liveReadyFallback.cancel(); } catch(e) {}
         // The routing can validate on one of the retries rather than the first try.
         // Whenever it does, that is the moment the organ may build its GUI.
         maybeLoadSavedOrgan();
@@ -1864,7 +1868,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.32 - organ waits for the port, not for live.thisdevice\n");
+    post("Organ Control System v01.33 - a valid port stops the fallback timer\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
