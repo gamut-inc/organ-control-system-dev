@@ -822,6 +822,9 @@ function sendTrackPort() {
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
         sendStatus("port", port);
+        // The routing can validate on one of the retries rather than the first try.
+        // Whenever it does, that is the moment the organ may build its GUI.
+        maybeLoadSavedOrgan();
     }
 }
 
@@ -859,7 +862,12 @@ var _bootReady       = false;
 var _organAutoLoaded = false;
 
 function maybeLoadSavedOrgan() {
-    if (!_bootReady || !_liveReadyFired || _organAutoLoaded) return;
+    // What the GUI build actually needs is the PORT, so wait on _routingValid.
+    // _liveReadyFired is only the give-up signal, for a track routed to None or a
+    // patcher opened outside Live — there the port is never coming and the organ
+    // still has to load.
+    if (!_bootReady || _organAutoLoaded) return;
+    if (!_routingValid && !_liveReadyFired) return;
     _organAutoLoaded = true;
     var savedPath = organStorage ? organStorage.getOrganPath() : null;
     if (savedPath) {
@@ -1856,7 +1864,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.31 - organ loads once the MIDI port is up, not before\n");
+    post("Organ Control System v01.32 - organ waits for the port, not for live.thisdevice\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
