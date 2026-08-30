@@ -178,16 +178,18 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         manualGap:    8,
         // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
         // column reserves both before PANIC starts.
-        // Column 1 holds the manual name and the buttons.  Its own constant rather
-        // than GEOMETRY.margin.x, which SINUA shares — widened so a standard German
-        // designation like "Schwellwerk II" fits on one line.
-        col1W:       90,
+        // Column 1 is the button column; its width follows btnW, and the dial column
+        // starts a gap to its right.  Nothing derives from a nominal column width
+        // any more, which is what used to push the stops needlessly far right.
         labelH:      34,    // two lines at 12pt
         labelSize:   12,    // the manual name reads from across the room
-        // Name budget after the "M4 " prefix, so only "(chN)" wraps to line 2.
-        // 12pt in a 90px column fits about twelve characters, and three of those
-        // go to the prefix.
-        labelMax:     9,
+        // With the dials starting level with PANIC, the strip above them is free
+        // across BOTH columns — so the label gets that whole width and the name
+        // hardly needs trimming any more.
+        labelMax:    16,
+        // The dial column starts just right of the buttons, not at the end of a
+        // nominal column-1 width: that is what kept the stops needlessly far right.
+        ctrlGap:     10,
         // Couplers sit apart from the registers, in their own trailing column
         couplerGap:   4,
         stopPadTop:   4,    // small breathing room above the first stop …
@@ -219,6 +221,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     LAYOUT.manualCancelY  = LAYOUT.manualPanicY + LAYOUT.btnH + LAYOUT.btnGap;
     // The first dial sits level with PANIC, so the two columns start on one line
     LAYOUT.manualCtrlY    = LAYOUT.manualPanicY;
+    LAYOUT.ctrlX          = LAYOUT.btnX + LAYOUT.btnW + LAYOUT.ctrlGap;
+    // The same column in the main patcher's coordinates, so the header's dials and
+    // the preset menu line up with the dials inside the manuals.
+    LAYOUT.headerCol2X    = LAYOUT.manualX + LAYOUT.ctrlX;
     // Height the left column needs on its own
     LAYOUT.manualMinH     = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.stopPadBottom;
 
@@ -789,7 +795,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Global controls (manual 0) run along the header below the preset menu —
         // same x as the manuals' controller column, so the two line up.
         var globalDials = [];
-        var gdx = LAYOUT.col1W;
+        var gdx = LAYOUT.headerCol2X;
         organState.globalWheels.forEach(function(ctl) {
             var d = createControlDial(p, gdx, LAYOUT.globalDialY, ctl, "ctrl_global_");
             if (d) globalDials.push(d);
@@ -802,7 +808,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // preset_menu: reuse the user's existing menu; create + connect only if missing
         // (same pattern as SINUA createMainHeader).  Sits in column 2, under the title.
-        var pmX = LAYOUT.col1W, pmY = LAYOUT.presetMenuY,
+        var pmX = LAYOUT.headerCol2X, pmY = LAYOUT.presetMenuY,
             pmW = LAYOUT.presetMenuW, pmH = LAYOUT.btnH;
         // Search below and above p: the menu may have been moved into a
         // presetControl bpatcher, where a plain getnamed cannot see it —
@@ -1024,7 +1030,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             // (the pedal included) indented the same amount.
             var wheels = organState.wheelsByManual[manualData.manualID] || [];
             var plan   = planControlColumns(wheels.length, baseH);
-            var startX = LAYOUT.col1W + (plan.cols * LAYOUT.ctrlColW);
+            var startX = LAYOUT.ctrlX + (plan.cols * LAYOUT.ctrlColW);
             var w      = startX + gridW + 10;
 
             var manual = createManualBpatcher(p, LAYOUT.manualX, currentY, w, plan.height,
@@ -1051,8 +1057,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // Left column: name, PANIC, CANC — kept inside the column so it never
         // overlaps the controller column or the stops.
+        // Runs across the button and dial columns, since nothing else is up here
         var label = common.createLiveComment(sp, LAYOUT.btnX, 0,
-            LAYOUT.col1W - 4, LAYOUT.labelH,
+            Math.max(60, stopStartX - LAYOUT.btnX - 6), LAYOUT.labelH,
             "manual_label_" + manualData.manualID,
             manualLabelText(manualData), 40, LAYOUT.labelSize);
 
@@ -1072,7 +1079,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         (wheels || []).forEach(function(ctl, i) {
             var col = Math.floor(i / plan.perColumn);
             var row = i % plan.perColumn;
-            var dx  = LAYOUT.col1W + (col * LAYOUT.ctrlColW);
+            var dx  = LAYOUT.ctrlX + (col * LAYOUT.ctrlColW);
             var dy  = LAYOUT.manualCtrlY + (row * LAYOUT.ctrlH);
             var d = createControlDial(sp, dx, dy, ctl, "ctrl_m" + manualData.manualID + "_");
             if (d) dials.push(d);
@@ -1157,7 +1164,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                     contentW = Math.max(contentW, LAYOUT.manualX + (m.width || 0) + 15);
                 });
             }
-            contentW = Math.max(contentW, LAYOUT.col1W + LAYOUT.presetMenuW + 40);  // header row
+            contentW = Math.max(contentW, LAYOUT.headerCol2X + LAYOUT.presetMenuW + 40);  // header row
             context.patcher.wind.size = [contentW, contentH];
             common.log(common.LOG_LEVEL.INFO, "Window resized: " + contentW + " x " + contentH);
         } catch(e) {
