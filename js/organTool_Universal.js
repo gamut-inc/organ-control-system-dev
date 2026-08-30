@@ -47,7 +47,26 @@ function getScriptDirectory() {
         scriptDir = fullPath.substring(0, fullPath.lastIndexOf("\\")) + "\\js\\";
     }
     
+    // Say which patcher this was derived from.  Two instances printing two different
+    // script directories is the only sign that the device is running twice, and
+    // without the source path there is no way to tell them apart.
     post("Script directory: " + scriptDir + "\n");
+    post("  derived from patcher: " + fullPath + "\n");
+
+    // Does that folder really hold the scripts?  If not, include() still succeeds by
+    // falling back to Max's search path — which silently runs whatever copy it finds
+    // there, possibly an old one, and hides the fact that this patcher sits in the
+    // wrong place.
+    try {
+        var probe = new File(scriptDir + "organTool_Common.js", "read");
+        var there = probe.isopen;
+        if (there) probe.close();
+        if (!there) {
+            post("  WARNING: no scripts at that path. Max will load them from its\n");
+            post("  search path instead, so the copy that runs may not be this one.\n");
+        }
+    } catch (e) { /* File unavailable — the warning is a convenience, not a gate */ }
+
     return scriptDir;
 }
 
