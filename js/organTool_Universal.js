@@ -800,8 +800,13 @@ function routingDisplayName(api, prop) {
     }
 }
 
-function sendTrackPort() {
-    if (!_routingAPIs.length) return;
+// force=1 skips the de-duplication below.  As a message from a button this is the
+// point: you are asking BECAUSE something is wrong, and the value has not changed.
+function sendTrackPort(force) {
+    if (!_routingAPIs.length) {
+        if (force) post("sendTrackPort: no observers yet — send watchTrackOutput first\n");
+        return;
+    }
     var api  = _routingAPIs[0];
     var port = routingDisplayName(api, "output_routing_type");
     var chan = routingDisplayName(api, "output_routing_channel");
@@ -816,12 +821,13 @@ function sendTrackPort() {
     // Two observers (type and channel) both fire on a change, and the retries add
     // more calls on top.  Report and announce only what actually changed, or the
     // console fills with the same line six times over.
-    if (_routingValid && port === _lastPortSent) return;
+    if (!force && _routingValid && port === _lastPortSent) return;
 
     post("Track MIDI out — port: " + port + "   channel: " + chan +
          (_routingValid ? "" : "   (not a port name yet — Live API not ready)") + "\n");
     if (_routingValid) {
         _lastPortSent = port;
+        if (force) post("sendTrackPort: forced — re-announcing the port\n");
         // multichanmidiout matches against a list it only builds on request
         sendStatus("ports");
     }
@@ -848,6 +854,28 @@ function sendTrackPort() {
 var _liveReadyFired = false;
 var _liveReadyFallback = null;
 var LIVE_READY_FALLBACK_MS = 3000;
+
+// [message portInfo] — print what Live reports and what would be sent, so it can be
+// held against multichanmidiout's own "ports" listing.  multichanmidiout matches on the
+// NAME, so the two spellings have to agree exactly, character for character.
+function portInfo() {
+    post("--- MIDI routing ------------------------------------------\n");
+    if (!_routingAPIs.length) {
+        post("  no observers — send watchTrackOutput first\n");
+        return;
+    }
+    var api  = _routingAPIs[0];
+    var port = routingDisplayName(api, "output_routing_type");
+    var chan = routingDisplayName(api, "output_routing_channel");
+    post("  Live says port    : \"" + port + "\"  (" + (port === null ? "read failed" :
+         String(port).length + " chars") + ")\n");
+    post("  Live says channel : \"" + chan + "\"\n");
+    post("  counts as a port  : " + (_routingValid ? "yes" : "NO — nothing will be sent") + "\n");
+    post("  last announced    : \"" + _lastPortSent + "\"\n");
+    post("  Send 'ports' to multichanmidiout and compare the spelling: it matches on\n");
+    post("  the name, so a port missing from its list is a name that does not agree.\n");
+    post("-----------------------------------------------------------\n");
+}
 
 function liveReady() {
     if (_liveReadyFired) return;          // the bang can arrive twice: object + fallback
@@ -1876,7 +1904,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.34 - unrouted track handled; no early Live API calls\n");
+    post("Organ Control System v01.35 - portInfo diagnostic; sendTrackPort 1 forces a re-send\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
