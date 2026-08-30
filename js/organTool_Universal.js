@@ -932,6 +932,41 @@ function organNote(note, velocity, offset) {
 // envelopes into one.  A CC-driven registration therefore cannot be expressed as a
 // clip that speaks directly to the organ — only as one that speaks to this device.
 
+// ---- Does Live expose the arrangement time selection? -----------------------------
+//
+// The loop brace is used as "the selection" because I could not find the time
+// selection in the LOM.  Rather than keep guessing across Live versions, ask Live:
+// this prints what live_set and live_set view actually offer, filtered to the names
+// that could plausibly carry a selection.  If something turns up, the clip functions
+// can read it directly and the loop brace stops being necessary.
+//
+//   [message probeSelection]
+
+function probeSelection() {
+    ["live_set", "live_set view", "live_app view"].forEach(function(path) {
+        try {
+            var api  = new LiveAPI(null, path);
+            var info = String(api.info || "");
+            var hits = info.split("\n").filter(function(line) {
+                return /select|loop|time|start|end|punch|highlight/i.test(line);
+            });
+            post("=== " + path + " ===\n");
+            if (hits.length) hits.forEach(function(l) { post("   " + l + "\n"); });
+            else             post("   (nothing selection-like)\n");
+        } catch (e) {
+            post("=== " + path + " === unavailable (" + e.message + ")\n");
+        }
+    });
+
+    // And the values the loop brace currently reports, for comparison
+    try {
+        var song = new LiveAPI(null, "live_set");
+        post("loop_start = " + song.get("loop_start") +
+             "   loop_length = " + song.get("loop_length") +
+             "   current_song_time = " + song.get("current_song_time") + "\n");
+    } catch (e) { /* not in Live */ }
+}
+
 function clipLoopSelection() {
     var song = new LiveAPI(null, "live_set");
     return {
