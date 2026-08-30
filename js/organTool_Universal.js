@@ -1111,10 +1111,13 @@ function rackChainNames() {
 //   [message makeClip]      merge (the default)
 //   [message replaceClip]   cut the loop range out and set the clip into the gap
 //   [message newClip]       just make a clip, Live sorts out the overlap
+//   [message glueClip]      replace, but leaving ONE continuous clip
 function makeClip()    { registrationClip("merge"); }
 function mergeClip()   { registrationClip("merge"); }
 function replaceClip() { registrationClip("replace"); }
 function newClip()     { registrationClip("new"); }
+// replace, but leaving one continuous clip rather than three pieces
+function glueClip()    { registrationClip("replace", "glue"); }
 
 function registrationClip() {
     if (!system.organModule || typeof system.organModule.getRegistrationNotes !== "function") {
@@ -1128,12 +1131,14 @@ function registrationClip() {
     //   replace  cut the loop range out of what is there and set the clip into the
     //            gap; what lies outside the loop stays, as its own clip
     //   new      just make a clip and let Live sort out the overlap
-    var where = "arrangement", modeArg = null, how = "merge";
+    //   glue     with replace: leave ONE continuous clip instead of three pieces
+    var where = "arrangement", modeArg = null, how = "merge", glue = false;
     Array.prototype.slice.call(arguments).forEach(function(a) {
         a = String(a).toLowerCase();
         if      (a === "session" || a === "arrangement")          where   = a;
         else if (a === "output"  || a === "device")               modeArg = a;
         else if (a === "merge" || a === "replace" || a === "new") how     = a;
+        else if (a === "glue")                                    glue    = true;
     });
     var merge = (how === "merge");
 
@@ -1180,7 +1185,33 @@ function registrationClip() {
         // across the entire selection, and writing into just the first overlapping
         // clip left every gap between clips empty and stopped at that clip's end.
         var carried = [];
-        if (how === "replace" && where === "arrangement") {
+        if (how === "replace" && glue && where === "arrangement") {
+            // Cut the loop out AND leave one continuous clip.  Built as a single
+            // clip from the start rather than made in pieces and glued afterwards:
+            // gluing would only repair a state there is no reason to create.
+            var gEnd = sel.start + sel.length;
+            var gHit = clipsOverlapping(sel.start, sel.length);
+
+            if (gHit.length) {
+                var gSpan = mergeSpan(sel.start, sel.length, gHit);
+                var gOld  = [];
+                gHit.forEach(function(f) { gOld = gOld.concat(readClipNotesAbsolute(f)); });
+                gHit.forEach(function(f) { deleteArrangementClip(f.clip); });
+
+                // Everything outside the loop survives, trimmed at its edges, and is
+                // re-based onto the new clip's origin.
+                carried = notesInWindow(gOld, gSpan.lo, sel.start);
+                notesInWindow(gOld, gEnd, gSpan.hi).forEach(function(n) {
+                    n.start += (gEnd - gSpan.lo);
+                    carried.push(n);
+                });
+
+                clip      = createArrangementClip(gSpan.lo, gSpan.hi - gSpan.lo);
+                noteStart = sel.start - gSpan.lo;
+                into      = "one clip from " + gSpan.lo + " to " + gSpan.hi +
+                            ", loop range replaced (" + carried.length + " note(s) kept around it)";
+            }
+        } else if (how === "replace" && where === "arrangement") {
             var selEnd = sel.start + sel.length;
             var hit    = clipsOverlapping(sel.start, sel.length);
             var kept   = 0;
