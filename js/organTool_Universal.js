@@ -26,26 +26,31 @@ outlets = 2;  // outlet 0: MIDI / OSC → multichanmidiout or udpsend
 // ================================================================================================
 
 function getScriptDirectory() {
-    var fullPath = this.patcher.filepath;
-    if (!fullPath) {
-        // Fallback: try parent patcher
-        fullPath = this.patcher.parentpatcher ? this.patcher.parentpatcher.filepath : null;
+    // Walk the whole chain, not one level: a js object can sit several patchers deep,
+    // and only some of them carry a file path.
+    var fullPath = null;
+    var p = this.patcher;
+    while (p && !fullPath) {
+        try { fullPath = p.filepath || null; } catch(e) { fullPath = null; }
+        p = p.parentpatcher;
     }
-    
+
     if (!fullPath) {
         post("ERROR: Cannot determine script directory\n");
         return null;
     }
-    
-    // Handle both Unix and Windows paths
-    var scriptDir;
-    if (fullPath.indexOf("/") !== -1) {
-        // Unix-style path
-        scriptDir = fullPath.substring(0, fullPath.lastIndexOf("/")) + "/js/";
-    } else {
-        // Windows-style path  
-        scriptDir = fullPath.substring(0, fullPath.lastIndexOf("\\")) + "\\js\\";
-    }
+
+    var sep = (fullPath.indexOf("/") !== -1) ? "/" : "\\";
+
+    // filepath is sometimes the containing FOLDER rather than a file — Live reports
+    // it that way for a device it is still setting up.  Chopping at the last
+    // separator then removes a real folder, which is how this resolved to
+    // "…/_Gamut_Instrumente_Dropbox/js/" and quietly loaded a copy from the search
+    // path instead.  Only strip a trailing component that actually looks like a file.
+    var last     = fullPath.substring(fullPath.lastIndexOf(sep) + 1);
+    var isFile   = /\.(amxd|maxpat|maxhelp)$/i.test(last);
+    var baseDir  = isFile ? fullPath.substring(0, fullPath.lastIndexOf(sep)) : fullPath;
+    var scriptDir = baseDir + sep + "js" + sep;
     
     // Say which patcher this was derived from.  Two instances printing two different
     // script directories is the only sign that the device is running twice, and
