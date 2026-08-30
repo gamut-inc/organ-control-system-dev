@@ -800,45 +800,81 @@ function presetGuard(on) {
 // Sending it as an argument rather than as module state keeps the tracks independent:
 // two tracks can address different ranges at the same time without racing each other.
 
-// ---- Latched registrations -------------------------------------------------------
+// ---- Stop-offs are deferred, so a transport stop cannot cancel a registration ----
 //
-// A stop must not fall when the transport stops.  Live sends note-offs on stop, and
-// with incremental on/off that silences the organ mid-rehearsal; sustaining the notes
-// instead only moves the problem, because a stop is still a note-off.
+// note-off means stop-off — that is the honest reading and it stays.  The trouble is
+// only that Live also sends note-offs when the transport stops, and those say
+// nothing about the music.
 //
-// So note-offs are ignored, and a BURST of note-ons is read as the whole
-// registration: everything in the burst comes on, everything else goes off.  Nothing
-// then depends on a note ending — stopping, looping and jumping leave the console
-// exactly as it stands, and no stop can hang, because the next burst states the full
-// picture rather than adding to it.
+// So a stop-off waits OFF_DEFER_MS before it is acted on.  If the transport stops
+// inside that window, the queued offs are thrown away: they were the transport's
+// doing, not the score's, and the organ is never told.  Nothing has to be repaired
+// afterwards, so there is no audible click and no chance of the GUI and the console
+// disagreeing.  Stop-ONs are never delayed.
 //
-//   [message organLatch 0]  back to incremental on/off (note-off turns a stop off)
+// A jump works out on its own: it sends offs for the old notes and ons for the new
+// ones, and an incoming ON removes that stop from the off queue — so a stop present
+// on both sides of the jump simply stays drawn, instead of being switched off by an
+// off that was queued before it.
+//
+//   [message organOffDefer 0]   act on stop-offs immediately again
 
-var LATCH_WINDOW_MS = 40;      // notes this close together belong to one registration
-var _latch      = true;
-var _burst      = [];
-var _burstTask  = null;        // module-level: a local Task can be collected before it fires
+var OFF_DEFER_MS   = 50;
+var _offDefer      = OFF_DEFER_MS;
+var _pendingOffs   = {};        // stopID → queued, waiting out the window
+var _offTask       = null;      // module-level: a local Task can be collected before it fires
+var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
+var _wasPlaying    = 0;
 
-function organLatch(on) {
-    _latch = Boolean(Number(on));
-    post("Stop notes are " + (_latch ? "latched (note-offs ignored)" :
-                                       "incremental (note-off turns a stop off)") + "\n");
+function organOffDefer(ms) {
+    _offDefer = Math.max(0, Number(ms) || 0);
+    post("Stop-offs " + (_offDefer ? ("deferred by " + _offDefer + "ms") : "act immediately") + "\n");
 }
 
-function flushBurst() {
-    var stops = _burst;
-    _burst = [];
-    if (!stops.length) return;
-    if (system.organModule && typeof system.organModule.applyRegistration === "function") {
-        system.organModule.applyRegistration(stops);
+function setStop(stopID, on) {
+    if (system.organModule && typeof system.organModule.handleStopEvent === "function") {
+        system.organModule.handleStopEvent(stopID, null, null, null, on);
     }
 }
 
-function collectStop(stopID) {
-    _burst.push(stopID);
-    if (!_burstTask) _burstTask = new Task(flushBurst);
-    try { _burstTask.cancel(); } catch(e) {}
-    _burstTask.schedule(LATCH_WINDOW_MS);
+function flushOffs() {
+    var ids = Object.keys(_pendingOffs);
+    _pendingOffs = {};
+    ids.forEach(function(id) { setStop(Number(id), false); });
+}
+
+function queueOff(stopID) {
+    if (!_offDefer) { setStop(stopID, false); return; }
+    _pendingOffs[stopID] = true;
+    if (!_offTask) _offTask = new Task(flushOffs);
+    try { _offTask.cancel(); } catch(e) {}
+    _offTask.schedule(_offDefer);
+}
+
+function dropPendingOffs(why) {
+    var n = Object.keys(_pendingOffs).length;
+    _pendingOffs = {};
+    if (_offTask) { try { _offTask.cancel(); } catch(e) {} }
+    if (n) post("Transport " + why + " — kept " + n + " stop(s) that the stop would have cancelled\n");
+}
+
+function onTransportChange() {
+    try {
+        var playing = parseInt(_transportAPI.get("is_playing"), 10) ? 1 : 0;
+        if (_wasPlaying && !playing) dropPendingOffs("stopped");
+        _wasPlaying = playing;
+    } catch (e) { /* transport unreadable — the deferral alone still helps */ }
+}
+
+function watchTransport() {
+    try {
+        _transportAPI = new LiveAPI(function() { onTransportChange(); }, "live_set");
+        _transportAPI.property = "is_playing";
+        _wasPlaying = parseInt(_transportAPI.get("is_playing"), 10) ? 1 : 0;
+        post("Watching the transport, so stopping cannot cancel a registration\n");
+    } catch (e) {
+        post("watchTransport: not available (" + e.message + ")\n");
+    }
 }
 
 function organNote(note, velocity, offset) {
@@ -860,13 +896,11 @@ function organNote(note, velocity, offset) {
 
     var stopID = note + offset;
 
-    if (_latch) {
-        if (velocity > 0) collectStop(stopID);   // note-offs are deliberately ignored
-        return;
-    }
-
-    if (system.organModule && typeof system.organModule.handleStopEvent === "function") {
-        system.organModule.handleStopEvent(stopID, null, null, null, velocity > 0);
+    if (velocity > 0) {
+        delete _pendingOffs[stopID];   // a fresh ON outranks an off queued before it
+        setStop(stopID, true);
+    } else {
+        queueOff(stopID);
     }
 }
 
@@ -997,10 +1031,11 @@ function registrationClip() {
     // Which reading of "the notes" is available for this organ
     var system_ = (typeof system.organModule.getStopSystem === "function")
         ? system.organModule.getStopSystem() : "note";
-    // Device-facing notes by default.  They go through organNote, which latches the
-    // registration, so a stopped transport cannot drop the stops — see organLatch.
-    // "output" writes the organ's own addresses instead: usable without this device
-    // in the chain, but then a note-off IS a stop-off and stopping kills the organ.
+    // Device-facing notes by default.  They pass through organNote, which defers
+    // stop-offs and drops the ones a transport stop caused, so halting playback
+    // leaves the registration standing.  "output" writes the organ's own addresses
+    // instead: playable without this device in the chain, but then nothing sits
+    // between Live and the organ, and a transport stop takes the stops with it.
     var mode = modeArg || "device";
     if (mode === "output" && system_ !== "note") {
         post("registrationClip: this organ drives stops by \"" + system_ + "\", which a MIDI " +
@@ -1065,12 +1100,10 @@ function registrationClip() {
             }
         }
 
-        // Latched device notes only need to fire once; a held note would put a
-        // note-off at the end of the selection, which is the very thing that drops
-        // the stops when the transport stops there.  Output notes must be held,
-        // since the organ reads their length as how long the stop stays drawn.
-        var noteLen = (mode === "device") ? Math.min(0.25, sel.length) : sel.length;
-        var result  = fillClipWithNotes(clip, notes, noteLen, noteStart, carried);
+        // Held for the whole selection: the note-off at its end is the registration
+        // ending, which is exactly what should happen.  Only a note-off caused by
+        // the TRANSPORT stopping is discarded — see the deferral above.
+        var result = fillClipWithNotes(clip, notes, sel.length, noteStart, carried);
 
         if (result.count === 0) {
             post("registrationClip: the clip was created but stayed EMPTY — neither " +
@@ -1081,8 +1114,7 @@ function registrationClip() {
                  "to confirm\n");
         } else {
             post("registrationClip: " + notes.length + " stop(s) as " + mode +
-                 " notes (" + (mode === "device" ? "latched triggers" : "held") +
-                 ") into " + into + " via " + result.how +
+                 " notes into " + into + " via " + result.how +
                  " — " + result.count + " note(s) in it now, length " +
                  sel.length + " beats\n");
         }
@@ -1404,6 +1436,8 @@ if (!initializeSystem()) {
         }
         // Follow the track's MIDI output routing once Live has settled
         watchTrackOutput();
+        // …and the transport, so stopping cannot cancel a registration
+        watchTransport();
     });
     autoReloadTask.schedule(400);
 }
