@@ -422,6 +422,7 @@ exports.init = function(patcher, organMod, presetMenuRef) {
     if (!_loaded) tryRestore("late init");
 
     updateMenu();
+    scheduleMenuRefresh();        // and again once Live has restored its parameters
     say("gamut_storage_organ: init OK — " + readIndex().length + " preset(s)" +
          (_presetMenu ? "; menu=direct" : "; menu=search") + "\n");
 };
@@ -1126,6 +1127,35 @@ function updateMenu() {
     say("gamut_storage_organ: updateMenu OK — " + slots.length + " slot(s): " + names[0] + "\n");
 }
 
+// Opening a set makes Live restore every stored parameter, and the menu's saved range
+// is the empty ["--","--"] that was in the device when it was saved.  That restore
+// lands AFTER init, so it wiped the range updateMenu had just set and the menu showed
+// nothing until it was touched.  Setting it once more, after Live has finished, is what
+// makes the presets visible on load.
+//
+// Module scope, or the Task is collected before it fires — the same trap as everywhere
+// else in this project.
+var MENU_REFRESH_MS   = 2000;      // past the 1500ms boot settle
+var _menuRefreshTask  = null;
+
+function scheduleMenuRefresh() {
+    if (!_menuRefreshTask) _menuRefreshTask = new Task(function() {
+        _quietMenuRefresh = true;
+        try { updateMenu(); } catch(e) {}
+        _quietMenuRefresh = false;
+    });
+    try { _menuRefreshTask.cancel(); } catch(e) {}
+    _menuRefreshTask.schedule(MENU_REFRESH_MS);
+}
+
+var _quietMenuRefresh = false;
+
+/** refreshMenu — re-apply the menu range by hand, if Live ever wins the race anyway. */
+exports.refreshMenu = function() {
+    updateMenu();
+    if (_current !== null) highlightMenu(_current);
+};
+
 // Show which preset is live, everywhere it is displayed.
 //
 // "set" moves a widget WITHOUT making it output, which is the whole point here:
@@ -1207,4 +1237,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.18 loaded — empty bank can no longer erase stored presets\n");
+post("gamut_storage_organ.js v00.19 loaded — menu range re-applied after Live restores\n");
