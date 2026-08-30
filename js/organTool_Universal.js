@@ -152,7 +152,7 @@ function initializeSystem() {
             organStorage.initStorage(_maxPatcher, scriptDir, _maxBox);
             // Status outlet: "preset <nr> <name>" whenever the current preset changes
             organStorage.setStatusHandler(function(nr, name) {
-                outlet(1, "preset", nr, name || "");
+                statusOut("preset", nr, name || "");
             });
         }
 
@@ -667,6 +667,40 @@ function resetSystem() {
 }
 
 // ================================================================================================
+// WHERE THE STATUS MESSAGES LEAVE
+// ================================================================================================
+// port, renameChain and preset normally go out outlet 1.  outlets = 2 is only read
+// when the object is INSTANTIATED, so an object placed before the second outlet
+// existed still has one, and outlet(1, …) then goes nowhere without complaining.
+//
+//   [message statusOutlet 0]   send them out outlet 0 instead — works with one outlet
+//   [message statusOutlet 1]   back to the dedicated outlet (the default)
+//
+// With statusOutlet 0 everything shares one outlet, so peel the named messages off
+// before the MIDI reaches multichanmidiout.  Raw MIDI starts with a number, matches
+// no selector, and falls out of route's reject outlet untouched:
+//
+//   outlet 0 ──> [route port renameChain preset]
+//                  ├ port         -> [prepend port] -> [multichanmidiout]
+//                  ├ renameChain  -> [prepend renameChain] -> the rack bpatcher
+//                  ├ preset       -> display
+//                  └ reject       -> [multichanmidiout]      (the notes themselves)
+
+var _statusOutlet = 1;
+
+function statusOutlet(which) {
+    _statusOutlet = (Number(which) === 0) ? 0 : 1;
+    post("Status messages (port / renameChain / preset) now leave by outlet " +
+         _statusOutlet + "\n");
+}
+
+// Every status message goes through here, so one switch moves all of them.
+function statusOut() {
+    var args = Array.prototype.slice.call(arguments);
+    outlet.apply(null, [_statusOutlet].concat(args));
+}
+
+// ================================================================================================
 // CONSOLE VERBOSITY — [message debug 0] / [message debug 1], or [toggle] → [prepend debug]
 // ================================================================================================
 // Live use wants a quiet console: "debug 0" leaves only warnings and errors,
@@ -735,7 +769,7 @@ function sendTrackPort() {
         // NOT outlet 0: that one feeds multichanmidiout AND udpsend, and udpsend's
         // own "port" message takes a number — hence "bad arguments for message port".
         // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
-        outlet(1, "port", port);
+        statusOut("port", port);
     }
 }
 
@@ -1151,10 +1185,10 @@ function rackChainNames() {
     // Not a dict: the rack's own dict is named with #0/#1 so several devices can
     // coexist in one session, and a fixed name from here could never address it.
     names.forEach(function(c) {
-        outlet(1, "renameChain", c.id, c.name, 0);
+        statusOut("renameChain", c.id, c.name, 0);
     });
 
-    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet 1 " +
+    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet " + _statusOutlet + " " +
          "(first: 0 \"" + names[0].name + "\", last: " + names[names.length-1].id +
          " \"" + names[names.length-1].name + "\")\n");
 }
