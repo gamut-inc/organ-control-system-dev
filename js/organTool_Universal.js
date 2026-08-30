@@ -395,7 +395,7 @@ function loadOrgan(filepath) {
             configureProtocol(organType);
 
             // Persist filepath in the preset bank so a project reopen can auto-reload
-            if (organStorage) organStorage.setOrganPath(filepath);
+            if (organStorage) organStorage.setOrganPath(toPortablePath(filepath));
 
             // Wire preset manager to the freshly-loaded organ module.
             // Pass the presetMenu MaxObj reference directly so gamut_storage_organ doesn't
@@ -821,10 +821,23 @@ function sendTrackPort(force) {
     // Two observers (type and channel) both fire on a change, and the retries add
     // more calls on top.  Report and announce only what actually changed, or the
     // console fills with the same line six times over.
-    if (!force && _routingValid && port === _lastPortSent) return;
+    // De-duplicate on what was last REPORTED, not on what was last announced.  Tying it
+    // to _routingValid meant an invalid reading was never remembered, so an unrouted
+    // track logged the same line on every observer callback and every retry — fifteen
+    // times in a row for one unchanged "No Output".
+    var reported = String(port) + "\u0000" + String(chan);
+    if (!force && reported === _lastReported) return;
+    _lastReported = reported;
 
-    post("Track MIDI out — port: " + port + "   channel: " + chan +
-         (_routingValid ? "" : "   (not a port name yet — Live API not ready)") + "\n");
+    // Three different situations, and calling them all "Live API not ready" was wrong:
+    // "No Output" is the API answering correctly about a track that goes nowhere.
+    var why = "";
+    if (!_routingValid) {
+        why = /^\d+$/.test(String(port))
+            ? "   (not a port name yet — Live API not ready)"
+            : "   (track is not routed to a MIDI port — set 'MIDI To' on the track)";
+    }
+    post("Track MIDI out — port: " + port + "   channel: " + chan + why + "\n");
     if (_routingValid) {
         _lastPortSent = port;
         if (force) post("sendTrackPort: forced — re-announcing the port\n");
@@ -901,6 +914,60 @@ function liveReady() {
 var _bootReady       = false;
 var _organAutoLoaded = false;
 
+// ================================================================================================
+// PORTABLE ORGAN PATH
+// ================================================================================================
+// The organ file used to be remembered by its absolute path, which only ever works on
+// the machine that saved it.  Opening the set on a second computer asked for
+//   /Users/maciej/Meine Ablage (…)/organ-control-system-claudecode/mapping/config/…
+// while the project actually sat under /Users/marionworle/DRIVE/… — dictwrap reported
+// "file not found", the organ type came out UNKNOWN and no module loaded at all.
+//
+// Store it relative to the project folder instead, and remap an absolute one that was
+// written by an older version (or by the other machine) onto the current root, so an
+// existing preset bank keeps working without re-picking the organ.
+
+// scriptDir is "<root>/js/" — the project root is one level up, name included.
+function projectRoot() {
+    if (!scriptDir) return null;
+    var sep  = (scriptDir.indexOf("/") !== -1) ? "/" : "\\";
+    var trim = scriptDir.replace(new RegExp("\\" + sep + "+$"), "");   // drop trailing sep
+    return trim.substring(0, trim.lastIndexOf(sep) + 1);                 // ".../<root>/"
+}
+
+function projectFolderName() {
+    var root = projectRoot();
+    if (!root) return null;
+    var sep  = (root.indexOf("/") !== -1) ? "/" : "\\";
+    var trim = root.replace(new RegExp("\\" + sep + "+$"), "");
+    return trim.substring(trim.lastIndexOf(sep) + 1);
+}
+
+function toPortablePath(abs) {
+    var root = projectRoot();
+    if (!root || !abs) return abs;
+    if (String(abs).indexOf(root) === 0) return String(abs).substring(root.length);
+    return abs;                       // outside the project — keep it absolute
+}
+
+function fromPortablePath(stored) {
+    var root = projectRoot();
+    if (!root || !stored) return stored;
+    stored = String(stored);
+    var sep    = (root.indexOf("/") !== -1) ? "/" : "\\";
+    var folder = projectFolderName();
+    // Absolute, and pointing into a project folder of this name: rebase onto ours.
+    // That is what carries a bank written on the other machine.
+    if (folder) {
+        var marker = sep + folder + sep;
+        var at = stored.indexOf(marker);
+        if (at !== -1) return root + stored.substring(at + marker.length);
+    }
+    // Already relative
+    if (stored.indexOf(sep) !== 0 && stored.indexOf(":") === -1) return root + stored;
+    return stored;                    // absolute and elsewhere — take it at its word
+}
+
 function maybeLoadSavedOrgan() {
     // What the GUI build actually needs is the PORT, so wait on _routingValid.
     // _liveReadyFired is only the give-up signal, for a track routed to None or a
@@ -909,9 +976,11 @@ function maybeLoadSavedOrgan() {
     if (!_bootReady || _organAutoLoaded) return;
     if (!_routingValid && !_liveReadyFired) return;
     _organAutoLoaded = true;
-    var savedPath = organStorage ? organStorage.getOrganPath() : null;
+    var stored    = organStorage ? organStorage.getOrganPath() : null;
+    var savedPath = stored ? fromPortablePath(stored) : null;
     if (savedPath) {
         post("organTool_Universal: auto-reloading organ: " + savedPath + "\n");
+        if (savedPath !== stored) post("  (remapped from: " + stored + ")\n");
         loadOrgan(savedPath);
     } else {
         post("organTool_Universal: no saved organ path (first run)\n");
@@ -1096,6 +1165,7 @@ var _pendingOffs   = {};        // stopID → queued, waiting out the window
 var _offTask       = null;      // module-level: a local Task can be collected before it fires
 var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
 var _portRetries   = [];        // startup re-checks of the track routing, kept alive
+var _lastReported  = null;      // last port+channel logged, valid or not
 var _routingValid  = false;     // did the observers come up against a live API?
 var _lastPortSent  = null;      // only announce a port that actually changed
 var _watching      = false;     // observers already installed and valid
@@ -1904,7 +1974,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.35 - portInfo diagnostic; sendTrackPort 1 forces a re-send\n");
+    post("Organ Control System v01.36 - organ path portable across machines\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
