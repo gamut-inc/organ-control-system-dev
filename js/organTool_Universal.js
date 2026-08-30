@@ -833,11 +833,13 @@ function liveReady() {
 }
 
 function makeLiveReadyTrigger() {
+    // The decisive test is not whether we can find the object but whether one already
+    // did its job: liveReady() only runs when a wired [live.thisdevice] banged.  By the
+    // time this is called (400ms after init, behind the organ load) that has either
+    // happened or there is nothing there.  Searching for the box was the unreliable
+    // part — a saved one banged correctly and was still not found by name or class.
+    if (_liveReadyFired) return;
     try {
-        // Adopt whatever is already in the patcher.  Matching only on varname was not
-        // enough — an object saved by an earlier session can come back without its
-        // scripting name, and then every load added another [live.thisdevice] +
-        // [prepend liveReady] pair to the patcher.  Match the class as well.
         var existing = findNamedAroundHere("organ_live_ready")
                     || findByClassHere("live.thisdevice");
         if (existing) {
@@ -881,7 +883,10 @@ function findByClassHere(cls) {
         if (!patcher || depth > 6) return null;
         var obj = patcher.firstobject;
         while (obj) {
-            try { if (String(obj.maxclass) === cls) return obj; } catch(e) {}
+            try {
+                var mc = String(obj.maxclass).toLowerCase();
+                if (mc === cls || mc.indexOf(cls) !== -1) return obj;
+            } catch(e) {}
             var sub = null;
             try { sub = (typeof obj.subpatcher === "function") ? obj.subpatcher() : null; }
             catch(e) { sub = null; }
@@ -890,6 +895,7 @@ function findByClassHere(cls) {
         }
         return null;
     }
+    cls = String(cls).toLowerCase();
     try { return walk(_maxPatcher, 0); } catch(e) { return null; }
 }
 
@@ -1812,7 +1818,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.28 - script path fix; [live.thisdevice] adopted, not duplicated\n");
+    post("Organ Control System v01.29 - no second [live.thisdevice] once one has banged\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
