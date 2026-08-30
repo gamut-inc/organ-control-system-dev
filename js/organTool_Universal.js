@@ -1336,8 +1336,11 @@ function presetStore(presetNr, presetName) {
 //   [message presetStorePrompt 3]  or  a preset button → [prepend presetStorePrompt]
 function presetStorePrompt(presetNr) {
     if (bootGuardBlocks("presetStorePrompt")) return;
-    if (organStorage) organStorage.storePrompt(Number(presetNr));
-    else post("presetStorePrompt: organStorage not initialized\n");
+    if (!organStorage) { post("presetStorePrompt: organStorage not initialized\n"); return; }
+    // Hand "no number" through as such.  Number(undefined) is NaN, and a NaN looks
+    // like a bad argument rather than an absent one — which is what stopped the
+    // bare [message presetStorePrompt] from ever opening its first dialog.
+    organStorage.storePrompt(presetNr === undefined ? undefined : Number(presetNr));
 }
 
 // Move a preset to another slot, keeping its name.  Asks before overwriting.

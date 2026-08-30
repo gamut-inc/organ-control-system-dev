@@ -639,8 +639,11 @@ function openDialog(mode, label, defaultText) {
  * Falls back to storing straight away when no dialog object can be made.
  */
 exports.storePrompt = function(presetNr) {
-    // No number given: ask for one first, suggesting the lowest free slot
-    if (presetNr === undefined || presetNr === null || presetNr === "") {
+    // No usable number given: ask for one, suggesting the lowest free slot.
+    // NaN counts as absent — a caller that ran an empty argument through Number()
+    // means "none given", not "given badly".
+    if (presetNr === undefined || presetNr === null || presetNr === "" ||
+        (typeof presetNr === "number" && isNaN(presetNr))) {
         _pending = { stage: "storenr" };
         if (!openDialog(0, "Preset speichern — welche Nummer?", String(lowestFreeSlot()))) {
             _pending = null;
