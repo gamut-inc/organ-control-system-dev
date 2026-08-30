@@ -182,13 +182,20 @@ function buildBankObject() {
 
 // Returns true when anything usable was restored — an organ path counts on its own,
 // so loading an organ without ever storing a preset still survives a project reload.
+// Returns true only when PRESETS came back.  Reporting success for an organ path
+// alone destroyed a set's presets: at init the bank dict is still empty because
+// pattrstorage recalls asynchronously, so tryRestore fell through to the backup file,
+// found {organPath, 0 presets} there, called that a restore and returned — which
+// skipped the pattrstorage retry entirely.  The empty bank then went into the dict and
+// persist() wrote it over slot 128, where the real presets were.  Saving the set made
+// that permanent.  The organ path is still applied either way; it just may not end the
+// wait for pattrstorage.
 function applyBankObject(bank) {
     if (!bank) return false;
     var restored = false;
 
     if (bank.organPath) {
         _bankDict.replace("organPath", bank.organPath);
-        restored = true;
     }
 
     if (bank.index && bank.index.length) {
@@ -217,9 +224,37 @@ function describeBank(bank) {
 // Mirror everything into _bankDict, then push it into the reserved pattrstorage slot.
 // Without the explicit "store", pattrstorage never captures the dict contents —
 // that was the v00.07 bug.
-function persist() {
+// countPresets — how many presets a bank object carries (0 for null/garbage).
+function countPresets(bank) {
+    return (bank && bank.index && bank.index.length) ? bank.index.length : 0;
+}
+
+// What is already stored, across both layers.  Used only to refuse a destructive write.
+function storedPresetCount() {
+    var n = 0;
+    try { n = Math.max(n, countPresets(readBankDict())); } catch(e) {}
+    try { n = Math.max(n, countPresets(readBackupFile())); } catch(e) {}
+    return n;
+}
+
+// allowEmpty: only deleteAll and deleting the last preset may legitimately write an
+// empty bank.  Every other caller writing zero presets over stored ones means something
+// upstream failed to load — refusing costs nothing, and the alternative is losing them.
+function persist(allowEmpty) {
     try {
         var bank = buildBankObject();
+
+        if (!allowEmpty && countPresets(bank) === 0) {
+            var had = storedPresetCount();
+            if (had > 0) {
+                post("gamut_storage_organ: REFUSED to overwrite " + had +
+                     " stored preset(s) with an empty bank — nothing was written.\n");
+                post("  The bank in memory is empty while storage still holds presets,\n");
+                post("  which means they had not finished loading.  Reload the set.\n");
+                return;
+            }
+        }
+
         _bankDict.replace("bank", JSON.stringify(bank));
 
         var ps = findPattrstorage();
@@ -496,7 +531,7 @@ exports.deletePreset = function(presetNr) {
         if (_current !== null) highlightMenu(_current);
     }
 
-    persist();
+    persist(true);                    // deleting the last preset empties it legitimately
     clearChain(presetNr);
     updateMenu();
     say("gamut_storage_organ: deleted preset " + presetNr +
@@ -511,7 +546,7 @@ exports.deleteAll = function() {
     }
     writeIndex([]);
     _current = null;
-    persist();
+    persist(true);                    // deleting everything is allowed to write empty
     updateMenu();
     say("gamut_storage_organ: all presets deleted\n");
 };
@@ -1172,4 +1207,4 @@ function clearChain(nr) {
     } catch(e) { /* chain may not exist */ }
 }
 
-post("gamut_storage_organ.js v00.17 loaded\n");
+post("gamut_storage_organ.js v00.18 loaded — empty bank can no longer erase stored presets\n");
