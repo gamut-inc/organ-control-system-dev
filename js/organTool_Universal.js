@@ -61,16 +61,26 @@ function getScriptDirectory() {
     // Does that folder really hold the scripts?  If not, include() still succeeds by
     // falling back to Max's search path — which silently runs whatever copy it finds
     // there, possibly an old one, and hides the fact that this patcher sits in the
-    // wrong place.
+    // wrong place.  There are two stale copies of these scripts under the Max search
+    // path today, so this is not hypothetical.
+    //
+    // [File] is the wrong instrument for the test: given a path it cannot resolve it
+    // searches by NAME, finds the copy in the search path and reports success.  That
+    // is exactly why the warning stayed silent while the folder did not exist.
+    // [Folder] resolves the path and nothing else.
     try {
-        var probe = new File(scriptDir + "organTool_Common.js", "read");
-        var there = probe.isopen;
-        if (there) probe.close();
-        if (!there) {
+        var probe = new Folder(scriptDir);
+        // A folder that is not there iterates as empty.  Treat it as present if either
+        // signal says so, so a quirk in one property cannot produce a false warning on
+        // every single load.
+        var seen    = Number(probe.count);
+        var missing = !(seen > 0) && probe.end !== false;
+        probe.close();
+        if (missing) {
             post("  WARNING: no scripts at that path. Max will load them from its\n");
             post("  search path instead, so the copy that runs may not be this one.\n");
         }
-    } catch (e) { /* File unavailable — the warning is a convenience, not a gate */ }
+    } catch (e) { /* Folder unavailable — the warning is a convenience, not a gate */ }
 
     return scriptDir;
 }
@@ -1818,7 +1828,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.29 - no second [live.thisdevice] once one has banged\n");
+    post("Organ Control System v01.30 - script folder checked with Folder, not File\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
