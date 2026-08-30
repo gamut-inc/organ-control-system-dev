@@ -786,8 +786,12 @@ function routingDisplayName(api, prop) {
         try {
             var o = JSON.parse(s);
             if (o) {
-                if (o.display_name) return String(o.display_name);
-                if (o[prop] && o[prop].display_name) return String(o[prop].display_name);
+                // An EMPTY display_name is still an answer — an unrouted track reports
+                // {"display_name": "", "identifier": 1}.  Testing truthiness let that
+                // fall through and dumped the raw JSON into the log as the channel name.
+                if (typeof o.display_name === "string") return String(o.display_name);
+                if (o[prop] && typeof o[prop].display_name === "string")
+                    return String(o[prop].display_name);
             }
         } catch (parseError) { /* not JSON — the plain string is the name */ }
         return s;
@@ -802,8 +806,12 @@ function sendTrackPort() {
     var port = routingDisplayName(api, "output_routing_type");
     var chan = routingDisplayName(api, "output_routing_channel");
 
-    // A bare number means the API answered before it was up — not a port name
-    _routingValid = !!(port && !/^\d+$/.test(String(port)) && port !== "None");
+    // A bare number means the API answered before it was up — not a port name.
+    // "No Output" / "None" mean the track is not routed anywhere: Live's own answer,
+    // not an error, but there is no port to hand to multichanmidiout — passing it on
+    // produced "port 'No Output' not found".
+    var NOT_A_PORT = { "None": 1, "No Output": 1, "": 1 };
+    _routingValid = !!(port && !/^\d+$/.test(String(port)) && !NOT_A_PORT[String(port)]);
 
     // Two observers (type and channel) both fire on a change, and the retries add
     // more calls on top.  Report and announce only what actually changed, or the
@@ -1868,7 +1876,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.33 - a valid port stops the fallback timer\n");
+    post("Organ Control System v01.34 - unrouted track handled; no early Live API calls\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
@@ -1881,7 +1889,12 @@ if (!initializeSystem()) {
         // timer inside makeLiveReadyTrigger guarantees this resolves either way —
         // including outside Live, where no bang is ever coming.
         makeLiveReadyTrigger();
-        watchTrackOutput();
+        // Only read the routing if Live has already reported in.  Asking earlier makes
+        // v8liveapi print "Live API is not initialized" once per property per attempt —
+        // eight lines in a fresh set — and returns nothing usable anyway.  When a saved
+        // [live.thisdevice] bangs before this task, liveReady has already run and this
+        // is the fast path; otherwise the fallback timer gets us there.
+        if (_liveReadyFired) watchTrackOutput();
         maybeLoadSavedOrgan();
     });
     autoReloadTask.schedule(400);
