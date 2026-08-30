@@ -1046,6 +1046,41 @@ function deleteArrangementClip(clip) {
     }
 }
 
+// ================================================================================================
+// MIDI EFFECT RACK — name the chains after the loaded organ
+// ================================================================================================
+//   [message rackChainNames]  →  outlet 1  →  [route renameChain] → the rack builder
+//
+// One "renameChain <id> <name> <colour>" per chain, in the format the rack patch
+// already speaks:
+//   chain 0        PRESET          — the preset selector; the velocity picks which
+//   chain <stopID> "M4: 1 Super IV-IV"
+//
+// Chain number = stopID = the note that addresses the stop, so the rack, the clips
+// and the console all use one numbering.
+
+function rackChainNames() {
+    if (!system.organModule || typeof system.organModule.getRackChainNames !== "function") {
+        post("rackChainNames: no organ loaded that can name its chains\n");
+        return;
+    }
+    var names = system.organModule.getRackChainNames();
+    names.forEach(function(c) {
+        outlet(1, "renameChain", c.id, c.name, 0);
+    });
+    post("rackChainNames: sent " + names.length + " chain name(s)\n");
+}
+
+// One message per mode, so a button can carry the mode in its own name instead of
+// an argument.  All four are the same call.
+//   [message makeClip]      merge (the default)
+//   [message replaceClip]   cut the loop range out and set the clip into the gap
+//   [message newClip]       just make a clip, Live sorts out the overlap
+function makeClip()    { registrationClip("merge"); }
+function mergeClip()   { registrationClip("merge"); }
+function replaceClip() { registrationClip("replace"); }
+function newClip()     { registrationClip("new"); }
+
 function registrationClip() {
     if (!system.organModule || typeof system.organModule.getRegistrationNotes !== "function") {
         post("registrationClip: the loaded organ cannot describe its registration\n");
@@ -1376,6 +1411,14 @@ function presetPrevious() {
     if (bootGuardBlocks("presetPrevious")) return;
     if (organStorage) organStorage.recallPrevious();
     else post("presetPrevious: organStorage not initialized\n");
+}
+
+// Write the current registration back into the preset in play, keeping its name.
+//   [message presetStoreCurrent]
+function presetStoreCurrent() {
+    if (bootGuardBlocks("presetStoreCurrent")) return;
+    if (organStorage) organStorage.storeCurrentPrompt();
+    else post("presetStoreCurrent: organStorage not initialized\n");
 }
 
 // Rename the preset in play; the dialog opens pre-filled with its current name.

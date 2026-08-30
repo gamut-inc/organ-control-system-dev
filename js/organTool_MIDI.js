@@ -1386,6 +1386,20 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         return out;
     }
 
+    // Chain names for a 128-chain MIDI Effect Rack, matching how notes address it:
+    //   chain 0        the preset selector — the velocity picks the preset
+    //   chain <stopID> "<manual>: <stopID> <name>", e.g. "M4: 1 Super IV-IV"
+    // Returns [{id, name}], chain 0 first, then the stops in JSON order.
+    function getRackChainNames() {
+        var out = [{ id: 0, name: "PRESET" }];
+        organState.allStops.forEach(function(stop) {
+            var manual = findManualByID(stop.manualID);
+            var prefix = manual ? (isPedal(manual) ? "P" : ("M" + manual.manualID)) : "?";
+            out.push({ id: stop.stopID, name: prefix + ": " + stop.stopID + " " + stop.name });
+        });
+        return out;
+    }
+
     function findControlByID(controlID) {
         var found = null;
         var cid = String(controlID);
@@ -1525,6 +1539,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         // Clip writing — called from Universal.js createRegistrationClip()
         getRegistrationNotes: getRegistrationNotes,
+        getRackChainNames: getRackChainNames,   // for the MIDI Effect Rack builder
         getStopSystem: function() { return organState.stopSystem; },
 
         getPresetMenu: function() {

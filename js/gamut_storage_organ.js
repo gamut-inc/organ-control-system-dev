@@ -645,7 +645,7 @@ exports.storePrompt = function(presetNr) {
     if (presetNr === undefined || presetNr === null || presetNr === "" ||
         (typeof presetNr === "number" && isNaN(presetNr))) {
         _pending = { stage: "storenr" };
-        if (!openDialog(0, "Preset speichern — welche Nummer?", String(lowestFreeSlot()))) {
+        if (!openDialog(0, "Store preset — which number?", String(lowestFreeSlot()))) {
             _pending = null;
         }
         return;
@@ -664,7 +664,7 @@ exports.storePrompt = function(presetNr) {
 
     if (existing) {
         _pending = { stage: "confirm", nr: presetNr, name: existing };
-        if (!openDialog(2, "Preset " + presetNr + ": \"" + existing + "\"\nüberschreiben?", "")) {
+        if (!openDialog(2, "Overwrite preset " + presetNr + ": \"" + existing + "\"?", "")) {
             _pending = null;
             exports.store(presetNr, existing);   // no dialog available — just overwrite
         }
@@ -686,7 +686,7 @@ function lowestFreeSlot() {
 
 function askForName(presetNr, defaultName) {
     _pending = { stage: "name", nr: presetNr, name: defaultName };
-    if (!openDialog(0, "Name für Preset " + presetNr, defaultName)) {
+    if (!openDialog(0, "Name for preset " + presetNr, defaultName)) {
         _pending = null;
         exports.store(presetNr, defaultName);    // no dialog available — store unnamed
     }
@@ -737,7 +737,7 @@ exports.fromDialog = function() {
             return;
         }
         _pending = { stage: "moveto", from: src };
-        if (!openDialog(0, "Preset " + src + " verschieben nach Nummer?", String(src))) {
+        if (!openDialog(0, "Move preset " + src + " to which number?", String(src))) {
             _pending = null;
         }
         return;
@@ -773,6 +773,13 @@ exports.fromDialog = function() {
         return;
     }
 
+    if (stage === "storecurrent") {
+        var curNr = _pending.nr, curName = _pending.name;
+        _pending = null;
+        exports.store(curNr, curName);
+        return;
+    }
+
     if (stage === "rename") {
         var renameNr = _pending.nr;
         var newName  = args.join(" ").trim();
@@ -791,8 +798,8 @@ exports.fromDialog = function() {
     if (stage === "clearall1") {                 // asked once, ask again
         var count = _pending.count;
         _pending = { stage: "clearall2" };
-        if (!openDialog(2, "Wirklich? Alle " + count + " Presets sind dann weg.\n" +
-                           "Das lässt sich nicht rückgängig machen.", "")) {
+        if (!openDialog(2, "Really? All " + count + " presets will be gone.\n" +
+                           "This cannot be undone.", "")) {
             _pending = null;
         }
         return;
@@ -821,7 +828,7 @@ exports.movePrompt = function() {
     }
     var suggestion = (_current !== null) ? _current : slots[0].nr;
     _pending = { stage: "movefrom" };
-    if (!openDialog(0, "Preset verschieben — welche Nummer?", String(suggestion))) {
+    if (!openDialog(0, "Move preset — which number?", String(suggestion))) {
         _pending = null;
     }
 };
@@ -849,7 +856,7 @@ exports.movePreset = function(fromNr, toNr) {
 
     if (occupant) {
         _pending = { stage: "move", from: fromNr, nr: toNr };
-        if (!openDialog(2, "Preset " + toNr + ": \"" + occupant + "\"\nüberschreiben?", "")) {
+        if (!openDialog(2, "Overwrite preset " + toNr + ": \"" + occupant + "\"?", "")) {
             _pending = null;
             doMove(fromNr, toNr);                // no dialog available — just move
         }
@@ -884,6 +891,24 @@ function doMove(fromNr, toNr) {
 }
 
 /**
+ * storeCurrentPrompt — write the current registration back into the preset in play,
+ * keeping its name.  One confirm, no name prompt: the preset already has a name and
+ * this is the "I adjusted it, keep it" gesture.
+ */
+exports.storeCurrentPrompt = function() {
+    if (_current === null) {
+        say("gamut_storage_organ: no current preset — use storePrompt to pick a slot\n");
+        return;
+    }
+    var name = dictStr(_dataDict, "slot_" + _current + "_name") || ("Preset " + _current);
+    _pending = { stage: "storecurrent", nr: _current, name: name };
+    if (!openDialog(2, "Update preset " + _current + ": \"" + name + "\"?", "")) {
+        _pending = null;
+        exports.store(_current, name);       // no dialog available — just write it
+    }
+};
+
+/**
  * renameCurrentPrompt — rename the preset in play, pre-filled with its name.
  */
 exports.renameCurrentPrompt = function() {
@@ -893,7 +918,7 @@ exports.renameCurrentPrompt = function() {
     }
     var name = dictStr(_dataDict, "slot_" + _current + "_name") || ("Preset " + _current);
     _pending = { stage: "rename", nr: _current };
-    if (!openDialog(0, "Preset " + _current + " umbenennen:", name)) {
+    if (!openDialog(0, "Rename preset " + _current + ":", name)) {
         _pending = null;
     }
 };
@@ -936,7 +961,7 @@ exports.clearCurrentPrompt = function() {
     }
     var name = dictStr(_dataDict, "slot_" + _current + "_name") || ("Preset " + _current);
     _pending = { stage: "clearone", nr: _current };
-    if (!openDialog(2, "Preset " + _current + ": \"" + name + "\"\nlöschen?", "")) {
+    if (!openDialog(2, "Delete preset " + _current + ": \"" + name + "\"?", "")) {
         _pending = null;
         post("gamut_storage_organ: clear needs the dialog object — nothing deleted\n");
     }
@@ -953,7 +978,7 @@ exports.clearAllPrompt = function() {
         return;
     }
     _pending = { stage: "clearall1", count: n };
-    if (!openDialog(2, "Alle " + n + " Presets löschen?", "")) {
+    if (!openDialog(2, "Delete all " + n + " presets?", "")) {
         _pending = null;
         post("gamut_storage_organ: clearAll needs the dialog object — not cleared\n");
     }

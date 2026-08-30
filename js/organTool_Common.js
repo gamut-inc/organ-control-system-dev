@@ -474,6 +474,8 @@ function clearGUIObjects(patcher, keepObjects) {
             // presetMenuSelect …) share this patcher but are not part of the organ
             // GUI — rebuilding the organ must not take them with it.
             (obj.varname && obj.varname.startsWith("preset")) ||
+            // the MIDI Effect Rack panel lives here too and is not organ GUI
+            (obj.varname && obj.varname.startsWith("rack")) ||
             obj.varname === "organ_dialog" ||
             obj.varname === "gamut_preset_bank";
 
