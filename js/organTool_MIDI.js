@@ -182,8 +182,12 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // than GEOMETRY.margin.x, which SINUA shares — widened so a standard German
         // designation like "Schwellwerk II" fits on one line.
         col1W:       90,
-        labelH:      28,
-        labelMax:    14,    // name budget after the "M4 " prefix, so only "(chN)" wraps
+        labelH:      34,    // two lines at 12pt
+        labelSize:   12,    // the manual name reads from across the room
+        // Name budget after the "M4 " prefix, so only "(chN)" wraps to line 2.
+        // 12pt in a 90px column fits about twelve characters, and three of those
+        // go to the prefix.
+        labelMax:     9,
         // Couplers sit apart from the registers, in their own trailing column
         couplerGap:   4,
         stopPadTop:   4,    // small breathing room above the first stop …
@@ -194,9 +198,9 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Wide enough for a full "Winddrossel" / "Tremulant" above the tiny dial —
         // Max clips the name to the widget, so the widget has to carry the longest
         // standard designation.
-        ctrlW:       96,
+        ctrlW:       84,
         ctrlH:       38,    // tiny dial + its name label, with room to breathe
-        ctrlColW:   100,
+        ctrlColW:    88,    // tighter, so the stops sit closer to the dials
         ctrlMaxCols:  2,    // beyond this the manual grows taller instead of wider
         ctrlNameMax: 12,    // "Winddrossel" (11) must survive whole
         stopLabelMax: 18    // characters that fit a stop button at fontsize 10
@@ -213,6 +217,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // left column reads as one row grid with the dials beside it.
     LAYOUT.manualPanicY   = LAYOUT.stopPadTop + LAYOUT.ctrlH;
     LAYOUT.manualCancelY  = LAYOUT.manualPanicY + LAYOUT.btnH + LAYOUT.btnGap;
+    // The first dial sits level with PANIC, so the two columns start on one line
+    LAYOUT.manualCtrlY    = LAYOUT.manualPanicY;
     // Height the left column needs on its own
     LAYOUT.manualMinH     = LAYOUT.manualCancelY + LAYOUT.btnH + LAYOUT.stopPadBottom;
 
@@ -938,7 +944,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // controls.  Returns {cols, perColumn, height}; height never shrinks below the
     // value passed in.
     function planControlColumns(count, availableHeight) {
-        var usable    = availableHeight - LAYOUT.stopPadTop - LAYOUT.stopPadBottom;
+        var usable    = availableHeight - LAYOUT.manualCtrlY - LAYOUT.stopPadBottom;
         var perColumn = Math.floor(usable / LAYOUT.ctrlH);
         if (perColumn < 1) perColumn = 1;
 
@@ -953,7 +959,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Too many columns — grow the manual downwards instead of sideways
         cols      = LAYOUT.ctrlMaxCols;
         perColumn = Math.ceil(count / cols);
-        var needed = LAYOUT.stopPadTop + (perColumn * LAYOUT.ctrlH) + LAYOUT.stopPadBottom;
+        var needed = LAYOUT.manualCtrlY + (perColumn * LAYOUT.ctrlH) + LAYOUT.stopPadBottom;
         return { cols: cols, perColumn: perColumn, height: Math.max(availableHeight, needed) };
     }
 
@@ -1048,7 +1054,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var label = common.createLiveComment(sp, LAYOUT.btnX, 0,
             LAYOUT.col1W - 4, LAYOUT.labelH,
             "manual_label_" + manualData.manualID,
-            manualLabelText(manualData), 40, 9);
+            manualLabelText(manualData), 40, LAYOUT.labelSize);
 
         // PANIC above CANC, both 2px in from the left edge
         var panicBtn = createActionButton(sp, LAYOUT.btnX, LAYOUT.manualPanicY,
@@ -1067,7 +1073,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             var col = Math.floor(i / plan.perColumn);
             var row = i % plan.perColumn;
             var dx  = LAYOUT.col1W + (col * LAYOUT.ctrlColW);
-            var dy  = LAYOUT.stopPadTop + (row * LAYOUT.ctrlH);
+            var dy  = LAYOUT.manualCtrlY + (row * LAYOUT.ctrlH);
             var d = createControlDial(sp, dx, dy, ctl, "ctrl_m" + manualData.manualID + "_");
             if (d) dials.push(d);
         });

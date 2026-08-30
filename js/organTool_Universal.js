@@ -732,7 +732,10 @@ function sendTrackPort() {
     post("Track MIDI out — port: " + port + "   channel: " + chan + "\n");
 
     if (port && port !== "None" && port !== "0") {
-        outlet(0, "port", port);
+        // NOT outlet 0: that one feeds multichanmidiout AND udpsend, and udpsend's
+        // own "port" message takes a number — hence "bad arguments for message port".
+        // Out of the status outlet instead:  [route port] → [prepend port] → multichanmidiout
+        outlet(1, "port", port);
     }
 }
 
@@ -748,7 +751,18 @@ function watchTrackOutput() {
             _routingAPIs.push(api);
         });
         sendTrackPort();                  // and once now, for the initial state
-        post("Watching track MIDI output routing\n");
+
+        // Opening a set, the track routing is often not restored at this point, and
+        // the observer does not fire for a value that was already there.  Ask again
+        // a couple of times; re-sending the same port is harmless.
+        _portRetries = [];
+        [1500, 4000].forEach(function(ms) {
+            var t = new Task(sendTrackPort);
+            _portRetries.push(t);         // module-level, or Max collects them
+            t.schedule(ms);
+        });
+
+        post("Watching track MIDI output routing (re-checking at 1.5s and 4s)\n");
     } catch (e) {
         post("watchTrackOutput: not available (" + e.message + ")\n");
     }
@@ -820,6 +834,7 @@ var _offDefer      = 0;         // 0 = pass stop-offs straight through
 var _pendingOffs   = {};        // stopID → queued, waiting out the window
 var _offTask       = null;      // module-level: a local Task can be collected before it fires
 var _transportAPI  = null;      // likewise — an observer held only by a local stops firing
+var _portRetries   = [];        // startup re-checks of the track routing, kept alive
 var _wasPlaying    = 0;
 
 function organOffDefer(ms) {
@@ -1112,10 +1127,6 @@ function outletTest() {
     post("outletTest: both sent — whichever number your print shows is the outlet it is on\n");
 }
 
-// Module-level: the rack dict has to outlive this call, or Max frees it and the
-// patcher's [dict gamut_rack_chains] finds nothing.
-var _rackDict = new Dict("gamut_rack_chains");
-
 function rackChainNames() {
     if (!system.organModule || typeof system.organModule.getRackChainNames !== "function") {
         post("rackChainNames: no organ loaded that can name its chains\n");
@@ -1123,29 +1134,18 @@ function rackChainNames() {
     }
     var names = system.organModule.getRackChainNames();
 
-    // 1. Into a dict the rack builder can read directly — no patch cord involved.
-    //    Same shape the hand-built one uses: chains: { "1": [id, name, colour] }.
-    var inDict = -1;
-    try {
-        var spec = { chains: {} };
-        names.forEach(function(c) { spec.chains[c.id] = [c.id, c.name, 0]; });
-        _rackDict.parse(JSON.stringify(spec));
-        // Read it straight back: "the dict was filled" should be a fact, not a hope
-        var probe = _rackDict.get("chains::0");
-        inDict = (probe && String(probe) !== "(undefined)") ? names.length : 0;
-    } catch (e) {
-        post("rackChainNames: could not fill the dict (" + e.message + ")\n");
-    }
-
-    // 2. And out of outlet 1, for a patch that would rather take the messages.
+    // One message per chain, out of the STATUS outlet:
+    //   [route renameChain] → the rack builder
+    //
+    // Not a dict: the rack's own dict is named with #0/#1 so several devices can
+    // coexist in one session, and a fixed name from here could never address it.
     names.forEach(function(c) {
         outlet(1, "renameChain", c.id, c.name, 0);
     });
 
-    post("rackChainNames: " + names.length + " chain name(s) sent out OUTLET 1; dict " +
-         "\"gamut_rack_chains\" " +
-         (inDict > 0 ? ("holds them (chains::0 = " + _rackDict.get("chains::0") + ")")
-                     : (inDict === 0 ? "came back EMPTY" : "could not be read back")) + "\n");
+    post("rackChainNames: " + names.length + " renameChain message(s) out of outlet 1 " +
+         "(first: 0 \"" + names[0].name + "\", last: " + names[names.length-1].id +
+         " \"" + names[names.length-1].name + "\")\n");
 }
 
 // One message per mode, so a button can carry the mode in its own name instead of
