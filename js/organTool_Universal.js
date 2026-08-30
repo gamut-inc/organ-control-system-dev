@@ -820,16 +820,33 @@ function sendTrackPort() {
 // stay invalid, which is why the port came back as "0" and later "1" instead of a
 // name.  [live.thisdevice] bangs once Live is ready; it is created here and wired
 // back in, so no manual patching is needed.
+var _liveReadyFired = false;
+var _liveReadyFallback = null;
+var LIVE_READY_FALLBACK_MS = 3000;
+
 function liveReady() {
+    if (_liveReadyFired) return;          // the bang can arrive twice: object + fallback
+    _liveReadyFired = true;
+    try { if (_liveReadyFallback) _liveReadyFallback.cancel(); } catch(e) {}
     post("Live is ready — reading the track's MIDI routing\n");
     watchTrackOutput();
 }
 
 function makeLiveReadyTrigger() {
     try {
-        if (findNamedAroundHere("organ_live_ready")) return;   // already there
+        // Adopt whatever is already in the patcher.  Matching only on varname was not
+        // enough — an object saved by an earlier session can come back without its
+        // scripting name, and then every load added another [live.thisdevice] +
+        // [prepend liveReady] pair to the patcher.  Match the class as well.
+        var existing = findNamedAroundHere("organ_live_ready")
+                    || findByClassHere("live.thisdevice");
+        if (existing) {
+            try { existing.varname = "organ_live_ready"; } catch(e) {}
+            armLiveReadyFallback();       // in case that one is not wired to us
+            return;
+        }
         var td = _maxPatcher.newdefault(20, 470, "live.thisdevice");
-        if (!td) return;
+        if (!td) { armLiveReadyFallback(); return; }
         try { td.varname = "organ_live_ready"; } catch(e) {}
         var fwd = _maxPatcher.newdefault(20, 500, "prepend", "liveReady");
         if (fwd) {
@@ -840,6 +857,40 @@ function makeLiveReadyTrigger() {
     } catch (e) {
         post("makeLiveReadyTrigger: " + e.message + "\n");
     }
+    armLiveReadyFallback();
+}
+
+// Never depend on the object alone: an adopted [live.thisdevice] may not be wired to
+// this v8, and then the routing would never be read.  By this point the Live API is up
+// regardless, so just go ahead.  Module scope — a local Task is collected before it
+// fires.
+function armLiveReadyFallback() {
+    if (_liveReadyFired) return;
+    if (!_liveReadyFallback) _liveReadyFallback = new Task(function() {
+        if (_liveReadyFired) return;
+        post("Live API ready (fallback timer — no bang from [live.thisdevice])\n");
+        liveReady();
+    });
+    try { _liveReadyFallback.cancel(); } catch(e) {}
+    _liveReadyFallback.schedule(LIVE_READY_FALLBACK_MS);
+}
+
+// First object of a given class at or below the patcher this v8 sits in.
+function findByClassHere(cls) {
+    function walk(patcher, depth) {
+        if (!patcher || depth > 6) return null;
+        var obj = patcher.firstobject;
+        while (obj) {
+            try { if (String(obj.maxclass) === cls) return obj; } catch(e) {}
+            var sub = null;
+            try { sub = (typeof obj.subpatcher === "function") ? obj.subpatcher() : null; }
+            catch(e) { sub = null; }
+            if (sub) { var hit = walk(sub, depth + 1); if (hit) return hit; }
+            obj = obj.nextobject;
+        }
+        return null;
+    }
+    try { return walk(_maxPatcher, 0); } catch(e) { return null; }
 }
 
 function findNamedAroundHere(name) {
@@ -1761,7 +1812,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.27 - debug toggle; track MIDI routing follows to multichanmidiout\n");
+    post("Organ Control System v01.28 - script path fix; [live.thisdevice] adopted, not duplicated\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
