@@ -1597,6 +1597,13 @@ function registrationClip() {
                 noteStart = sel.start - gSpan.lo;
                 into      = "one clip from " + gSpan.lo + " to " + gSpan.hi +
                             ", loop range replaced (" + carried.length + " note(s) kept around it)";
+            } else {
+                // Empty stretch of arrangement: there is nothing to cut or glue, but
+                // the registration still has to be written.  Falling through with a
+                // null clip made the button do nothing at all.
+                clip      = createArrangementClip(sel.start, sel.length);
+                noteStart = 0;
+                into      = "a new clip over the loop (nothing was there to replace)";
             }
         } else if (how === "replace" && where === "arrangement") {
             var selEnd = sel.start + sel.length;
@@ -1634,18 +1641,46 @@ function registrationClip() {
 
                 // Carried notes move with the new clip's origin
                 carried.forEach(function(n) { n.start = n.start - lo; });
+            } else {
+                // Nothing under the loop to merge with — write the clip anyway.
+                // merge is the default mode, so this was the most common way to press
+                // the button and get silence.
+                clip      = createArrangementClip(sel.start, sel.length);
+                noteStart = 0;
+                into      = "a new clip over the loop (nothing was there to merge)";
             }
+        } else if (how === "new" && where === "arrangement") {
+            // "just make a clip and let Live sort out the overlap" — which no branch
+            // ever did.  clip stayed null, nothing was written, and the report blamed
+            // an empty clip that had never been created.
+            clip      = createArrangementClip(sel.start, sel.length);
+            noteStart = 0;
+            into      = "a new clip over the loop";
         } else if (merge && where === "session") {
             var slot = new LiveAPI(null, "live_set view highlighted_clip_slot");
             if (parseInt(slot.get("has_clip"), 10)) {
                 clip = new LiveAPI(null, "live_set view highlighted_clip_slot clip");
                 into = "the clip in the selected slot";
+            } else if (slot.id && String(slot.id) !== "0") {
+                // Empty slot: make the clip rather than doing nothing.
+                slot.call("create_clip", sel.length);
+                clip = new LiveAPI(null, "live_set view highlighted_clip_slot clip");
+                into = "a new clip in the selected slot";
+            } else {
+                post("registrationClip: no clip slot is selected — select one in the " +
+                     "session view first\n");
             }
         }
 
         // Held for the whole selection: the note-off at its end is the registration
         // ending, which is exactly what should happen.  Only a note-off caused by
         // the TRANSPORT stopping is discarded — see the deferral above.
+        if (!clip) {
+            post("registrationClip: no clip could be made for this selection — " +
+                 "nothing was written\n");
+            return;
+        }
+
         var result = fillClipWithNotes(clip, notes, sel.length, noteStart, carried);
 
         if (result.count === 0) {
@@ -1974,7 +2009,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.36 - organ path portable across machines\n");
+    post("Organ Control System v01.37 - clip is created on an empty spot too\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
