@@ -1059,16 +1059,34 @@ function deleteArrangementClip(clip) {
 // Chain number = stopID = the note that addresses the stop, so the rack, the clips
 // and the console all use one numbering.
 
+// Module-level: the rack dict has to outlive this call, or Max frees it and the
+// patcher's [dict gamut_rack_chains] finds nothing.
+var _rackDict = new Dict("gamut_rack_chains");
+
 function rackChainNames() {
     if (!system.organModule || typeof system.organModule.getRackChainNames !== "function") {
         post("rackChainNames: no organ loaded that can name its chains\n");
         return;
     }
     var names = system.organModule.getRackChainNames();
+
+    // 1. Into a dict the rack builder can read directly — no patch cord involved.
+    //    Same shape the hand-built one uses: chains: { "1": [id, name, colour] }.
+    try {
+        var spec = { chains: {} };
+        names.forEach(function(c) { spec.chains[c.id] = [c.id, c.name, 0]; });
+        _rackDict.parse(JSON.stringify(spec));
+    } catch (e) {
+        post("rackChainNames: could not fill the dict (" + e.message + ")\n");
+    }
+
+    // 2. And out of outlet 1, for a patch that would rather take the messages.
     names.forEach(function(c) {
         outlet(1, "renameChain", c.id, c.name, 0);
     });
-    post("rackChainNames: sent " + names.length + " chain name(s)\n");
+
+    post("rackChainNames: " + names.length + " chain name(s) → dict \"gamut_rack_chains\" " +
+         "and out of OUTLET 1 (the right-hand one)\n");
 }
 
 // One message per mode, so a button can carry the mode in its own name instead of
