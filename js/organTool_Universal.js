@@ -987,6 +987,73 @@ function maybeLoadSavedOrgan() {
     }
 }
 
+// ================================================================================================
+// [message cleanupLiveReady] — clear out the leftover trigger objects
+// ================================================================================================
+// Every load that found no [live.thisdevice] built a fresh one plus a [prepend liveReady]
+// to go with it.  Deleting the thisdevice objects by hand left the prepends behind, so
+// they piled up at the same spot — eight of them, none of them fed by anything, which is
+// why the bang never came and the fallback timer had to cover every start.
+//
+// Not automatic: removing objects from someone's patcher on load is the wrong kind of
+// surprise.  Send "cleanupLiveReady" once, check the patcher, save.
+function cleanupLiveReady() {
+    if (!_maxPatcher) { post("cleanupLiveReady: no patcher\n"); return; }
+
+    var doomed = [], obj = null;
+    try { obj = _maxPatcher.firstobject; } catch(e) { obj = null; }
+    while (obj) {
+        var next = null;
+        try { next = obj.nextobject; } catch(e) { next = null; }
+        if (isLiveReadyPrepend(obj)) doomed.push(obj);
+        obj = next;
+    }
+
+    post("cleanupLiveReady: found " + doomed.length + " [prepend liveReady] object(s)\n");
+    var gone = 0;
+    doomed.forEach(function(o) {
+        try { _maxPatcher.remove(o); gone++; } catch(e) {
+            post("  could not remove one: " + e.message + "\n");
+        }
+    });
+
+    // A thisdevice that already exists keeps its wiring; only build one if none is left.
+    var td = findByClassHere("live.thisdevice");
+    if (!td) {
+        td = _maxPatcher.newdefault(20, 470, "live.thisdevice");
+        try { td.varname = "organ_live_ready"; } catch(e) {}
+    }
+    var fwd = _maxPatcher.newdefault(20, 500, "prepend", "liveReady");
+    try { fwd.varname = "organ_live_ready_fwd"; } catch(e) {}
+    if (td && fwd) {
+        _maxPatcher.connect(td, 0, fwd, 0);
+        if (_maxBox) _maxPatcher.connect(fwd, 0, _maxBox, 0);
+    }
+
+    post("cleanupLiveReady: removed " + gone + ", rebuilt one [live.thisdevice] → " +
+         "[prepend liveReady] → this object.\n");
+    post("  Check the patcher, then SAVE — otherwise it is gone again next load.\n");
+}
+
+// Box text is the reliable identifier, but the JS API does not always hand it over.
+// Fall back on what built these: class "prepend" at the exact spot newdefault used.
+function isLiveReadyPrepend(o) {
+    var txt = null;
+    try { txt = String(o.getattr("text")); } catch(e) { txt = null; }
+    if (txt && txt !== "undefined") return txt === "prepend liveReady";
+
+    var cls = "";
+    try { cls = String(o.maxclass).toLowerCase(); } catch(e) { return false; }
+    if (cls.indexOf("prepend") === -1) return false;
+    // Position alone is not enough: any other prepend parked at the same spot would be
+    // swept up with them.  newdefault gave these a width of 109, so require that too.
+    try {
+        var r = o.rect;
+        return !!(r && Math.round(r[0]) === 20 && Math.round(r[1]) === 500 &&
+                  Math.abs((r[2] - r[0]) - 109) < 2);
+    } catch(e) { return false; }
+}
+
 function makeLiveReadyTrigger() {
     // The decisive test is not whether we can find the object but whether one already
     // did its job: liveReady() only runs when a wired [live.thisdevice] banged.  By the
@@ -2009,7 +2076,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.37 - clip is created on an empty spot too\n");
+    post("Organ Control System v01.38 - cleanupLiveReady clears the leftover trigger objects\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
