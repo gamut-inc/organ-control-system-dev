@@ -593,6 +593,17 @@ function findDialogObject() {
     var found = findNamed("organ_dialog");
     if (found) { _dialogObj = found; return found; }
 
+    // A [dialog] the user placed by hand usually has no scripting name, so the
+    // lookup above misses it and we would keep building another one beside it.
+    // Adopt whatever dialog is already in the patcher instead.
+    found = findByClass(_patcher, "dialog", 0);
+    if (found) {
+        try { found.varname = "organ_dialog"; } catch(e) {}   // findable next time
+        _dialogObj = found;
+        say("gamut_storage_organ: using the [dialog] already in the patcher\n");
+        return found;
+    }
+
     // Not there yet — build it and wire its answer back into the js object
     try {
         // varname is a BOX attribute; [dialog] rejects it as an object argument
@@ -1013,6 +1024,25 @@ function findNamedDeep(patcher, varname, depth) {
         if (sub) {
             var found = findNamedDeep(sub, varname, depth + 1);
             if (found) return found;
+        }
+        obj = obj.nextobject;
+    }
+    return null;
+}
+
+// First object of a given class at or below `patcher`.  Same walk as findNamedDeep,
+// matching the class rather than the scripting name.
+function findByClass(patcher, cls, depth) {
+    if (!patcher || depth > 6) return null;
+    var obj = patcher.firstobject;
+    while (obj) {
+        try { if (String(obj.maxclass) === cls) return obj; } catch(e) {}
+        var sub = null;
+        try { sub = (typeof obj.subpatcher === "function") ? obj.subpatcher() : null; }
+        catch(e) { sub = null; }
+        if (sub) {
+            var hit = findByClass(sub, cls, depth + 1);
+            if (hit) return hit;
         }
         obj = obj.nextobject;
     }

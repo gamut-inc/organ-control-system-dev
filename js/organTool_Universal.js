@@ -771,13 +771,13 @@ function sendTrackPort() {
     // A bare number means the API answered before it was up — not a port name
     _routingValid = !!(port && !/^\d+$/.test(String(port)) && port !== "None");
 
+    // Two observers (type and channel) both fire on a change, and the retries add
+    // more calls on top.  Report and announce only what actually changed, or the
+    // console fills with the same line six times over.
+    if (_routingValid && port === _lastPortSent) return;
+
     post("Track MIDI out — port: " + port + "   channel: " + chan +
          (_routingValid ? "" : "   (not a port name yet — Live API not ready)") + "\n");
-
-    // Two observers (type and channel) both fire on a change, and the retries add
-    // more calls on top — without this the same port is announced half a dozen times
-    // and multichanmidiout re-lists and re-connects each time.
-    if (_routingValid && port === _lastPortSent) return;
     if (_routingValid) {
         _lastPortSent = port;
         // multichanmidiout matches against a list it only builds on request
