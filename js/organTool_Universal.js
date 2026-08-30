@@ -1059,6 +1059,17 @@ function deleteArrangementClip(clip) {
 // Chain number = stopID = the note that addresses the stop, so the rack, the clips
 // and the console all use one numbering.
 
+// Send a marker out of every outlet, so a [print] settles which one it is on
+// instead of anyone reasoning about it.  Outlet 0 feeds multichanmidiout, which will
+// complain about the marker — that complaint is itself the proof it arrived.
+//   [message outletTest]
+function outletTest() {
+    post("outletTest: marker out of outlet 0, then outlet 1\n");
+    outlet(0, "outletTest", 0);
+    outlet(1, "outletTest", 1);
+    post("outletTest: both sent — whichever number your print shows is the outlet it is on\n");
+}
+
 // Module-level: the rack dict has to outlive this call, or Max frees it and the
 // patcher's [dict gamut_rack_chains] finds nothing.
 var _rackDict = new Dict("gamut_rack_chains");
