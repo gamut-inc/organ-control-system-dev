@@ -16,3 +16,6 @@ Icon?
 *.swp
 *~
 js/gamut_organ_presets.json
+
+# LibreOffice lock files
+.~lock.*#
