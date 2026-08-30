@@ -840,6 +840,34 @@ function liveReady() {
     try { if (_liveReadyFallback) _liveReadyFallback.cancel(); } catch(e) {}
     post("Live is ready — reading the track's MIDI routing\n");
     watchTrackOutput();
+    maybeLoadSavedOrgan();
+}
+
+// The organ load waits on two things, and neither one alone is enough:
+//
+//   _bootReady      the 400ms settle, because initStorage() may still be inside its
+//                   own 150ms pattrstorage recall and the organ path not yet readable
+//   _liveReadyFired the MIDI port, because building the GUI emits the controller
+//                   defaults ("so the organ agrees") and every stop's initial state.
+//                   Sent before multichanmidiout has a port, those are dropped —
+//                   "no port selected" — and the organ never gets them.
+//
+// Whichever arrives second starts the load.  Order used to be luck: a saved
+// [live.thisdevice] happened to bang before the 400ms task, and once that object was
+// removed from the patcher the defaults went out into nothing.
+var _bootReady       = false;
+var _organAutoLoaded = false;
+
+function maybeLoadSavedOrgan() {
+    if (!_bootReady || !_liveReadyFired || _organAutoLoaded) return;
+    _organAutoLoaded = true;
+    var savedPath = organStorage ? organStorage.getOrganPath() : null;
+    if (savedPath) {
+        post("organTool_Universal: auto-reloading organ: " + savedPath + "\n");
+        loadOrgan(savedPath);
+    } else {
+        post("organTool_Universal: no saved organ path (first run)\n");
+    }
 }
 
 function makeLiveReadyTrigger() {
@@ -1828,24 +1856,21 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.30 - script folder checked with Folder, not File\n");
+    post("Organ Control System v01.31 - organ loads once the MIDI port is up, not before\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.
     // 400ms: initStorage() may still be waiting on an asynchronous pattrstorage
     // recall (150ms Task) before the bank — and with it the organ path — is readable.
     var autoReloadTask = new Task(function() {
-        var savedPath = organStorage ? organStorage.getOrganPath() : null;
-        if (savedPath) {
-            post("organTool_Universal: auto-reloading organ: " + savedPath + "\n");
-            loadOrgan(savedPath);
-        } else {
-            post("organTool_Universal: no saved organ path (first run)\n");
-        }
-        // Follow the track's MIDI output routing.  live.thisdevice tells us when the
-        // Live API is actually up; this first attempt is just the early try.
+        _bootReady = true;
+        // Routing first: the GUI build sends MIDI, so the port has to exist by then.
+        // live.thisdevice tells us when the Live API is actually up, and the fallback
+        // timer inside makeLiveReadyTrigger guarantees this resolves either way —
+        // including outside Live, where no bang is ever coming.
         makeLiveReadyTrigger();
         watchTrackOutput();
+        maybeLoadSavedOrgan();
     });
     autoReloadTask.schedule(400);
 }
