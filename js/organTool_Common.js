@@ -242,10 +242,18 @@ try {
 }
 }
 
+// Live's own typeface, so the generated labels sit next to the live.* widgets
+// without looking pasted in.  The family carries the weight: "Ableton Sans Medium"
+// with style Regular, not "Ableton Sans" plus a bold face.  Max falls back to its
+// default if the family is not visible to it, so this cannot break the build.
+var COMMENT_FONT = "Ableton Sans Medium";
+
 function createLiveComment(p, x, y, w, h, varname, displayName, maxLength, fontsize, fontface) {
         maxLength = maxLength || 15;  // Increased default for better readability
         fontsize = fontsize || 12;
-        fontface = fontface || "bold";
+        // The weight lives in the family name here ("Ableton Sans Medium", style
+        // Regular), so asking for bold on top would make Max synthesise one.
+        fontface = fontface || "regular";
         
         var shortenedName = shortenString(displayName, maxLength);
         
@@ -256,6 +264,7 @@ function createLiveComment(p, x, y, w, h, varname, displayName, maxLength, fonts
                 "@patching_rect", x, y, w, h,
                 "@presentation_rect", x, y, w, h,   
                 "@fontsize", fontsize,
+                "@fontname", COMMENT_FONT,
                 "@fontface", fontface,
                 "@presentation", 1      
                 );
@@ -580,4 +589,4 @@ if (typeof global !== 'undefined') {
     global.createCommonModule = createCommonModule;
 }
 
-post("organTool_Common.js v00.17 - clearGUI keeps dicts and everything named organ_*\n");
+post("organTool_Common.js v00.18 - comments set in Ableton Sans Medium\n");

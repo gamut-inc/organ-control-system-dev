@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.40";
-var SYSTEM_VERSION_NOTE = "unmarked couplers now get their own column too";
+var SYSTEM_VERSION      = "01.41";
+var SYSTEM_VERSION_NOTE = "PANIC silences, CANCEL clears, RESET does both";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {

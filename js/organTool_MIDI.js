@@ -174,6 +174,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         headerY:      4,    // organ name label — everything starts as high as it can
         headerH:     24,    // the title's own row
         globalPanicY: 0,    // filled in below: the buttons sit under the title
+        globalResetY: 0,    // third row, under CANCEL
         headerGap:    6,    // header bottom → first manual
         manualGap:    8,
         // The manual name wraps to two lines ("Schwellwerk" / "(ch4)"), so the left
@@ -212,6 +213,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // and the global dials.
     LAYOUT.globalPanicY  = LAYOUT.headerY + LAYOUT.headerH;
     LAYOUT.globalCancelY = LAYOUT.globalPanicY + LAYOUT.btnH + LAYOUT.btnGap;
+    LAYOUT.globalResetY  = LAYOUT.globalCancelY + LAYOUT.btnH + LAYOUT.btnGap;
     LAYOUT.presetMenuY   = LAYOUT.globalPanicY;
     LAYOUT.presetMenuW   = 170;
     LAYOUT.globalDialY   = LAYOUT.presetMenuY + LAYOUT.btnH + LAYOUT.btnGap;
@@ -890,19 +892,22 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var cancel = createActionButton(p, gx, LAYOUT.globalCancelY, "cancel_all", "CANCEL",
             fs.small, false, function() { executeCancel(null); });
 
+        // Third row, under CANCEL: the three read top to bottom by how much they undo —
+        // notes, then registration, then everything.
+        var resetAll = createActionButton(p, gx, LAYOUT.globalResetY, "reset_all", "RESET",
+            fs.small, false, function() { executeResetAll(); });
+
         // Which build is loaded — the one thing you want to see at a glance when a
-        // rehearsal behaves unexpectedly.  Column 2 on the PANIC row is taken by the
-        // preset menu, so it goes immediately to its right, on the same line.
-        // Right of PANIC, above the first global dial.  The preset menu was moved into
-        // the presetControl bpatcher and is reused where it sits, so column 2 at this
-        // height is free.
+        // rehearsal behaves unexpectedly.  Right of PANIC, above the first global dial:
+        // the preset menu was moved into the presetControl bpatcher and is reused where
+        // it sits, so column 2 at this height is free.
         try {
             var vTxt = "v" + (typeof SYSTEM_VERSION !== "undefined" ? SYSTEM_VERSION : "?");
             common.createLiveComment(p, LAYOUT.headerCol2X, LAYOUT.globalPanicY + 3,
                 80, 18, "versionLabel", vTxt, 12, 10);
         } catch(e) { /* the header must build even if the label does not */ }
 
-        var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
+        var bottomY = LAYOUT.globalResetY + LAYOUT.btnH;
 
         // Global controls (manual 0) run along the header below the preset menu —
         // same x as the manuals' controller column, so the two line up.
@@ -1390,10 +1395,27 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             : organState.manuals.filter(function(m) { return m.manualID === manualID; });
 
         targets.forEach(function(manual) { sendPanicMIDI(manual); });
-        if (isGlobal) sendGlobalPanicMIDI();
 
         common.log(common.LOG_LEVEL.INFO, "PANIC" +
             (isGlobal ? " (all manuals)" : " manual " + manualID));
+    }
+
+    // ------------------------------------------------------------------------------
+    // RESET — notes, registration and controllers
+    // ------------------------------------------------------------------------------
+    // The buttons used to disagree with themselves.  In a manual, PANIC silences notes
+    // and CANCEL clears the registration; globally, PANIC did both — because the
+    // instrument's global panic is a different command.  The per-manual ones are
+    // CC 123 "All Notes Off"; the global one is CC 120, named in the instrument file
+    // "All Notes and Stops Off".
+    //
+    // That is not a panic, it is a reset.  It moves to a button of its own, and global
+    // PANIC now does exactly what the manual panics do.
+    function executeResetAll() {
+        sendGlobalPanicMIDI();     // the instrument's own notes-and-stops command
+        executePanic(null);        // the per-manual note-offs, should it ignore that
+        executeCancel(null);       // registration and controllers back to their defaults
+        common.log(common.LOG_LEVEL.INFO, "RESET: notes, registration and controllers");
     }
 
     // btn.message("set", ...) fires MaxobjListener callbacks ASYNCHRONOUSLY — keep
@@ -1700,4 +1722,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.13 - one rule decides what a coupler is\n");
+post("organTool_MIDI.js v00.14 - PANIC silences, CANCEL clears, RESET does both\n");
