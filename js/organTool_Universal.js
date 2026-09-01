@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.39";
-var SYSTEM_VERSION_NOTE = "couplers gathered in the right column; version shown in the header";
+var SYSTEM_VERSION      = "01.40";
+var SYSTEM_VERSION_NOTE = "unmarked couplers now get their own column too";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {

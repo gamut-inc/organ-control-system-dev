@@ -299,6 +299,16 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // went uncoloured.  Accept the Unicode vulgar fractions and the fraction slash.
     var STOP_ALIQUOT_RE = /[\u2150-\u215E\u2044]|\d\/\d/;
 
+    // The one place that decides what a coupler is.  The layout separates them into
+    // their own grid and the colouring greys them out — both used to test the JSON
+    // field on their own, so three couplers on the Konzerthausorgel that were never
+    // marked landed among the ranks.  Name detection covers what the file forgets.
+    function isCoupler(stop) {
+        if (!stop) return false;
+        if (stop.type === "coupler") return true;
+        return STOP_COUPLER_RE.test(String(stop.name || "").trim());
+    }
+
     function stopColorClass(name, type) {
         if (type === "coupler") return "coupler";
         if (type === "effect")  return "effect";
@@ -883,12 +893,13 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // Which build is loaded — the one thing you want to see at a glance when a
         // rehearsal behaves unexpectedly.  Column 2 on the PANIC row is taken by the
         // preset menu, so it goes immediately to its right, on the same line.
+        // Right of PANIC, above the first global dial.  The preset menu was moved into
+        // the presetControl bpatcher and is reused where it sits, so column 2 at this
+        // height is free.
         try {
             var vTxt = "v" + (typeof SYSTEM_VERSION !== "undefined" ? SYSTEM_VERSION : "?");
-            common.createLiveComment(p,
-                LAYOUT.headerCol2X + LAYOUT.presetMenuW + LAYOUT.ctrlGap,
-                LAYOUT.globalPanicY + 3, 64, 18,
-                "versionLabel", vTxt, 12, 10);
+            common.createLiveComment(p, LAYOUT.headerCol2X, LAYOUT.globalPanicY + 3,
+                80, 18, "versionLabel", vTxt, 12, 10);
         } catch(e) { /* the header must build even if the label does not */ }
 
         var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
@@ -1096,8 +1107,8 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         organState.displayOrder.forEach(function(manualData) {
             // Couplers are laid out separately, in their own trailing column
-            var registers = manualData.stops.filter(function(s) { return s.type !== "coupler"; });
-            var couplers  = manualData.stops.filter(function(s) { return s.type === "coupler"; });
+            var registers = manualData.stops.filter(function(s) { return !isCoupler(s); });
+            var couplers  = manualData.stops.filter(function(s) { return  isCoupler(s); });
 
             var margin = (typeof G.columns.margin === 'function') ? G.columns.margin() : G.columns.margin;
             var colW   = G.columns.w() + margin;
@@ -1214,16 +1225,6 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var currentColumn = 0;
         var currentRow = 0;
         var seenIDs = {};
-
-        // Couplers to the end, so they gather in the rightmost column instead of
-        // sitting scattered among the ranks.  Two passes rather than a sort: the order
-        // within each group has to stay exactly as the instrument file gives it, and
-        // that does not depend on whether the engine's sort is stable.
-        var ranks = [], couplers = [];
-        stopList.forEach(function(st) {
-            (stopColorClass(st.name, st.type) === "coupler" ? couplers : ranks).push(st);
-        });
-        stopList = ranks.concat(couplers);
 
         stopList.forEach(function(stop, index) {
             var sid     = stop.stopID;
@@ -1699,4 +1700,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.12 - couplers gathered right, version shown in the header\n");
+post("organTool_MIDI.js v00.13 - one rule decides what a coupler is\n");
