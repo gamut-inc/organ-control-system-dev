@@ -85,6 +85,12 @@ function getScriptDirectory() {
     return scriptDir;
 }
 
+// The version was a literal inside the startup post() and drifted every time it was
+// edited there.  One constant, read by the log line and shown in the header, so what
+// the console says and what the device shows can no longer disagree.
+var SYSTEM_VERSION      = "01.39";
+var SYSTEM_VERSION_NOTE = "couplers gathered in the right column; version shown in the header";
+
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {
     post("CRITICAL ERROR: Cannot determine script directory!\n");
@@ -2076,7 +2082,7 @@ function anything() {
 if (!initializeSystem()) {
     post("ERROR: System initialization failed!\n");
 } else {
-    post("Organ Control System v01.38 - cleanupLiveReady clears the leftover trigger objects\n");
+    post("Organ Control System v" + SYSTEM_VERSION + " - " + SYSTEM_VERSION_NOTE + "\n");
     post("Commands: loadOrgan(path), selectOrganFile(), presetStore(nr, name), presetRecall(nr)\n");
 
     // Auto-reload the organ that was loaded when the project was last saved.

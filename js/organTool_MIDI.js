@@ -880,6 +880,17 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var cancel = createActionButton(p, gx, LAYOUT.globalCancelY, "cancel_all", "CANCEL",
             fs.small, false, function() { executeCancel(null); });
 
+        // Which build is loaded — the one thing you want to see at a glance when a
+        // rehearsal behaves unexpectedly.  Column 2 on the PANIC row is taken by the
+        // preset menu, so it goes immediately to its right, on the same line.
+        try {
+            var vTxt = "v" + (typeof SYSTEM_VERSION !== "undefined" ? SYSTEM_VERSION : "?");
+            common.createLiveComment(p,
+                LAYOUT.headerCol2X + LAYOUT.presetMenuW + LAYOUT.ctrlGap,
+                LAYOUT.globalPanicY + 3, 64, 18,
+                "versionLabel", vTxt, 12, 10);
+        } catch(e) { /* the header must build even if the label does not */ }
+
         var bottomY = LAYOUT.globalCancelY + LAYOUT.btnH;
 
         // Global controls (manual 0) run along the header below the preset menu —
@@ -1203,6 +1214,16 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         var currentColumn = 0;
         var currentRow = 0;
         var seenIDs = {};
+
+        // Couplers to the end, so they gather in the rightmost column instead of
+        // sitting scattered among the ranks.  Two passes rather than a sort: the order
+        // within each group has to stay exactly as the instrument file gives it, and
+        // that does not depend on whether the engine's sort is stable.
+        var ranks = [], couplers = [];
+        stopList.forEach(function(st) {
+            (stopColorClass(st.name, st.type) === "coupler" ? couplers : ranks).push(st);
+        });
+        stopList = ranks.concat(couplers);
 
         stopList.forEach(function(stop, index) {
             var sid     = stop.stopID;
@@ -1678,4 +1699,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.11 - aliquots detected, mixtures and effects coloured, effects guarded\n");
+post("organTool_MIDI.js v00.12 - couplers gathered right, version shown in the header\n");
