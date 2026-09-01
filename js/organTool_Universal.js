@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.43";
-var SYSTEM_VERSION_NOTE = "the stop note-off waits for the stragglers";
+var SYSTEM_VERSION      = "01.44";
+var SYSTEM_VERSION_NOTE = "the registration is re-asserted after a transport stop";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {
@@ -1290,6 +1290,7 @@ function onTransportChange() {
             schedulePanicOnStop();
         } else if (!_wasPlaying && playing) {
             cancelPanicOnStop();      // started again inside the window: let it play
+            try { if (_resendTask) _resendTask.cancel(); } catch(e) {}
         }
         _wasPlaying = playing;
     } catch (e) { /* transport unreadable — nothing else depends on this */ }
@@ -1342,6 +1343,38 @@ function panicOnStop() {
     } catch (e) {
         post("panicOnStop: " + e.message + "\n");
     }
+    if (_resendAfterStop) scheduleResend();
+}
+
+// Stopping drops the registration on this instrument.  Rather than work out who is
+// responsible — Live releasing notes it started from a clip, or the console reading
+// the all-notes-off as "division off" — simply state the registration again once the
+// dust has settled.  It is the drawn registration, read from the GUI, so it is right
+// whatever the cause was.
+//
+// [message resendAfterStop 0] turns it off if an instrument does not need it.
+var RESEND_AFTER_STOP_MS = 150;      // on top of the panic delay
+var _resendAfterStop     = 1;
+var _resendTask          = null;
+
+function scheduleResend() {
+    if (!_resendTask) _resendTask = new Task(function() { resendRegistration(); });
+    try { _resendTask.cancel(); } catch(e) {}
+    _resendTask.schedule(RESEND_AFTER_STOP_MS);
+}
+
+/** [message resendRegistration] — re-send the stops that are drawn right now. */
+function resendRegistration() {
+    if (system.organModule && typeof system.organModule.resendRegistration === "function") {
+        system.organModule.resendRegistration();
+    } else {
+        post("resendRegistration: no organ loaded\n");
+    }
+}
+
+function resendAfterStop(on) {
+    _resendAfterStop = Number(on) ? 1 : 0;
+    post("Registration re-sent after a transport stop: " + (_resendAfterStop ? "on" : "off") + "\n");
 }
 
 function watchTransport() {

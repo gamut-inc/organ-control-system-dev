@@ -1461,6 +1461,41 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // on/off needs the note-off to arrive, and a note-off arrives whenever the
     // transport stops — which would drop the registration mid-rehearsal.  Reading a
     // burst of notes as the whole picture removes the need for note-offs entirely.
+    // Re-assert what is drawn right now.  Unlike applyRegistration this sends every
+    // stop, on AND off, whether or not it already matches — the point is to state the
+    // registration again to an instrument that may have lost it, not to reach a target
+    // state.  It reads the GUI, so it is the drawn registration, not the last preset.
+    function resendRegistration() {
+        if (!guiObjects || !guiObjects.manuals) {
+            common.log(common.LOG_LEVEL.WARN, "resendRegistration: no organ loaded");
+            return 0;
+        }
+
+        if (organState.stopSystem === "sysex") {
+            sendSysExState();                     // the whole state is one message anyway
+            common.log(common.LOG_LEVEL.INFO, "Registration re-sent (SysEx dump)");
+            return 1;
+        }
+
+        var sent = 0, on = 0;
+        guiObjects.manuals.manuals.forEach(function(manual) {
+            Object.keys(manual.stopButtonMap).forEach(function(btnKey) {
+                var stopID = parseInt(String(btnKey).replace(/^stop/, "").split("_")[0], 10);
+                if (isNaN(stopID)) return;
+                var stop = organState.stopsByID[stopID];
+                if (!stop) return;
+                var state = Boolean(manual.stopState[btnKey]);
+                sendStopMIDI(stop, state);
+                sent++;
+                if (state) on++;
+            });
+        });
+
+        common.log(common.LOG_LEVEL.INFO,
+            "Registration re-sent: " + sent + " stop(s), " + on + " drawn");
+        return sent;
+    }
+
     function applyRegistration(stopIDs) {
         var wanted = {};
         (stopIDs || []).forEach(function(id) { wanted[Number(id)] = true; });
@@ -1700,6 +1735,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
 
         handleStopEvent: handleStopEvent,
         panicAll: function() { executePanic(null); },   // used on a transport stop
+        resendRegistration: resendRegistration,         // re-assert what is drawn
         applyRegistration: applyRegistration,   // absolute set, from a clip note burst
 
         // Preset system — called from gamut_storage_organ.js
@@ -1725,4 +1761,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.15 - cancel leaves the controllers; panic on transport stop\n");
+post("organTool_MIDI.js v00.16 - resendRegistration re-asserts what is drawn\n");
