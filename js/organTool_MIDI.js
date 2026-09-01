@@ -278,18 +278,75 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         "bombardon", "chamade"
     ];
 
+    // Noise-makers: they belong to no rank and are switched for effect.  Deliberately
+    // narrow — "Terzzimbel 3 f." and "Scharfzimbel 5 f." are mixtures and must not be
+    // caught by a bare "zimbel".
+    var STOP_EFFECT_KEYWORDS = [
+        "zimbelstern", "zymbelstern", "cymbelstern",
+        "kuckuck", "vogelschrei", "vogelgesang", "nachtigall", "rossignol"
+    ];
+
+    // Couplers by name: "IV-III", "Sub IV-II", "Super IV-P".  Roman numerals or P for
+    // the pedal on either side.  Detecting them saves marking each one by hand in the
+    // instrument file — three were missed on the Konzerthausorgel that way.
+    var STOP_COUPLER_RE = /^(sub|super)?\s*([ivx]+|p)\s*-\s*([ivx]+|p)\s*$/i;
+
+    // Compound stops carry their rank count: "Mixtur 5-6 f.", "Sesquialtera 2 f."
+    var STOP_MIXTURE_RE = /\s\d+(\s*[-\u2013]\s*\d+)?\s*f\.\s*$/;
+
+    // Fractional pitch.  The old rule looked for an ASCII "2/3" and therefore never
+    // matched a properly typeset "Nasat 2⅔'" — every aliquot on the Konzerthausorgel
+    // went uncoloured.  Accept the Unicode vulgar fractions and the fraction slash.
+    var STOP_ALIQUOT_RE = /[\u2150-\u215E\u2044]|\d\/\d/;
+
     function stopColorClass(name, type) {
         if (type === "coupler") return "coupler";
+        if (type === "effect")  return "effect";
         if (!name) return "normal";
         var n = name.toLowerCase();
+        if (STOP_COUPLER_RE.test(name.trim())) return "coupler";
         // Tremulants read before reeds: "Clairon Tremulant" is a tremulant control
         if (n.indexOf("tremulant") >= 0) return "tremulant";
+        for (var e = 0; e < STOP_EFFECT_KEYWORDS.length; e++) {
+            if (n.indexOf(STOP_EFFECT_KEYWORDS[e]) >= 0) return "effect";
+        }
+        // Rank count before everything else: a compound stop is a compound stop,
+        // whatever its name suggests ("Sesquialtera 2 f." is not an aliquot).
+        if (STOP_MIXTURE_RE.test(name)) return "mixture";
         for (var i = 0; i < STOP_REED_KEYWORDS.length; i++) {
             if (n.indexOf(STOP_REED_KEYWORDS[i]) >= 0) return "reed";
         }
-        // Aliquot: fractional pitch — a digit immediately followed by "/" then a digit
-        if (/\d\/\d/.test(name)) return "aliquot";
+        if (STOP_ALIQUOT_RE.test(name)) return "aliquot";
         return "normal";
+    }
+
+    // ------------------------------------------------------------------------------
+    // GUARD — a second press to switch an effect stop ON
+    // ------------------------------------------------------------------------------
+    // Zimbelstern, Kuckuck and Vogelschrei sound the moment they are drawn and sit
+    // among ordinary stops, so they get hit by accident.  Turning one ON now needs two
+    // presses within GUARD_WINDOW_MS; turning it OFF stays immediate, because in
+    // performance you have to be able to stop the noise at once.
+    //
+    // A plain timestamp rather than a Task: nothing to schedule, nothing to be
+    // collected, and no state that can get stuck.
+    //
+    // Per stop, "guard" in the instrument file wins over the automatic rule.
+    var GUARD_WINDOW_MS = 1200;
+    var _guardArmed = {};          // varname → time of the first press
+
+    function stopIsGuarded(stop, colorClass) {
+        if (stop && stop.guard !== undefined) return !!stop.guard;
+        return colorClass === "effect";
+    }
+
+    // Returns true when the press should be swallowed.
+    function guardBlocks(varname) {
+        var now  = Date.now();
+        var last = _guardArmed[varname] || 0;
+        if (now - last < GUARD_WINDOW_MS) { delete _guardArmed[varname]; return false; }
+        _guardArmed[varname] = now;
+        return true;
     }
 
     function applyStopColor(liveTextObj, colorClass) {
@@ -306,6 +363,22 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 // Darkened orange — a movement control, not a rank
                 liveTextObj.setattr("activebgcolor",     0.75, 0.42, 0.0,  0.2);
                 liveTextObj.setattr("activebgoncolor",   0.75, 0.42, 0.0,  1.0);
+                liveTextObj.setattr("activetextoncolor", 1.0,  1.0,  1.0,  1.0);
+            } else if (colorClass === "mixture") {
+                // Darker than the rest: compound stops are the body of the plenum,
+                // rarely drawn alone, and should not compete for attention
+                liveTextObj.setattr("bgcolor",           0.22, 0.22, 0.24, 1.0);
+                liveTextObj.setattr("textcolor",         0.62, 0.62, 0.66, 1.0);
+                liveTextObj.setattr("activebgcolor",     0.30, 0.30, 0.34, 0.35);
+                liveTextObj.setattr("activebgoncolor",   0.48, 0.48, 0.54, 1.0);
+                liveTextObj.setattr("activetextoncolor", 1.0,  1.0,  1.0,  1.0);
+            } else if (colorClass === "effect") {
+                // Violet, used for nothing else: Zimbelstern, Kuckuck and Vogelschrei
+                // are heard immediately and are the ones hit by accident
+                liveTextObj.setattr("bgcolor",           0.34, 0.16, 0.42, 1.0);
+                liveTextObj.setattr("textcolor",         0.85, 0.72, 0.95, 1.0);
+                liveTextObj.setattr("activebgcolor",     0.45, 0.20, 0.58, 0.35);
+                liveTextObj.setattr("activebgoncolor",   0.72, 0.30, 0.92, 1.0);
                 liveTextObj.setattr("activetextoncolor", 1.0,  1.0,  1.0,  1.0);
             } else if (colorClass === "coupler") {
                 // Greyed: couplers borrow other manuals, they do not speak themselves
@@ -1148,12 +1221,31 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 G.stops.w, G.stops.h, varname, fullLabel, stopLabel, stopLabel, 10);
 
             if (stopObj && stopObj.liveText) {
-                applyStopColor(stopObj.liveText, stopColorClass(stop.name, stop.type));
+                var cls     = stopColorClass(stop.name, stop.type);
+                var guarded = stopIsGuarded(stop, cls);
+                applyStopColor(stopObj.liveText, cls);
                 buttonMap[varname] = stopObj.liveText;
                 addListener(new MaxobjListener(stopObj.liveText, function(data) {
                     if (_suppressListeners) return;
-                    if (stateCache) stateCache[varname] = Boolean(data.value);
-                    executeStopAction(stop, Boolean(data.value));
+                    var on = Boolean(data.value);
+
+                    if (on && guarded && guardBlocks(varname)) {
+                        // Put the button back without letting that count as a press.
+                        // "set" does not make a widget output, but the flag is saved
+                        // and restored anyway — a stuck suppression is the one failure
+                        // this project has already had twice.
+                        var prev = _suppressListeners;
+                        _suppressListeners = true;
+                        try { stopObj.liveText.message("set", 0); } catch(e) {}
+                        _suppressListeners = prev;
+                        common.log(common.LOG_LEVEL.INFO,
+                            stop.name + " is guarded — press again within " +
+                            GUARD_WINDOW_MS + "ms to draw it");
+                        return;
+                    }
+
+                    if (stateCache) stateCache[varname] = on;
+                    executeStopAction(stop, on);
                 }));
             }
 
@@ -1586,4 +1678,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.10 - title on the manual edge; preset controls survive clearGUI\n");
+post("organTool_MIDI.js v00.11 - aliquots detected, mixtures and effects coloured, effects guarded\n");
