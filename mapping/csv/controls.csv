@@ -1,5 +1,5 @@
 controlID,controlName,type,manual,channel,controlMsg,controlNr,default
-1,Schweller,wheel,4,11,CC,9,0
+1,Schweller,wheel,4,11,CC,9,127
 2,Winddrossel,wheel,0,11,CC,10,127
 3,Tremulant 1,wheel,1,11,CC,11,0
 4,Tremulant 2,wheel,2,11,CC,12,0

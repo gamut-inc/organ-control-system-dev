@@ -663,7 +663,7 @@
       "channel": 11,
       "msg": "CC",
       "nr": 9,
-      "default": 0
+      "default": 127
     },
     {
       "controlID": 2,

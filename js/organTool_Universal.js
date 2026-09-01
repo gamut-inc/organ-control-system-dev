@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.42";
-var SYSTEM_VERSION_NOTE = "note-off on transport stop; cancel leaves the controllers";
+var SYSTEM_VERSION      = "01.43";
+var SYSTEM_VERSION_NOTE = "the stop note-off waits for the stragglers";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {
@@ -1287,7 +1287,9 @@ function onTransportChange() {
         var playing = parseInt(_transportAPI.get("is_playing"), 10) ? 1 : 0;
         if (_wasPlaying && !playing) {
             dropPendingOffs("stopped");
-            panicOnStop();
+            schedulePanicOnStop();
+        } else if (!_wasPlaying && playing) {
+            cancelPanicOnStop();      // started again inside the window: let it play
         }
         _wasPlaying = playing;
     } catch (e) { /* transport unreadable — nothing else depends on this */ }
@@ -1302,11 +1304,40 @@ function onTransportChange() {
 // Only notes.  The registration is untouched: stopping must not cost the stops that
 // are drawn, which is exactly the complaint that had the earlier note-off handling
 // removed.
+// Deliberately late.  The note that hangs is the one that arrives AFTER the last
+// note-off — sending the panic in the same breath as the transport stop would go out
+// before it and miss it entirely.  A short wait puts the note-off behind the
+// stragglers, which is the only position from which it can catch them.
+//
+// Cancelled if the transport starts again inside the window, so a quick stop-start
+// does not cut off what is playing.  Module scope, or the Task is collected before it
+// fires.
+var PANIC_ON_STOP_MS = 250;
+var _stopPanicTask   = null;
+
+function schedulePanicOnStop() {
+    if (!_stopPanicTask) _stopPanicTask = new Task(function() { panicOnStop(); });
+    try { _stopPanicTask.cancel(); } catch(e) {}
+    _stopPanicTask.schedule(PANIC_ON_STOP_MS);
+}
+
+function cancelPanicOnStop() {
+    try { if (_stopPanicTask) _stopPanicTask.cancel(); } catch(e) {}
+}
+
+/** [message panicOnStopDelay 400] — tune the wait without touching the code. */
+function panicOnStopDelay(ms) {
+    ms = Number(ms);
+    if (isNaN(ms) || ms < 0) { post("panicOnStopDelay is " + PANIC_ON_STOP_MS + "ms\n"); return; }
+    PANIC_ON_STOP_MS = ms;
+    post("Note-off after a transport stop now waits " + ms + "ms\n");
+}
+
 function panicOnStop() {
     try {
         if (system.organModule && typeof system.organModule.panicAll === "function") {
             system.organModule.panicAll();
-            post("Transport stopped — note-off sent on every manual channel\n");
+            post("Transport stopped — note-off on every manual channel after " + PANIC_ON_STOP_MS + "ms\n");
         }
     } catch (e) {
         post("panicOnStop: " + e.message + "\n");
