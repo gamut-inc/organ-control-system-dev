@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.41";
-var SYSTEM_VERSION_NOTE = "PANIC silences, CANCEL clears, RESET does both";
+var SYSTEM_VERSION      = "01.42";
+var SYSTEM_VERSION_NOTE = "note-off on transport stop; cancel leaves the controllers";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {
@@ -1285,9 +1285,32 @@ function dropPendingOffs(why) {
 function onTransportChange() {
     try {
         var playing = parseInt(_transportAPI.get("is_playing"), 10) ? 1 : 0;
-        if (_wasPlaying && !playing) dropPendingOffs("stopped");
+        if (_wasPlaying && !playing) {
+            dropPendingOffs("stopped");
+            panicOnStop();
+        }
         _wasPlaying = playing;
-    } catch (e) { /* transport unreadable — the deferral alone still helps */ }
+    } catch (e) { /* transport unreadable — nothing else depends on this */ }
+}
+
+// A dense passage can leave a note-on behind the last note-off, and the pipe then
+// stays open with nothing left to close it.  Stopping the transport is the moment
+// the player expects silence, so send the instrument's own note-off command on
+// every manual channel — the definitions from the instrument file, so this stays
+// right for an organ whose panic is not CC 123.
+//
+// Only notes.  The registration is untouched: stopping must not cost the stops that
+// are drawn, which is exactly the complaint that had the earlier note-off handling
+// removed.
+function panicOnStop() {
+    try {
+        if (system.organModule && typeof system.organModule.panicAll === "function") {
+            system.organModule.panicAll();
+            post("Transport stopped — note-off sent on every manual channel\n");
+        }
+    } catch (e) {
+        post("panicOnStop: " + e.message + "\n");
+    }
 }
 
 function watchTransport() {
@@ -1295,7 +1318,7 @@ function watchTransport() {
         _transportAPI = new LiveAPI(function() { onTransportChange(); }, "live_set");
         _transportAPI.property = "is_playing";
         _wasPlaying = parseInt(_transportAPI.get("is_playing"), 10) ? 1 : 0;
-        post("Watching the transport, so stopping cannot cancel a registration\n");
+        post("Watching the transport — stopping sends a note-off on every manual channel\n");
     } catch (e) {
         post("watchTransport: not available (" + e.message + ")\n");
     }
@@ -2101,6 +2124,7 @@ if (!initializeSystem()) {
         // [live.thisdevice] bangs before this task, liveReady has already run and this
         // is the fast path; otherwise the fallback timer gets us there.
         if (_liveReadyFired) watchTrackOutput();
+        if (!_transportAPI) watchTransport();   // for the note-off on a transport stop
         maybeLoadSavedOrgan();
     });
     autoReloadTask.schedule(400);

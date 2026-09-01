@@ -283,6 +283,10 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     // Noise-makers: they belong to no rank and are switched for effect.  Deliberately
     // narrow — "Terzzimbel 3 f." and "Scharfzimbel 5 f." are mixtures and must not be
     // caught by a bare "zimbel".
+    // The organ's name carries the weight of a heading.  Confirmed family name from
+    // the font itself: "Ableton Sans Bold", style Regular — the weight is in the family.
+    var TITLE_FONT = "Ableton Sans Bold";
+
     var STOP_EFFECT_KEYWORDS = [
         "zimbelstern", "zymbelstern", "cymbelstern",
         "kuckuck", "vogelschrei", "vogelgesang", "nachtigall", "rossignol"
@@ -884,7 +888,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         // The organ name sits on the manuals' own left edge.  Both are comments, so
         // matching the box x also matches the glyphs — no inset correction needed.
         var label = common.createLiveComment(p, LAYOUT.manualX + LAYOUT.btnX, LAYOUT.headerY,
-            260, 22, "organNameLabel", organName, 40, 14);
+            260, 22, "organNameLabel", organName, 40, 14, "regular", TITLE_FONT);
 
         var panic = createActionButton(p, gx, LAYOUT.globalPanicY, "panic_all", "PANIC",
             fs.large, true, function() { executePanic(null); });
@@ -1342,18 +1346,13 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         });
         if (organState.stopSystem === "sysex") sendSysExState();
 
-        // A cancel clears the registration, and the controllers are part of it —
-        // back to their resting positions (0, or 127 for something like a wind throttle).
-        var resetControls = (manualID === null || manualID === undefined)
-            ? allControls()
-            : (organState.wheelsByManual[manualID] || []);
-        resetControls.forEach(function(ctl) { resetControlToDefault(ctl); });
-
+        // Controllers stay where they are.  A cancel clears the registration; swell,
+        // wind and crescendo are positions the player set and has no reason to lose
+        // when dropping the stops.  RESET is the button that returns them.
         releaseSuppression();
 
         common.log(common.LOG_LEVEL.INFO, "Cancel executed" +
-            ((manualID !== null && manualID !== undefined) ? " for manual " + manualID : " (all)") +
-            ", " + resetControls.length + " control(s) reset");
+            ((manualID !== null && manualID !== undefined) ? " for manual " + manualID : " (all)"));
     }
 
     function allControls() {
@@ -1414,8 +1413,11 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
     function executeResetAll() {
         sendGlobalPanicMIDI();     // the instrument's own notes-and-stops command
         executePanic(null);        // the per-manual note-offs, should it ignore that
-        executeCancel(null);       // registration and controllers back to their defaults
-        common.log(common.LOG_LEVEL.INFO, "RESET: notes, registration and controllers");
+        executeCancel(null);       // registration off — this no longer touches controls
+        var ctls = allControls();
+        ctls.forEach(function(ctl) { resetControlToDefault(ctl); });
+        common.log(common.LOG_LEVEL.INFO,
+            "RESET: notes, registration and " + ctls.length + " controller(s)");
     }
 
     // btn.message("set", ...) fires MaxobjListener callbacks ASYNCHRONOUSLY — keep
@@ -1697,6 +1699,7 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
         },
 
         handleStopEvent: handleStopEvent,
+        panicAll: function() { executePanic(null); },   // used on a transport stop
         applyRegistration: applyRegistration,   // absolute set, from a clip note burst
 
         // Preset system — called from gamut_storage_organ.js
@@ -1722,4 +1725,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.14 - PANIC silences, CANCEL clears, RESET does both\n");
+post("organTool_MIDI.js v00.15 - cancel leaves the controllers; panic on transport stop\n");
