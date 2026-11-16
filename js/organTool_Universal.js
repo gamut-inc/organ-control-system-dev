@@ -88,8 +88,8 @@ function getScriptDirectory() {
 // The version was a literal inside the startup post() and drifted every time it was
 // edited there.  One constant, read by the log line and shown in the header, so what
 // the console says and what the device shows can no longer disagree.
-var SYSTEM_VERSION      = "01.44";
-var SYSTEM_VERSION_NOTE = "the registration is re-asserted after a transport stop";
+var SYSTEM_VERSION      = "01.45";
+var SYSTEM_VERSION_NOTE = "Fokker organ: several key channels per manual";
 
 var scriptDir = getScriptDirectory();
 if (!scriptDir) {

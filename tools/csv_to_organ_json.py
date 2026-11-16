@@ -198,6 +198,15 @@ def build(csv_dir):
             val = as_int(row, key)
             if val is not None:
                 manual[key] = val
+        # Optional: several key channels per manual ("1 2 3") and the compass
+        # (noteLow / noteHigh) — the Fokker organ needs both for its panic.
+        chans = (row.get("midiChannels") or "").replace(",", " ").split()
+        if chans:
+            manual["midiChannels"] = [int(c) for c in chans]
+            manual.setdefault("midiChannel", manual["midiChannels"][0])
+        lo, hi = as_int(row, "noteLow"), as_int(row, "noteHigh")
+        if lo is not None and hi is not None:
+            manual["noteRange"] = [lo, hi]
         organ["manuals"].append(manual)
 
     # --- stops.csv ---

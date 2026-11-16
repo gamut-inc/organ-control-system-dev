@@ -614,13 +614,22 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
             return;
         }
 
-        var ch = manual.midiChannel || 1;
+        var chans = (manual.midiChannels && manual.midiChannels.length)
+            ? manual.midiChannels : [manual.midiChannel || 1];
+        var ch = chans.join("+");
         if (organState.panicMethod === "allnotesoff") {
-            for (var n = 0; n < 128; n++) emitNote(ch, n, 0);
-            common.log(common.LOG_LEVEL.INFO, "PANIC ch" + ch + ": 128 note-offs");
+            var lo = manual.noteRange ? manual.noteRange[0] : 0;
+            var hi = manual.noteRange ? manual.noteRange[1] : 127;
+            chans.forEach(function(c) {
+                for (var n = lo; n <= hi; n++) emitNote(c, n, 0);
+            });
+            common.log(common.LOG_LEVEL.INFO, "PANIC ch" + ch + ": " +
+                (chans.length * (hi - lo + 1)) + " note-offs");
         } else {
-            emitCC(ch, 123, 0);   // all notes off
-            emitCC(ch, 120, 0);   // all sound off
+            chans.forEach(function(c) {
+                emitCC(c, 123, 0);   // all notes off
+                emitCC(c, 120, 0);   // all sound off
+            });
             common.log(common.LOG_LEVEL.INFO, "PANIC ch" + ch + ": CC123 + CC120");
         }
     }
@@ -707,6 +716,15 @@ function createMIDIModuleWithDI(common, dataLayer, context) {
                 manualID:    (m.manualID !== undefined) ? m.manualID : index,
                 name:        m.name || ("Manual " + index),
                 midiChannel: m.midiChannel || (index + 1),          // key action in
+                // A manual can occupy several key channels: the 31-tone Fokker organ
+                // spreads each one over three (MIDI "Methode 3").  Panic has to reach
+                // all of them.  noteRange keeps the note-off sweep to the compass.
+                midiChannels: (m.midiChannels && m.midiChannels.length)
+                                  ? m.midiChannels.map(Number)
+                                  : [m.midiChannel || (index + 1)],
+                noteRange:   (m.noteRange && m.noteRange.length === 2)
+                                  ? [Number(m.noteRange[0]), Number(m.noteRange[1])]
+                                  : [0, 127],
                 stopChannel: m.stopChannel || (stopChannelBase + index),  // stops out
                 stops:       []
             });
@@ -1761,4 +1779,4 @@ if (typeof global !== 'undefined') {
     global.createMIDIModuleWithDI = createMIDIModuleWithDI;
 }
 
-post("organTool_MIDI.js v00.16 - resendRegistration re-asserts what is drawn\n");
+post("organTool_MIDI.js v00.17 - manuals with several key channels (Fokker organ)\n");

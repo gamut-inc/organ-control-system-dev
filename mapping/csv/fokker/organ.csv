@@ -1,0 +1,6 @@
+key,value
+name,Fokker
+stopSystem,program
+outputFormat,named
+panicMethod,allnotesoff
+stopChannelBase,1

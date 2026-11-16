@@ -1,0 +1,4 @@
+manualID,name,midiChannel,midiChannels,noteLow,noteHigh,stopChannel
+1,Manual I,1,1 2 3,36,91,1
+2,Manual II,7,7 8 9,36,91,1
+8,Pedal,4,4 5 6,36,53,1

@@ -1,0 +1,10 @@
+stopID,name,type,manualID,programOn,programOff
+1,Subbas,,8,0,1
+2,Gedekt,,8,2,3
+3,P+I,coupler,8,4,5
+4,P+II,coupler,8,6,7
+5,Quintadeen,,1,8,9
+6,Prestant,,1,10,11
+7,I+II,coupler,1,12,13
+8,Salicionaal,,2,14,15
+9,Roerfluit,,2,16,17

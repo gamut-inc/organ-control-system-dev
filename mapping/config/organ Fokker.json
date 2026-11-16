@@ -1,0 +1,124 @@
+{
+  "name": "Fokker",
+  "midi": {
+    "stopSystem": "program",
+    "outputFormat": "named",
+    "panicMethod": "allnotesoff",
+    "stopChannelBase": 1
+  },
+  "manuals": [
+    {
+      "manualID": 1,
+      "name": "Manual I",
+      "midiChannel": 1,
+      "stopChannel": 1,
+      "midiChannels": [
+        1,
+        2,
+        3
+      ],
+      "noteRange": [
+        36,
+        91
+      ]
+    },
+    {
+      "manualID": 2,
+      "name": "Manual II",
+      "midiChannel": 7,
+      "stopChannel": 1,
+      "midiChannels": [
+        7,
+        8,
+        9
+      ],
+      "noteRange": [
+        36,
+        91
+      ]
+    },
+    {
+      "manualID": 8,
+      "name": "Pedal",
+      "midiChannel": 4,
+      "stopChannel": 1,
+      "midiChannels": [
+        4,
+        5,
+        6
+      ],
+      "noteRange": [
+        36,
+        53
+      ]
+    }
+  ],
+  "stops": [
+    {
+      "stopID": 1,
+      "name": "Subbas",
+      "manualID": 8,
+      "programOn": 0,
+      "programOff": 1
+    },
+    {
+      "stopID": 2,
+      "name": "Gedekt",
+      "manualID": 8,
+      "programOn": 2,
+      "programOff": 3
+    },
+    {
+      "stopID": 3,
+      "name": "P+I",
+      "manualID": 8,
+      "type": "coupler",
+      "programOn": 4,
+      "programOff": 5
+    },
+    {
+      "stopID": 4,
+      "name": "P+II",
+      "manualID": 8,
+      "type": "coupler",
+      "programOn": 6,
+      "programOff": 7
+    },
+    {
+      "stopID": 5,
+      "name": "Quintadeen",
+      "manualID": 1,
+      "programOn": 8,
+      "programOff": 9
+    },
+    {
+      "stopID": 6,
+      "name": "Prestant",
+      "manualID": 1,
+      "programOn": 10,
+      "programOff": 11
+    },
+    {
+      "stopID": 7,
+      "name": "I+II",
+      "manualID": 1,
+      "type": "coupler",
+      "programOn": 12,
+      "programOff": 13
+    },
+    {
+      "stopID": 8,
+      "name": "Salicionaal",
+      "manualID": 2,
+      "programOn": 14,
+      "programOff": 15
+    },
+    {
+      "stopID": 9,
+      "name": "Roerfluit",
+      "manualID": 2,
+      "programOn": 16,
+      "programOff": 17
+    }
+  ]
+}
